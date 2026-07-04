@@ -38,3 +38,11 @@ export const requireAdminProfile = cache(async (): Promise<{ profile: Profile; o
   if (result.profile.role !== "owner" && result.profile.role !== "admin") redirect("/dashboard");
   return result;
 });
+
+// Debtors/Expenses are Manager-tier+ (owner/admin/manager) — back-office
+// financial data, not a day-to-day Cashier/Warehouse task.
+export const requireManagerProfile = cache(async (): Promise<{ profile: Profile; org: Organization }> => {
+  const result = await requireProfile();
+  if (!["owner", "admin", "manager"].includes(result.profile.role)) redirect("/dashboard");
+  return result;
+});

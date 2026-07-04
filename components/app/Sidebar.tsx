@@ -7,6 +7,8 @@ const NAV = [
   { href: "/dashboard", label: "Overview", icon: "▦" },
   { href: "/products", label: "Products", icon: "📦" },
   { href: "/inventory", label: "Inventory", icon: "🗃️" },
+  { href: "/debtors", label: "Debtors", icon: "🧾", managerOnly: true },
+  { href: "/expenses", label: "Expenses", icon: "💸", managerOnly: true },
   { href: "/team", label: "Team", icon: "👥", adminOnly: true },
   { href: "/billing", label: "Billing", icon: "💳" },
   { href: "/settings", label: "Settings", icon: "⚙️", adminOnly: true },
@@ -29,7 +31,8 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
   const isAdmin = role === "owner" || role === "admin";
-  const nav = NAV.filter((item) => !item.adminOnly || isAdmin);
+  const isManagerUp = isAdmin || role === "manager";
+  const nav = NAV.filter((item) => (!item.adminOnly || isAdmin) && (!item.managerOnly || isManagerUp));
 
   return (
     <aside

@@ -10,6 +10,15 @@ export type IntegrationProvider =
   | "google_drive"
   | "webhooks";
 export type ProductStatus = "in_stock" | "low_stock" | "out_of_stock";
+export type DebtorStatus = "pending" | "partially_paid" | "paid" | "overdue" | "cancelled";
+export type ExpenseCategory =
+  | "rent"
+  | "salary"
+  | "transport"
+  | "utilities"
+  | "inventory_purchase"
+  | "logistics"
+  | "miscellaneous";
 
 export interface Organization {
   id: string;
@@ -63,6 +72,42 @@ export interface Supplier {
   address: string | null;
   company: string | null;
   contact_person: string | null;
+  created_at: string;
+}
+
+export interface Debtor {
+  id: string;
+  org_id: string;
+  customer_name: string;
+  phone: string | null;
+  email: string | null;
+  notes: string | null;
+  amount_owed: number;
+  due_date: string | null;
+  status: DebtorStatus;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DebtorPayment {
+  id: string;
+  org_id: string;
+  debtor_id: string;
+  amount: number;
+  paid_at: string;
+  note: string | null;
+  created_by: string | null;
+}
+
+export interface Expense {
+  id: string;
+  org_id: string;
+  category: ExpenseCategory;
+  description: string | null;
+  amount: number;
+  incurred_at: string;
+  created_by: string | null;
   created_at: string;
 }
 
