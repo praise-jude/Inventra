@@ -1,0 +1,330 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useToast } from "@/components/app/ToastProvider";
+import { useWorkspace } from "@/components/app/CurrencyProvider";
+import { recordSale, createCustomer } from "@/lib/actions/sales";
+import type { ProductListRow } from "@/lib/queries/products";
+import type { CustomerOption } from "@/lib/queries/customers";
+import { Field } from "@/components/ui/Field";
+import { Select } from "@/components/ui/Select";
+import { Button } from "@/components/ui/Button";
+
+const PAYMENT_OPTIONS = [
+  { value: "cash", label: "Cash" },
+  { value: "card", label: "Card" },
+  { value: "bank_transfer", label: "Bank Transfer" },
+  { value: "mobile_money", label: "Mobile Money" },
+];
+
+interface CartLine {
+  productId: string;
+  name: string;
+  price: number;
+  availableQty: number;
+  qty: number;
+  discountPct: number;
+}
+
+export function NewSaleForm({
+  products,
+  customers,
+  taxRate,
+}: {
+  products: ProductListRow[];
+  customers: CustomerOption[];
+  taxRate: number;
+}) {
+  const router = useRouter();
+  const flash = useToast();
+  const { format: formatMoney } = useWorkspace();
+
+  const [customerMode, setCustomerMode] = useState<"walkin" | "existing">("walkin");
+  const [customerId, setCustomerId] = useState(customers[0]?.id ?? "");
+  const [walkInName, setWalkInName] = useState("");
+  const [customerList, setCustomerList] = useState(customers);
+  const [showNewCustomer, setShowNewCustomer] = useState(false);
+  const [newCustomerName, setNewCustomerName] = useState("");
+  const [newCustomerPhone, setNewCustomerPhone] = useState("");
+
+  const [productQuery, setProductQuery] = useState("");
+  const [cart, setCart] = useState<CartLine[]>([]);
+  const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [notes, setNotes] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [savingCustomer, setSavingCustomer] = useState(false);
+
+  const matchingProducts = useMemo(() => {
+    const q = productQuery.trim().toLowerCase();
+    if (!q) return [];
+    return products.filter((p) => p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q)).slice(0, 8);
+  }, [products, productQuery]);
+
+  function addProduct(product: ProductListRow) {
+    setProductQuery("");
+    setCart((c) => {
+      const existing = c.find((l) => l.productId === product.id);
+      if (existing) {
+        return c.map((l) => (l.productId === product.id ? { ...l, qty: Math.min(l.qty + 1, product.qty) } : l));
+      }
+      return [...c, { productId: product.id, name: product.name, price: product.price, availableQty: product.qty, qty: 1, discountPct: 0 }];
+    });
+  }
+
+  function updateLine(productId: string, patch: Partial<CartLine>) {
+    setCart((c) => c.map((l) => (l.productId === productId ? { ...l, ...patch } : l)));
+  }
+
+  function removeLine(productId: string) {
+    setCart((c) => c.filter((l) => l.productId !== productId));
+  }
+
+  const totals = useMemo(() => {
+    let subtotal = 0;
+    let discount = 0;
+    for (const l of cart) {
+      const lineSubtotal = l.price * l.qty;
+      subtotal += lineSubtotal;
+      discount += lineSubtotal * (l.discountPct / 100);
+    }
+    const taxable = subtotal - discount;
+    const tax = taxable * (taxRate / 100);
+    return { subtotal, discount, tax, total: taxable + tax };
+  }, [cart, taxRate]);
+
+  async function handleAddCustomer() {
+    setError(null);
+    if (!newCustomerName.trim()) {
+      setError("Customer name is required.");
+      return;
+    }
+    setSavingCustomer(true);
+    try {
+      const customer = await createCustomer({ name: newCustomerName, phone: newCustomerPhone });
+      setCustomerList((c) => [...c, customer]);
+      setCustomerId(customer.id);
+      setCustomerMode("existing");
+      setShowNewCustomer(false);
+      setNewCustomerName("");
+      setNewCustomerPhone("");
+      flash("Customer added");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not add the customer.");
+    } finally {
+      setSavingCustomer(false);
+    }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (cart.length === 0) {
+      setError("Add at least one product.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const saleId = await recordSale({
+        customerId: customerMode === "existing" ? customerId : undefined,
+        walkInName: customerMode === "walkin" ? walkInName : undefined,
+        items: cart.map((l) => ({ productId: l.productId, qty: l.qty, discountPct: l.discountPct })),
+        paymentMethod,
+        notes,
+      });
+      flash("Sale recorded");
+      router.push(`/sales?open=${saleId}`);
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not record the sale.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="animate-fade-up flex flex-col gap-4.5">
+      <div className="rounded-2xl border border-border bg-surface p-5 shadow-[var(--shadow-sm)]">
+        <div className="mb-3.5 flex items-center justify-between">
+          <div className="text-[15px] font-bold">Customer</div>
+          <div className="flex gap-1.5 rounded-[9px] border border-border p-1">
+            <button
+              type="button"
+              onClick={() => setCustomerMode("walkin")}
+              className="rounded-[7px] px-3 py-1 text-[12.5px] font-semibold"
+              style={{ background: customerMode === "walkin" ? "var(--accent-weak)" : "transparent", color: customerMode === "walkin" ? "var(--accent-text)" : "var(--text-2)" }}
+            >
+              Walk-in
+            </button>
+            <button
+              type="button"
+              onClick={() => setCustomerMode("existing")}
+              className="rounded-[7px] px-3 py-1 text-[12.5px] font-semibold"
+              style={{ background: customerMode === "existing" ? "var(--accent-weak)" : "transparent", color: customerMode === "existing" ? "var(--accent-text)" : "var(--text-2)" }}
+            >
+              Existing customer
+            </button>
+          </div>
+        </div>
+        {customerMode === "walkin" ? (
+          <Field label="Walk-in customer name (optional)" value={walkInName} onChange={(e) => setWalkInName(e.target.value)} />
+        ) : (
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <Select label="Customer" value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
+                {customerList.length === 0 && <option value="">No customers yet</option>}
+                {customerList.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                    {c.phone ? ` · ${c.phone}` : ""}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <Button type="button" variant="secondary" onClick={() => setShowNewCustomer((v) => !v)}>
+              + New
+            </Button>
+          </div>
+        )}
+        {showNewCustomer && (
+          <div className="mt-3 flex items-end gap-2 rounded-[10px] border border-border bg-surface-2 p-3">
+            <div className="flex-1">
+              <Field label="Name" value={newCustomerName} onChange={(e) => setNewCustomerName(e.target.value)} />
+            </div>
+            <div className="flex-1">
+              <Field label="Phone" value={newCustomerPhone} onChange={(e) => setNewCustomerPhone(e.target.value)} />
+            </div>
+            <Button type="button" onClick={handleAddCustomer} disabled={savingCustomer}>
+              {savingCustomer ? "Adding…" : "Add"}
+            </Button>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-border bg-surface p-5 shadow-[var(--shadow-sm)]">
+        <div className="mb-3.5 text-[15px] font-bold">Items</div>
+        <div className="relative">
+          <input
+            value={productQuery}
+            onChange={(e) => setProductQuery(e.target.value)}
+            placeholder="Search products to add by name or SKU…"
+            className="h-[42px] w-full rounded-[9px] border border-border bg-surface px-[13px] text-[14px] text-text outline-none focus:border-accent"
+          />
+          {matchingProducts.length > 0 && (
+            <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-[9px] border border-border bg-surface shadow-[var(--shadow-lg)]">
+              {matchingProducts.map((p) => (
+                <button
+                  type="button"
+                  key={p.id}
+                  onClick={() => addProduct(p)}
+                  className="flex w-full items-center justify-between px-3.5 py-2.5 text-left text-[13px] hover:bg-hover"
+                  disabled={p.qty <= 0}
+                >
+                  <span>
+                    {p.emoji || "📦"} {p.name} <span className="text-muted">({p.sku})</span>
+                  </span>
+                  <span className="font-mono text-[12px] text-muted">{p.qty <= 0 ? "Out of stock" : `${p.qty} in stock`}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {cart.length > 0 && (
+          <div className="mt-3.5 overflow-hidden rounded-[10px] border border-border">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-surface-2">
+                  <th className="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-[0.04em] text-muted">Product</th>
+                  <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-[0.04em] text-muted">Qty</th>
+                  <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-[0.04em] text-muted">Discount %</th>
+                  <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-[0.04em] text-muted">Line total</th>
+                  <th className="px-3 py-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {cart.map((l) => {
+                  const lineTotal = l.price * l.qty * (1 - l.discountPct / 100);
+                  return (
+                    <tr key={l.productId} className="border-t border-border-2">
+                      <td className="px-3 py-2 text-[13px] font-semibold">{l.name}</td>
+                      <td className="px-3 py-2 text-right">
+                        <input
+                          type="number"
+                          min={1}
+                          max={l.availableQty}
+                          value={l.qty}
+                          onChange={(e) => updateLine(l.productId, { qty: Math.max(1, Math.min(Number(e.target.value) || 1, l.availableQty)) })}
+                          className="h-8 w-16 rounded-[7px] border border-border bg-surface px-2 text-right text-[13px]"
+                        />
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={l.discountPct}
+                          onChange={(e) => updateLine(l.productId, { discountPct: Math.max(0, Math.min(Number(e.target.value) || 0, 100)) })}
+                          className="h-8 w-16 rounded-[7px] border border-border bg-surface px-2 text-right text-[13px]"
+                        />
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono text-[13px] font-bold">{formatMoney(lineTotal)}</td>
+                      <td className="px-3 py-2 text-right">
+                        <button type="button" onClick={() => removeLine(l.productId)} className="text-[12px] font-semibold text-red">
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {cart.length === 0 && (
+          <div className="mt-3.5 rounded-[10px] border border-border bg-surface-2 px-3 py-6 text-center text-[13px] text-muted">
+            Search above to add products to this sale.
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-border bg-surface p-5 shadow-[var(--shadow-sm)]">
+        <div className="mb-3.5 grid grid-cols-2 gap-3">
+          <Select label="Payment method" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+            {PAYMENT_OPTIONS.map((p) => (
+              <option key={p.value} value={p.value}>
+                {p.label}
+              </option>
+            ))}
+          </Select>
+          <Field label="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
+        </div>
+        <div className="flex flex-col gap-1.5 border-t border-border pt-3.5 text-[13px]">
+          <div className="flex justify-between text-text-2">
+            <span>Subtotal</span>
+            <span className="font-mono">{formatMoney(totals.subtotal)}</span>
+          </div>
+          <div className="flex justify-between text-text-2">
+            <span>Discount</span>
+            <span className="font-mono">-{formatMoney(totals.discount)}</span>
+          </div>
+          <div className="flex justify-between text-text-2">
+            <span>Tax ({taxRate}%)</span>
+            <span className="font-mono">{formatMoney(totals.tax)}</span>
+          </div>
+          <div className="flex justify-between text-[16px] font-bold">
+            <span>Total</span>
+            <span className="font-mono">{formatMoney(totals.total)}</span>
+          </div>
+        </div>
+        {error && <p className="mt-3 text-[13px] font-medium text-red">{error}</p>}
+        <div className="mt-4 flex justify-end gap-2.5">
+          <Button type="submit" disabled={saving || cart.length === 0}>
+            {saving ? "Recording…" : "Record sale"}
+          </Button>
+        </div>
+      </div>
+    </form>
+  );
+}

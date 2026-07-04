@@ -6,8 +6,9 @@ import { usePathname } from "next/navigation";
 const NAV = [
   { href: "/dashboard", label: "Overview", icon: "▦" },
   { href: "/products", label: "Products", icon: "📦" },
+  { href: "/sales", label: "Sales", icon: "🧾", hideForWarehouse: true },
   { href: "/inventory", label: "Inventory", icon: "🗃️" },
-  { href: "/debtors", label: "Debtors", icon: "🧾", managerOnly: true },
+  { href: "/debtors", label: "Debtors", icon: "💵", managerOnly: true },
   { href: "/expenses", label: "Expenses", icon: "💸", managerOnly: true },
   { href: "/team", label: "Team", icon: "👥", adminOnly: true },
   { href: "/billing", label: "Billing", icon: "💳" },
@@ -32,7 +33,9 @@ export function Sidebar({
   const pathname = usePathname();
   const isAdmin = role === "owner" || role === "admin";
   const isManagerUp = isAdmin || role === "manager";
-  const nav = NAV.filter((item) => (!item.adminOnly || isAdmin) && (!item.managerOnly || isManagerUp));
+  const nav = NAV.filter(
+    (item) => (!item.adminOnly || isAdmin) && (!item.managerOnly || isManagerUp) && (!item.hideForWarehouse || role !== "warehouse"),
+  );
 
   return (
     <aside

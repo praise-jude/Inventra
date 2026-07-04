@@ -19,6 +19,7 @@ export type ExpenseCategory =
   | "inventory_purchase"
   | "logistics"
   | "miscellaneous";
+export type PaymentMethod = "cash" | "card" | "bank_transfer" | "mobile_money";
 
 export interface Organization {
   id: string;
@@ -164,8 +165,40 @@ export interface StockMovement {
   qty_delta: number;
   unit_price: number | null;
   reason: string | null;
+  sale_id: string | null;
   created_by: string | null;
   created_at: string;
+}
+
+export interface Customer {
+  id: string;
+  org_id: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  created_at: string;
+}
+
+export interface Sale {
+  id: string;
+  org_id: string;
+  customer_id: string | null;
+  walk_in_name: string | null;
+  subtotal: number;
+  discount_amount: number;
+  tax_amount: number;
+  total: number;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface SalePayment {
+  id: string;
+  org_id: string;
+  sale_id: string;
+  method: PaymentMethod;
+  amount: number;
 }
 
 export interface Invoice {

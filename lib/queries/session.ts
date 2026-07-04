@@ -46,3 +46,11 @@ export const requireManagerProfile = cache(async (): Promise<{ profile: Profile;
   if (!["owner", "admin", "manager"].includes(result.profile.role)) redirect("/dashboard");
   return result;
 });
+
+// Sales is everyone's job except Warehouse (whose lane is stock
+// movements/receiving, per the existing Team page role legend).
+export const requireSalesProfile = cache(async (): Promise<{ profile: Profile; org: Organization }> => {
+  const result = await requireProfile();
+  if (result.profile.role === "warehouse") redirect("/dashboard");
+  return result;
+});
