@@ -284,13 +284,19 @@ async function main() {
 
     const known = [...recentSales, ...priorSales, ...flavor];
     const knownDelta = known.reduce((sum, m) => sum + (m.qty_delta as number), 0);
-    const initialReceive = Math.max(p.target - knownDelta, p.target + 10);
-
-    allMovements.push({
-      org_id: orgId, product_id: pid, warehouse_id: wid, type: "received",
-      qty_delta: initialReceive, unit_price: null, reason: `Initial stock — ${p.supplier}`,
-      created_by: teamIds.marco, created_at: atDaysAgo(45),
-    });
+    // Solve exactly: baseline + known deltas = target. Clamping the baseline
+    // (e.g. to target + 10) overshoots for products whose flavor movements are
+    // net-positive receives (PRD-009, PAN-052).
+    const initialReceive = p.target - knownDelta;
+    if (initialReceive <= 0) {
+      console.warn(`known movements for ${p.sku} already exceed target ${p.target}; skipping initial receive`);
+    } else {
+      allMovements.push({
+        org_id: orgId, product_id: pid, warehouse_id: wid, type: "received",
+        qty_delta: initialReceive, unit_price: null, reason: `Initial stock — ${p.supplier}`,
+        created_by: teamIds.marco, created_at: atDaysAgo(45),
+      });
+    }
     allMovements.push(...known);
   }
 
