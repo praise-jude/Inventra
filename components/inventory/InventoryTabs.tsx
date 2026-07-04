@@ -7,6 +7,8 @@ const TABS = [
   { href: "/inventory/movements", label: "Stock movements" },
   { href: "/inventory/warehouses", label: "By warehouse" },
   { href: "/inventory/adjustments", label: "Adjustment log" },
+  { href: "/inventory/categories", label: "Categories" },
+  { href: "/inventory/suppliers", label: "Suppliers" },
 ];
 
 export function InventoryTabs() {

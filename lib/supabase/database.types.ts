@@ -58,6 +58,11 @@ export interface Supplier {
   id: string;
   org_id: string;
   name: string;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  company: string | null;
+  contact_person: string | null;
   created_at: string;
 }
 
