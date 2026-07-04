@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/app/ToastProvider";
 import { updateGeneralSettings } from "@/lib/actions/settings";
-import { COUNTRIES, CURRENCY_CODES, statesForCountry } from "@/lib/geo/countries";
+import { COUNTRIES, CURRENCY_CODES, IANA_TIMEZONES, statesForCountry, timezoneFor } from "@/lib/geo/countries";
 import { ThemePicker } from "@/components/settings/ThemePicker";
 import { Field } from "@/components/ui/Field";
 import { Select } from "@/components/ui/Select";
@@ -62,8 +62,8 @@ export function GeneralSettingsForm({ name, supportEmail, currency, country, sta
             label="Country"
             value={form.country}
             onChange={(e) => {
-              set("country", e.target.value);
-              set("state", "");
+              const nextCountry = e.target.value;
+              setForm((f) => ({ ...f, country: nextCountry, state: "", timezone: timezoneFor(nextCountry) }));
             }}
           >
             <option value="">Select country…</option>
@@ -74,7 +74,14 @@ export function GeneralSettingsForm({ name, supportEmail, currency, country, sta
             ))}
           </Select>
           {states.length > 0 ? (
-            <Select label="State/Province" value={form.state} onChange={(e) => set("state", e.target.value)}>
+            <Select
+              label="State/Province"
+              value={form.state}
+              onChange={(e) => {
+                const nextState = e.target.value;
+                setForm((f) => ({ ...f, state: nextState, timezone: timezoneFor(f.country, nextState) }));
+              }}
+            >
               <option value="">Select state…</option>
               {states.map((s) => (
                 <option key={s} value={s}>
@@ -92,7 +99,14 @@ export function GeneralSettingsForm({ name, supportEmail, currency, country, sta
               </option>
             ))}
           </Select>
-          <Field label="Timezone" value={form.timezone} onChange={(e) => set("timezone", e.target.value)} />
+          <Select label="Timezone" value={form.timezone} onChange={(e) => set("timezone", e.target.value)}>
+            {!IANA_TIMEZONES.includes(form.timezone) && <option value={form.timezone}>{form.timezone}</option>}
+            {IANA_TIMEZONES.map((tz) => (
+              <option key={tz} value={tz}>
+                {tz}
+              </option>
+            ))}
+          </Select>
           <Field label="Default tax rate (%)" type="number" step="0.01" value={form.taxRate} onChange={(e) => set("taxRate", e.target.value)} />
         </div>
       </div>

@@ -2,8 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
 // Google OAuth redirect target. Exchanges the code for a session; the
-// (app) layout's middleware gate then routes the user to MFA setup,
-// onboarding completion, or the dashboard as appropriate.
+// (app) layout's middleware gate then routes the user to onboarding
+// completion or the dashboard as appropriate.
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");

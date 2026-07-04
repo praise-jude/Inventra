@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { InviteMemberModal } from "@/components/team/InviteMemberModal";
+import { useWorkspace } from "@/components/app/CurrencyProvider";
 import type { TeamMemberRow } from "@/lib/queries/team";
 
 const ROLE_STYLE: Record<string, { color: string; background: string }> = {
@@ -30,6 +31,7 @@ const ROLE_LEGEND = [
 
 export function TeamClient({ members, seatsUsed, seatsTotal }: { members: TeamMemberRow[]; seatsUsed: number; seatsTotal: number }) {
   const [showInvite, setShowInvite] = useState(false);
+  const { formatDateTime } = useWorkspace();
 
   return (
     <div className="animate-fade-up">
@@ -94,7 +96,7 @@ export function TeamClient({ members, seatsUsed, seatsTotal }: { members: TeamMe
                     </span>
                   </td>
                   <td className="px-3.5 py-3 text-[12.5px] text-text-2">
-                    {m.status === "invited" ? "Pending" : m.lastActive ? new Date(m.lastActive).toLocaleString() : "—"}
+                    {m.status === "invited" ? "Pending" : m.lastActive ? formatDateTime(m.lastActive) : "—"}
                   </td>
                 </tr>
               ))}

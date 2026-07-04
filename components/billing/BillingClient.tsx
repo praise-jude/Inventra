@@ -6,7 +6,7 @@ import { useToast } from "@/components/app/ToastProvider";
 import { changePlan } from "@/lib/actions/billing";
 import { PLANS } from "@/lib/billing-plans";
 import type { Invoice } from "@/lib/billing-plans";
-import { useCurrency } from "@/components/app/CurrencyProvider";
+import { useWorkspace } from "@/components/app/CurrencyProvider";
 
 interface Props {
   planKey: string;
@@ -26,7 +26,7 @@ const INVOICE_STYLE: Record<string, { color: string; background: string }> = {
 export function BillingClient({ planKey, seatsUsed, skuCount, warehouseCount, renewsAt, invoices }: Props) {
   const router = useRouter();
   const flash = useToast();
-  const { format: formatMoney } = useCurrency();
+  const { format: formatMoney, formatShortDate, formatLongDate } = useWorkspace();
   const [busy, setBusy] = useState<string | null>(null);
   const current = PLANS.find((p) => p.key === planKey) ?? PLANS[0];
 
@@ -59,7 +59,7 @@ export function BillingClient({ planKey, seatsUsed, skuCount, warehouseCount, re
           <div className="mt-1 text-[26px] font-bold">
             {formatMoney(current.price)}
             <span className="text-[15px] font-semibold opacity-85">/mo</span> · renews{" "}
-            {new Date(renewsAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+            {formatShortDate(renewsAt)}
           </div>
         </div>
         <div className="flex gap-6">
@@ -143,7 +143,7 @@ export function BillingClient({ planKey, seatsUsed, skuCount, warehouseCount, re
             <span className="flex h-8 w-8 items-center justify-center rounded-[8px] bg-accent-weak text-[14px]">🧾</span>
             <div className="flex-1">
               <div className="font-mono text-[13px] font-semibold">{i.invoice_number}</div>
-              <div className="text-[11.5px] text-muted">{new Date(i.issued_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</div>
+              <div className="text-[11.5px] text-muted">{formatLongDate(i.issued_at)}</div>
             </div>
             <span className="font-mono text-[13px] font-bold">{formatMoney(i.amount)}</span>
             <span className="rounded-[20px] px-[9px] py-0.5 text-[11.5px] font-bold capitalize" style={INVOICE_STYLE[i.status]}>

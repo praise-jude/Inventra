@@ -7,8 +7,6 @@ const AUTH_ROUTES = [
   "/forgot-password",
   "/reset-password",
   "/accept-invite",
-  "/mfa-setup",
-  "/mfa-challenge",
   "/auth/callback",
   "/terms",
   "/privacy",
@@ -54,27 +52,10 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse;
   }
 
-  // User is authenticated — enforce MFA before letting them reach the app.
-  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-
   if (!isAuthRoute) {
-    if (aal && aal.currentLevel !== aal.nextLevel) {
-      const url = request.nextUrl.clone();
-      url.pathname = aal.nextLevel === "aal2" ? "/mfa-challenge" : "/mfa-setup";
-      return NextResponse.redirect(url);
-    }
-
-    const { data: factors } = await supabase.auth.mfa.listFactors();
-    const hasVerifiedFactor = (factors?.totp ?? []).some((f) => f.status === "verified");
-    if (!hasVerifiedFactor) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/mfa-setup";
-      return NextResponse.redirect(url);
-    }
-
-    // MFA satisfied — make sure signup/OAuth onboarding gaps (business
-    // country/currency, terms acceptance) are filled in before letting the
-    // user any further into the app.
+    // Make sure signup/OAuth onboarding gaps (business country/currency,
+    // terms acceptance) are filled in before letting the user any further
+    // into the app.
     const { data: profileRow } = await supabase
       .from("profiles")
       .select("org_id, terms_accepted")
@@ -101,12 +82,10 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(url);
     }
   } else if (path === "/login" || path === "/signup") {
-    // Already fully authenticated (aal2 or no MFA required) — bounce to the app.
-    if (!aal || aal.currentLevel === aal.nextLevel) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/dashboard";
-      return NextResponse.redirect(url);
-    }
+    // Already authenticated — bounce to the app.
+    const url = request.nextUrl.clone();
+    url.pathname = "/dashboard";
+    return NextResponse.redirect(url);
   }
 
   return supabaseResponse;

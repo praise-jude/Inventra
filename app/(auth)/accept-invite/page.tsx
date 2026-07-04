@@ -38,7 +38,7 @@ export default function AcceptInvitePage() {
     }
 
     setLoading(false);
-    router.push("/mfa-setup");
+    router.push("/dashboard");
   }
 
   return (

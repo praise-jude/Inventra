@@ -12,6 +12,7 @@ import { requireProfile } from "@/lib/queries/session";
 import { AreaChart } from "@/components/charts/AreaChart";
 import { DonutChart } from "@/components/charts/DonutChart";
 import { formatMoneyCompact, formatNumber, formatPct, pctDelta } from "@/lib/format";
+import { formatTodayHeader } from "@/lib/datetime";
 import { MOVEMENT_META } from "@/lib/movement-meta";
 
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -81,7 +82,7 @@ export default async function DashboardPage() {
     { label: "Active suppliers", value: formatNumber(kpis.active_suppliers), icon: "🚚", iconBg: "var(--accent-weak)", sub: "onboarded", delta: null, deltaColor: "" },
   ];
 
-  const today = new Date().toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  const today = formatTodayHeader(org.timezone);
 
   return (
     <div className="animate-fade-up">

@@ -9,6 +9,7 @@ export interface Country {
   name: string;
   currency: string;
   states: string[];
+  timezone: string;
 }
 
 const US_STATES = [
@@ -201,7 +202,97 @@ const ETHIOPIA_REGIONS = [
   "Oromia", "Sidama", "Somali", "South West Ethiopia Peoples", "Southern Nations", "Tigray",
 ];
 
-export const COUNTRIES: Country[] = [
+// Primary IANA zone per country (the capital/most-populous zone) — most
+// businesses operate from a single zone. STATE_TIMEZONE_OVERRIDES below
+// refines the handful of countries where state actually changes the zone.
+const TIMEZONE_BY_CODE: Record<string, string> = {
+  AF: "Asia/Kabul", AL: "Europe/Tirane", DZ: "Africa/Algiers", AD: "Europe/Andorra",
+  AO: "Africa/Luanda", AR: "America/Argentina/Buenos_Aires", AM: "Asia/Yerevan",
+  AU: "Australia/Sydney", AT: "Europe/Vienna", AZ: "Asia/Baku", BS: "America/Nassau",
+  BH: "Asia/Bahrain", BD: "Asia/Dhaka", BB: "America/Barbados", BY: "Europe/Minsk",
+  BE: "Europe/Brussels", BZ: "America/Belize", BJ: "Africa/Porto-Novo", BT: "Asia/Thimphu",
+  BO: "America/La_Paz", BA: "Europe/Sarajevo", BW: "Africa/Gaborone", BR: "America/Sao_Paulo",
+  BN: "Asia/Brunei", BG: "Europe/Sofia", BF: "Africa/Ouagadougou", BI: "Africa/Bujumbura",
+  KH: "Asia/Phnom_Penh", CM: "Africa/Douala", CA: "America/Toronto", CV: "Atlantic/Cape_Verde",
+  CF: "Africa/Bangui", TD: "Africa/Ndjamena", CL: "America/Santiago", CN: "Asia/Shanghai",
+  CO: "America/Bogota", KM: "Indian/Comoro", CG: "Africa/Brazzaville", CD: "Africa/Kinshasa",
+  CR: "America/Costa_Rica", CI: "Africa/Abidjan", HR: "Europe/Zagreb", CU: "America/Havana",
+  CY: "Asia/Nicosia", CZ: "Europe/Prague", DK: "Europe/Copenhagen", DJ: "Africa/Djibouti",
+  DM: "America/Dominica", DO: "America/Santo_Domingo", EC: "America/Guayaquil",
+  EG: "Africa/Cairo", SV: "America/El_Salvador", GQ: "Africa/Malabo", ER: "Africa/Asmara",
+  EE: "Europe/Tallinn", SZ: "Africa/Mbabane", ET: "Africa/Addis_Ababa", FJ: "Pacific/Fiji",
+  FI: "Europe/Helsinki", FR: "Europe/Paris", GA: "Africa/Libreville", GM: "Africa/Banjul",
+  GE: "Asia/Tbilisi", DE: "Europe/Berlin", GH: "Africa/Accra", GR: "Europe/Athens",
+  GD: "America/Grenada", GT: "America/Guatemala", GN: "Africa/Conakry", GW: "Africa/Bissau",
+  GY: "America/Guyana", HT: "America/Port-au-Prince", HN: "America/Tegucigalpa",
+  HK: "Asia/Hong_Kong", HU: "Europe/Budapest", IS: "Atlantic/Reykjavik", IN: "Asia/Kolkata",
+  ID: "Asia/Jakarta", IR: "Asia/Tehran", IQ: "Asia/Baghdad", IE: "Europe/Dublin",
+  IL: "Asia/Jerusalem", IT: "Europe/Rome", JM: "America/Jamaica", JP: "Asia/Tokyo",
+  JO: "Asia/Amman", KZ: "Asia/Almaty", KE: "Africa/Nairobi", KI: "Pacific/Tarawa",
+  KW: "Asia/Kuwait", KG: "Asia/Bishkek", LA: "Asia/Vientiane", LV: "Europe/Riga",
+  LB: "Asia/Beirut", LS: "Africa/Maseru", LR: "Africa/Monrovia", LY: "Africa/Tripoli",
+  LI: "Europe/Vaduz", LT: "Europe/Vilnius", LU: "Europe/Luxembourg", MO: "Asia/Macau",
+  MG: "Indian/Antananarivo", MW: "Africa/Blantyre", MY: "Asia/Kuala_Lumpur",
+  MV: "Indian/Maldives", ML: "Africa/Bamako", MT: "Europe/Malta", MR: "Africa/Nouakchott",
+  MU: "Indian/Mauritius", MX: "America/Mexico_City", MD: "Europe/Chisinau", MC: "Europe/Monaco",
+  MN: "Asia/Ulaanbaatar", ME: "Europe/Podgorica", MA: "Africa/Casablanca",
+  MZ: "Africa/Maputo", MM: "Asia/Yangon", NA: "Africa/Windhoek", NR: "Pacific/Nauru",
+  NP: "Asia/Kathmandu", NL: "Europe/Amsterdam", NZ: "Pacific/Auckland",
+  NI: "America/Managua", NE: "Africa/Niamey", NG: "Africa/Lagos", KP: "Asia/Pyongyang",
+  MK: "Europe/Skopje", NO: "Europe/Oslo", OM: "Asia/Muscat", PK: "Asia/Karachi",
+  PA: "America/Panama", PG: "Pacific/Port_Moresby", PY: "America/Asuncion",
+  PE: "America/Lima", PH: "Asia/Manila", PL: "Europe/Warsaw", PT: "Europe/Lisbon",
+  QA: "Asia/Qatar", RO: "Europe/Bucharest", RU: "Europe/Moscow", RW: "Africa/Kigali",
+  WS: "Pacific/Apia", SM: "Europe/San_Marino", SA: "Asia/Riyadh", SN: "Africa/Dakar",
+  RS: "Europe/Belgrade", SC: "Indian/Mahe", SL: "Africa/Freetown", SG: "Asia/Singapore",
+  SK: "Europe/Bratislava", SI: "Europe/Ljubljana", SB: "Pacific/Guadalcanal",
+  SO: "Africa/Mogadishu", ZA: "Africa/Johannesburg", KR: "Asia/Seoul", SS: "Africa/Juba",
+  ES: "Europe/Madrid", LK: "Asia/Colombo", SD: "Africa/Khartoum", SR: "America/Paramaribo",
+  SE: "Europe/Stockholm", CH: "Europe/Zurich", SY: "Asia/Damascus", TW: "Asia/Taipei",
+  TJ: "Asia/Dushanbe", TZ: "Africa/Dar_es_Salaam", TH: "Asia/Bangkok", TL: "Asia/Dili",
+  TG: "Africa/Lome", TO: "Pacific/Tongatapu", TT: "America/Port_of_Spain",
+  TN: "Africa/Tunis", TR: "Europe/Istanbul", TM: "Asia/Ashgabat", UG: "Africa/Kampala",
+  UA: "Europe/Kyiv", AE: "Asia/Dubai", GB: "Europe/London", US: "America/New_York",
+  UY: "America/Montevideo", UZ: "Asia/Tashkent", VU: "Pacific/Efate", VA: "Europe/Vatican",
+  VE: "America/Caracas", VN: "Asia/Ho_Chi_Minh", YE: "Asia/Aden", ZM: "Africa/Lusaka",
+  ZW: "Africa/Harare",
+};
+
+// Only the handful of countries where picking a state actually changes the
+// zone — everywhere else the country-level default above is correct.
+const STATE_TIMEZONE_OVERRIDES: Record<string, Record<string, string>> = {
+  US: {
+    Alaska: "America/Anchorage", Arizona: "America/Phoenix", California: "America/Los_Angeles",
+    Colorado: "America/Denver", Hawaii: "Pacific/Honolulu", Idaho: "America/Boise",
+    Montana: "America/Denver", Nevada: "America/Los_Angeles", "New Mexico": "America/Denver",
+    Oregon: "America/Los_Angeles", Utah: "America/Denver", Washington: "America/Los_Angeles",
+    Wyoming: "America/Denver", Texas: "America/Chicago", Illinois: "America/Chicago",
+    "North Dakota": "America/Chicago", "South Dakota": "America/Chicago", Nebraska: "America/Chicago",
+    Kansas: "America/Chicago", Oklahoma: "America/Chicago", Minnesota: "America/Chicago",
+    Iowa: "America/Chicago", Missouri: "America/Chicago", Arkansas: "America/Chicago",
+    Louisiana: "America/Chicago", Wisconsin: "America/Chicago", Alabama: "America/Chicago",
+    Mississippi: "America/Chicago", Tennessee: "America/Chicago",
+  },
+  CA: {
+    "British Columbia": "America/Vancouver", Alberta: "America/Edmonton",
+    Saskatchewan: "America/Regina", Manitoba: "America/Winnipeg",
+    "Newfoundland and Labrador": "America/St_Johns", Yukon: "America/Whitehorse",
+    "Northwest Territories": "America/Yellowknife", Nunavut: "America/Iqaluit",
+  },
+  AU: {
+    "Western Australia": "Australia/Perth", "South Australia": "Australia/Adelaide",
+    "Northern Territory": "Australia/Darwin", Queensland: "Australia/Brisbane",
+    Tasmania: "Australia/Hobart",
+  },
+};
+
+export function timezoneFor(countryCode: string, state?: string): string {
+  const override = state && STATE_TIMEZONE_OVERRIDES[countryCode]?.[state];
+  if (override) return override;
+  return TIMEZONE_BY_CODE[countryCode] ?? "UTC";
+}
+
+const RAW_COUNTRIES: Omit<Country, "timezone">[] = [
   { code: "AF", name: "Afghanistan", currency: "AFN", states: [] },
   { code: "AL", name: "Albania", currency: "ALL", states: [] },
   { code: "DZ", name: "Algeria", currency: "DZD", states: [] },
@@ -392,6 +483,11 @@ export const COUNTRIES: Country[] = [
   { code: "ZW", name: "Zimbabwe", currency: "ZWL", states: [] },
 ];
 
+export const COUNTRIES: Country[] = RAW_COUNTRIES.map((c) => ({
+  ...c,
+  timezone: TIMEZONE_BY_CODE[c.code] ?? "UTC",
+}));
+
 const BY_CODE: Record<string, Country> = Object.fromEntries(COUNTRIES.map((c) => [c.code, c]));
 
 export function currencyForCountry(code: string): string | undefined {
@@ -405,5 +501,14 @@ export function statesForCountry(code: string): string[] {
 export function isKnownCountry(code: string): boolean {
   return code in BY_CODE;
 }
+
+// For the Settings manual-override Select — every zone this dataset can
+// possibly resolve to, deduplicated and sorted.
+export const IANA_TIMEZONES: string[] = Array.from(
+  new Set([
+    ...Object.values(TIMEZONE_BY_CODE),
+    ...Object.values(STATE_TIMEZONE_OVERRIDES).flatMap((byState) => Object.values(byState)),
+  ]),
+).sort();
 
 export const CURRENCY_CODES: string[] = Array.from(new Set(COUNTRIES.map((c) => c.currency))).sort();

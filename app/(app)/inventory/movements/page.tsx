@@ -1,20 +1,9 @@
 import { getStockMovements, MOVEMENT_META } from "@/lib/queries/inventory";
-
-function timeLabel(iso: string): string {
-  const d = new Date(iso);
-  const now = new Date();
-  const isToday = d.toDateString() === now.toDateString();
-  const yesterday = new Date(now);
-  yesterday.setDate(now.getDate() - 1);
-  const isYesterday = d.toDateString() === yesterday.toDateString();
-  const time = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
-  if (isToday) return `Today · ${time}`;
-  if (isYesterday) return `Yesterday · ${time}`;
-  return `${d.toLocaleDateString("en-US", { month: "short", day: "2-digit" })} · ${time}`;
-}
+import { requireProfile } from "@/lib/queries/session";
+import { relativeDayLabel } from "@/lib/datetime";
 
 export default async function MovementsPage() {
-  const movements = await getStockMovements(50);
+  const [movements, { org }] = await Promise.all([getStockMovements(50), requireProfile()]);
 
   return (
     <div className="overflow-hidden rounded-[14px] border border-border bg-surface shadow-[var(--shadow-sm)]">
@@ -52,7 +41,7 @@ export default async function MovementsPage() {
                   </td>
                   <td className="px-3.5 py-3 text-[12.5px] text-text-2">{m.reason ?? "—"}</td>
                   <td className="px-3.5 py-3 text-[12.5px] text-text-2">{m.who}</td>
-                  <td className="px-4 py-3 font-mono text-[12px] text-muted">{timeLabel(m.created_at)}</td>
+                  <td className="px-4 py-3 font-mono text-[12px] text-muted">{relativeDayLabel(m.created_at, org.timezone)}</td>
                 </tr>
               );
             })}

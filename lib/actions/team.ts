@@ -31,7 +31,10 @@ export async function inviteMember(email: string, role: string, firstName: strin
     data: { org_id: profile.org_id, role, first_name: firstName, last_name: lastName },
     redirectTo: `${await siteUrl()}/accept-invite`,
   });
-  if (error) throw error;
+  if (error) {
+    console.error("[Inventra] inviteMember failed:", { email, orgId: profile.org_id, error });
+    throw new Error("Could not send the invite email. Please try again in a moment.");
+  }
 
   revalidatePath("/team");
 }

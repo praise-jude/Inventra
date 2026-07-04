@@ -82,7 +82,7 @@ export function SignupForm() {
     }
 
     if (result.hasSession) {
-      router.push("/mfa-setup");
+      router.push("/dashboard");
       return;
     }
     setAwaitingConfirmation(true);

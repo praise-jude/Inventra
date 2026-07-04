@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { requireProfile } from "@/lib/queries/session";
 import { getKpis } from "@/lib/queries/dashboard";
 import { ToastProvider } from "@/components/app/ToastProvider";
-import { CurrencyProvider } from "@/components/app/CurrencyProvider";
+import { WorkspaceProvider } from "@/components/app/CurrencyProvider";
 import { Shell } from "@/components/app/Shell";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -15,7 +15,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const inventoryBadge = kpis.low_stock_count + kpis.out_of_stock_count;
 
   return (
-    <CurrencyProvider currency={org.currency}>
+    <WorkspaceProvider currency={org.currency} timezone={org.timezone}>
       <ToastProvider>
         <Shell
           orgName={org.name}
@@ -29,6 +29,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           {children}
         </Shell>
       </ToastProvider>
-    </CurrencyProvider>
+    </WorkspaceProvider>
   );
 }

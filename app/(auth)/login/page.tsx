@@ -25,15 +25,7 @@ export default function LoginPage() {
       setLoading(false);
       return;
     }
-
-    const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-    if (aal && aal.currentLevel !== aal.nextLevel) {
-      router.push("/mfa-challenge");
-      return;
-    }
-    const { data: factors } = await supabase.auth.mfa.listFactors();
-    const hasVerifiedFactor = (factors?.totp ?? []).some((f) => f.status === "verified");
-    router.push(hasVerifiedFactor ? "/dashboard" : "/mfa-setup");
+    router.push("/dashboard");
   }
 
   async function handleGoogle() {

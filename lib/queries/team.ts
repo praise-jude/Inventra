@@ -17,7 +17,10 @@ export async function getTeamMembers(): Promise<TeamMemberRow[]> {
     .from("profiles")
     .select("id, first_name, last_name, email, role, status, last_active_at")
     .order("created_at", { ascending: true });
-  if (error) throw error;
+  if (error) {
+    console.error("[Inventra] getTeamMembers failed:", error);
+    throw new Error("Could not load team members. Please try again.");
+  }
   return (data ?? []).map((p) => ({
     id: p.id,
     name: `${p.first_name} ${p.last_name}`,

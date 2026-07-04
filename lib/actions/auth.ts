@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { currencyForCountry, isKnownCountry } from "@/lib/geo/countries";
+import { currencyForCountry, isKnownCountry, timezoneFor } from "@/lib/geo/countries";
 import { CURRENT_TERMS_VERSION } from "@/lib/terms";
 import {
   validateFullName,
@@ -94,6 +94,7 @@ export async function registerAccount(input: RegisterAccountInput): Promise<Regi
   const [firstName, ...rest] = fullName.split(/\s+/);
   const lastName = rest.join(" ") || undefined;
   const currency = currencyForCountry(country) ?? "USD";
+  const timezone = timezoneFor(country, state);
 
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signUp({
@@ -108,12 +109,13 @@ export async function registerAccount(input: RegisterAccountInput): Promise<Regi
         country,
         state,
         currency,
+        timezone,
         role: input.role,
         terms_accepted: true,
         terms_version: CURRENT_TERMS_VERSION,
         terms_accepted_ip: ip,
       },
-      emailRedirectTo: `${await siteUrl()}/mfa-setup`,
+      emailRedirectTo: `${await siteUrl()}/dashboard`,
     },
   });
 
@@ -161,6 +163,7 @@ export async function completeOnboarding(input: CompleteOnboardingInput) {
     if (input.country) {
       patch.country = input.country;
       patch.currency = currencyForCountry(input.country) ?? "USD";
+      patch.timezone = timezoneFor(input.country, input.state?.trim() || undefined);
     }
     if (input.state?.trim()) patch.state = input.state.trim();
 
