@@ -12,6 +12,7 @@ import { requireProfile } from "@/lib/queries/session";
 import { AreaChart } from "@/components/charts/AreaChart";
 import { DonutChart } from "@/components/charts/DonutChart";
 import { formatMoneyCompact, formatNumber, formatPct, pctDelta } from "@/lib/format";
+import { MOVEMENT_META } from "@/lib/movement-meta";
 
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -31,15 +32,6 @@ function timeAgo(iso: string): string {
   if (hrs < 24) return `${hrs} hr ago`;
   return `${Math.round(hrs / 24)}d ago`;
 }
-
-const MOVEMENT_ICON: Record<string, { icon: string; bg: string; verb: string }> = {
-  received: { icon: "📥", bg: "var(--green-weak)", verb: "received stock of" },
-  sale: { icon: "🛒", bg: "var(--accent-weak)", verb: "sold" },
-  adjustment: { icon: "✏️", bg: "var(--amber-weak)", verb: "adjusted" },
-  transfer: { icon: "🔁", bg: "var(--sky-weak)", verb: "transferred" },
-  return: { icon: "↩️", bg: "var(--red-weak)", verb: "processed a return of" },
-  expired: { icon: "🗑️", bg: "var(--red-weak)", verb: "expired" },
-};
 
 export default async function DashboardPage() {
   const { profile } = await requireProfile();
@@ -239,7 +231,7 @@ export default async function DashboardPage() {
           <div className="flex flex-col gap-0.5">
             {activity.length === 0 && <p className="text-[12.5px] text-muted">No activity yet.</p>}
             {activity.map((a: ActivityRow, i: number) => {
-              const meta = MOVEMENT_ICON[a.type] ?? MOVEMENT_ICON.adjustment;
+              const meta = MOVEMENT_META[a.type] ?? MOVEMENT_META.adjustment;
               const who = a.profiles ? `${a.profiles.first_name} ${a.profiles.last_name}` : "System";
               const productName = a.products?.name ?? "a product";
               return (

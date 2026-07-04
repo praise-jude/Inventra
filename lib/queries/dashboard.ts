@@ -1,13 +1,17 @@
 import "server-only";
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import type { CategoryMixRow, DashboardKpis, MonthlyStat, StockHealthRow, TopSellerRow } from "@/lib/supabase/database.types";
 
-export async function getKpis(): Promise<DashboardKpis> {
+// Both the app-shell layout (sidebar badge) and the dashboard page itself
+// need these KPIs on every dashboard request — cache() dedupes them to a
+// single RPC round trip per request instead of two.
+export const getKpis = cache(async (): Promise<DashboardKpis> => {
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("get_kpis");
   if (error) throw error;
   return data as DashboardKpis;
-}
+});
 
 export async function getCategoryMix(): Promise<CategoryMixRow[]> {
   const supabase = await createClient();

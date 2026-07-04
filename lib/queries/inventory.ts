@@ -46,15 +46,7 @@ export interface MovementRow {
   who: string;
 }
 
-const MOVEMENT_META: Record<string, { icon: string; bg: string; label: string }> = {
-  received: { icon: "📥", bg: "var(--green-weak)", label: "Received" },
-  sale: { icon: "🛒", bg: "var(--accent-weak)", label: "Sale" },
-  adjustment: { icon: "✏️", bg: "var(--amber-weak)", label: "Adjustment" },
-  transfer: { icon: "🔁", bg: "var(--sky-weak)", label: "Transfer" },
-  return: { icon: "↩️", bg: "var(--red-weak)", label: "Return" },
-  expired: { icon: "🗑️", bg: "var(--red-weak)", label: "Expired" },
-};
-export { MOVEMENT_META };
+export { MOVEMENT_META } from "@/lib/movement-meta";
 
 export async function getStockMovements(limit = 50): Promise<MovementRow[]> {
   const supabase = await createClient();

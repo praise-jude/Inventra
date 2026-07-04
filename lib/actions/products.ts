@@ -87,12 +87,20 @@ export async function duplicateProduct(id: string) {
     created_at: _createdAt,
     updated_at: _updatedAt,
     status: _status,
+    qty_on_hand: _qtyOnHand,
+    qty_reserved: _qtyReserved,
+    qty_damaged: _qtyDamaged,
+    qty_returned: _qtyReturned,
     ...rest
   } = original;
   void _id;
   void _createdAt;
   void _updatedAt;
   void _status;
+  void _qtyOnHand;
+  void _qtyReserved;
+  void _qtyDamaged;
+  void _qtyReturned;
 
   let sku = `${rest.sku}-COPY`;
   for (let i = 1; i < 20; i++) {
@@ -103,7 +111,15 @@ export async function duplicateProduct(id: string) {
 
   const { data: copy, error: insertError } = await supabase
     .from("products")
-    .insert({ ...rest, sku, name: `${rest.name} (copy)`, qty_on_hand: 0 })
+    .insert({
+      ...rest,
+      sku,
+      name: `${rest.name} (copy)`,
+      qty_on_hand: 0,
+      qty_reserved: 0,
+      qty_damaged: 0,
+      qty_returned: 0,
+    })
     .select("id")
     .single();
   if (insertError) throw insertError;
