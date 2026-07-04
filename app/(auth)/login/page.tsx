@@ -36,6 +36,14 @@ export default function LoginPage() {
     router.push(hasVerifiedFactor ? "/dashboard" : "/mfa-setup");
   }
 
+  async function handleGoogle() {
+    const supabase = createClient();
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
+    });
+  }
+
   return (
     <div>
       <h1 className="mb-1.5 text-2xl font-bold tracking-tight">Welcome back</h1>
@@ -71,7 +79,7 @@ export default function LoginPage() {
           OR
           <div className="h-px flex-1 bg-border" />
         </div>
-        <Button type="button" variant="secondary" disabled className="w-full" title="Coming soon">
+        <Button type="button" variant="secondary" onClick={handleGoogle} className="w-full">
           <span className="font-extrabold text-[#4285F4]">G</span> Continue with Google
         </Button>
       </form>

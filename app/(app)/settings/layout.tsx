@@ -1,6 +1,9 @@
+import { requireAdminProfile } from "@/lib/queries/session";
 import { SettingsTabs } from "@/components/settings/SettingsTabs";
 
-export default function SettingsLayout({ children }: { children: React.ReactNode }) {
+export default async function SettingsLayout({ children }: { children: React.ReactNode }) {
+  await requireAdminProfile();
+
   return (
     <div className="max-w-[760px] animate-fade-up">
       <div className="mb-[18px]">

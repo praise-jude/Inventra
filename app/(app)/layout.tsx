@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { requireProfile } from "@/lib/queries/session";
 import { getKpis } from "@/lib/queries/dashboard";
 import { ToastProvider } from "@/components/app/ToastProvider";
+import { CurrencyProvider } from "@/components/app/CurrencyProvider";
 import { Shell } from "@/components/app/Shell";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -14,17 +15,20 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const inventoryBadge = kpis.low_stock_count + kpis.out_of_stock_count;
 
   return (
-    <ToastProvider>
-      <Shell
-        orgName={org.name}
-        plan={org.plan}
-        inventoryBadge={inventoryBadge}
-        initials={initials}
-        firstName={profile.first_name}
-        initialTheme={initialTheme}
-      >
-        {children}
-      </Shell>
-    </ToastProvider>
+    <CurrencyProvider currency={org.currency}>
+      <ToastProvider>
+        <Shell
+          orgName={org.name}
+          plan={org.plan}
+          inventoryBadge={inventoryBadge}
+          initials={initials}
+          firstName={profile.first_name}
+          initialTheme={initialTheme}
+          role={profile.role}
+        >
+          {children}
+        </Shell>
+      </ToastProvider>
+    </CurrencyProvider>
   );
 }

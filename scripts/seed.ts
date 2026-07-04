@@ -3,6 +3,7 @@ dotenv.config({ path: ".env.local" });
 
 import { createClient } from "@supabase/supabase-js";
 import crypto from "node:crypto";
+import { CURRENT_TERMS_VERSION } from "@/lib/terms";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -56,6 +57,9 @@ async function main() {
     .from("organizations")
     .update({
       name: "FreshMart Co.",
+      business_email: "billing@freshmart.co",
+      country: "US",
+      state: "New York",
       currency: "USD",
       timezone: "America/New_York",
       tax_rate: 8.25,
@@ -64,6 +68,17 @@ async function main() {
       trial_ends_at: atDaysAgo(-6),
     })
     .eq("id", orgId);
+
+  // Backdate terms acceptance for every seeded account so the demo logs
+  // straight into the dashboard instead of the onboarding-completion gate —
+  // that gate is what real pre-migration accounts should hit.
+  const termsFields = {
+    terms_accepted: true,
+    terms_version: CURRENT_TERMS_VERSION,
+    terms_accepted_at: atDaysAgo(90),
+    terms_accepted_ip: "203.0.113.10",
+  };
+  await admin.from("profiles").update(termsFields).eq("id", avaId);
 
   // Design's exact notification defaults differ from the schema default.
   await admin
@@ -92,6 +107,7 @@ async function main() {
     });
     if (error) throw error;
     teamIds[t.first.toLowerCase()] = u.user!.id;
+    await admin.from("profiles").update(termsFields).eq("id", u.user!.id);
     if (t.status === "active") {
       await admin.from("profiles").update({ status: "active", last_active_at: atDaysAgo(0, Math.random() * 8) }).eq("id", u.user!.id);
     }

@@ -30,3 +30,11 @@ export const requireProfile = cache(async (): Promise<{ profile: Profile; org: O
 
   return { profile, org };
 });
+
+// Settings/Team are Admin-tier only (owner/admin) — this is the server-side
+// gate; never rely on hiding the nav link alone.
+export const requireAdminProfile = cache(async (): Promise<{ profile: Profile; org: Organization }> => {
+  const result = await requireProfile();
+  if (result.profile.role !== "owner" && result.profile.role !== "admin") redirect("/dashboard");
+  return result;
+});

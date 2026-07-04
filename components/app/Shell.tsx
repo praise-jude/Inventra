@@ -13,6 +13,7 @@ export function Shell({
   initials,
   firstName,
   initialTheme,
+  role,
   children,
 }: {
   orgName: string;
@@ -21,6 +22,7 @@ export function Shell({
   initials: string;
   firstName: string;
   initialTheme: "light" | "dark";
+  role: string;
   children: React.ReactNode;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -60,6 +62,7 @@ export function Shell({
         orgName={orgName}
         plan={plan}
         inventoryBadge={inventoryBadge}
+        role={role}
         open={sidebarOpen}
         onNavigate={() => setSidebarOpen(false)}
       />

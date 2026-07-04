@@ -5,13 +5,14 @@ import { useState } from "react";
 import { useToast } from "@/components/app/ToastProvider";
 import { archiveProduct, duplicateProduct } from "@/lib/actions/products";
 import type { ProductDetail } from "@/lib/queries/products";
-import { formatMoney } from "@/lib/format";
+import { useCurrency } from "@/components/app/CurrencyProvider";
 
 const BAR_PATTERN = [1, 2, 1, 3, 1, 1, 2, 1];
 
 export function ProductDetailSlideOver({ product, onClose }: { product: ProductDetail; onClose: () => void }) {
   const router = useRouter();
   const flash = useToast();
+  const { format: formatMoney } = useCurrency();
   const [busy, setBusy] = useState(false);
 
   const margin = product.sell_price > 0 ? Math.round((1 - product.cost_price / product.sell_price) * 100) : 0;

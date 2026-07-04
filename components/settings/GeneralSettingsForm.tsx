@@ -1,27 +1,32 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/app/ToastProvider";
 import { updateGeneralSettings } from "@/lib/actions/settings";
+import { COUNTRIES, CURRENCY_CODES, statesForCountry } from "@/lib/geo/countries";
 import { ThemePicker } from "@/components/settings/ThemePicker";
 import { Field } from "@/components/ui/Field";
+import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 
 interface Props {
   name: string;
   supportEmail: string;
   currency: string;
+  country: string;
+  state: string;
   timezone: string;
   taxRate: number;
   themePreference: string;
 }
 
-export function GeneralSettingsForm({ name, supportEmail, currency, timezone, taxRate, themePreference }: Props) {
+export function GeneralSettingsForm({ name, supportEmail, currency, country, state, timezone, taxRate, themePreference }: Props) {
   const router = useRouter();
   const flash = useToast();
-  const [form, setForm] = useState({ name, supportEmail, currency, timezone, taxRate: String(taxRate) });
+  const [form, setForm] = useState({ name, supportEmail, currency, country, state, timezone, taxRate: String(taxRate) });
   const [saving, setSaving] = useState(false);
+  const states = useMemo(() => statesForCountry(form.country), [form.country]);
 
   function set<K extends keyof typeof form>(key: K, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -34,6 +39,8 @@ export function GeneralSettingsForm({ name, supportEmail, currency, timezone, ta
         name: form.name,
         supportEmail: form.supportEmail,
         currency: form.currency,
+        country: form.country,
+        state: form.state,
         timezone: form.timezone,
         taxRate: parseFloat(form.taxRate) || 0,
       });
@@ -51,7 +58,40 @@ export function GeneralSettingsForm({ name, supportEmail, currency, timezone, ta
         <div className="grid grid-cols-2 gap-3.5">
           <Field label="Business name" value={form.name} onChange={(e) => set("name", e.target.value)} />
           <Field label="Support email" value={form.supportEmail} onChange={(e) => set("supportEmail", e.target.value)} />
-          <Field label="Currency" value={form.currency} onChange={(e) => set("currency", e.target.value)} />
+          <Select
+            label="Country"
+            value={form.country}
+            onChange={(e) => {
+              set("country", e.target.value);
+              set("state", "");
+            }}
+          >
+            <option value="">Select country…</option>
+            {COUNTRIES.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.name}
+              </option>
+            ))}
+          </Select>
+          {states.length > 0 ? (
+            <Select label="State/Province" value={form.state} onChange={(e) => set("state", e.target.value)}>
+              <option value="">Select state…</option>
+              {states.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </Select>
+          ) : (
+            <Field label="State/Province" value={form.state} onChange={(e) => set("state", e.target.value)} />
+          )}
+          <Select label="Currency" value={form.currency} onChange={(e) => set("currency", e.target.value)}>
+            {CURRENCY_CODES.map((code) => (
+              <option key={code} value={code}>
+                {code}
+              </option>
+            ))}
+          </Select>
           <Field label="Timezone" value={form.timezone} onChange={(e) => set("timezone", e.target.value)} />
           <Field label="Default tax rate (%)" type="number" step="0.01" value={form.taxRate} onChange={(e) => set("taxRate", e.target.value)} />
         </div>

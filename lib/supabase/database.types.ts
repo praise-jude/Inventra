@@ -14,6 +14,9 @@ export type ProductStatus = "in_stock" | "low_stock" | "out_of_stock";
 export interface Organization {
   id: string;
   name: string;
+  business_email: string | null;
+  country: string | null;
+  state: string | null;
   currency: string;
   timezone: string;
   tax_rate: number;
@@ -33,6 +36,10 @@ export interface Profile {
   role: UserRole;
   status: MemberStatus;
   theme_preference: string;
+  terms_accepted: boolean;
+  terms_version: string | null;
+  terms_accepted_at: string | null;
+  terms_accepted_ip: string | null;
   last_active_at: string | null;
   created_at: string;
 }

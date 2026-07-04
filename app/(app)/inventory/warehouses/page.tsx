@@ -1,8 +1,9 @@
 import { getWarehousesOverview } from "@/lib/queries/inventory";
+import { requireProfile } from "@/lib/queries/session";
 import { formatMoneyCompact, formatNumber } from "@/lib/format";
 
 export default async function WarehousesPage() {
-  const warehouses = await getWarehousesOverview();
+  const [warehouses, { org }] = await Promise.all([getWarehousesOverview(), requireProfile()]);
 
   return (
     <div className="grid gap-3.5" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))" }}>
@@ -32,7 +33,7 @@ export default async function WarehousesPage() {
             </div>
             <div className="mt-1.5 flex justify-between text-[12.5px]">
               <span className="text-text-2">Stock value</span>
-              <span className="font-mono font-bold">{formatMoneyCompact(w.stockValue)}</span>
+              <span className="font-mono font-bold">{formatMoneyCompact(w.stockValue, org.currency)}</span>
             </div>
           </div>
         );

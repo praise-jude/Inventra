@@ -6,7 +6,7 @@ import { AddProductModal } from "@/components/products/AddProductModal";
 import { ProductDetailSlideOver } from "@/components/products/ProductDetailSlideOver";
 import { fetchProductDetail } from "@/lib/actions/products";
 import type { ProductDetail, ProductListRow } from "@/lib/queries/products";
-import { formatMoney } from "@/lib/format";
+import { useCurrency } from "@/components/app/CurrencyProvider";
 
 const STATUS_STYLE: Record<string, { color: string; background: string }> = {
   in_stock: { color: "var(--green)", background: "var(--green-weak)" },
@@ -37,6 +37,7 @@ export function ProductsClient({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { format: formatMoney } = useCurrency();
   const [query, setQuery] = useState("");
   const [showAdd, setShowAdd] = useState(() => searchParams.get("new") === "1");
   const [selected, setSelected] = useState<ProductDetail | null>(null);

@@ -7,25 +7,29 @@ const NAV = [
   { href: "/dashboard", label: "Overview", icon: "▦" },
   { href: "/products", label: "Products", icon: "📦" },
   { href: "/inventory", label: "Inventory", icon: "🗃️" },
-  { href: "/team", label: "Team", icon: "👥" },
+  { href: "/team", label: "Team", icon: "👥", adminOnly: true },
   { href: "/billing", label: "Billing", icon: "💳" },
-  { href: "/settings", label: "Settings", icon: "⚙️" },
+  { href: "/settings", label: "Settings", icon: "⚙️", adminOnly: true },
 ];
 
 export function Sidebar({
   orgName,
   plan,
   inventoryBadge,
+  role,
   open,
   onNavigate,
 }: {
   orgName: string;
   plan: string;
   inventoryBadge: number;
+  role: string;
   open: boolean;
   onNavigate: () => void;
 }) {
   const pathname = usePathname();
+  const isAdmin = role === "owner" || role === "admin";
+  const nav = NAV.filter((item) => !item.adminOnly || isAdmin);
 
   return (
     <aside
@@ -54,7 +58,7 @@ export function Sidebar({
         </button>
       </div>
       <nav className="scroll flex-1 overflow-y-auto px-2.5 py-1">
-        {NAV.map((item) => {
+        {nav.map((item) => {
           const active = pathname.startsWith(item.href);
           const badge = item.href === "/inventory" && inventoryBadge > 0 ? inventoryBadge : null;
           return (

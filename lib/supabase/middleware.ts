@@ -9,7 +9,12 @@ const AUTH_ROUTES = [
   "/accept-invite",
   "/mfa-setup",
   "/mfa-challenge",
+  "/auth/callback",
+  "/terms",
+  "/privacy",
 ];
+
+const ONBOARDING_ROUTE = "/onboarding/complete";
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -64,6 +69,35 @@ export async function updateSession(request: NextRequest) {
     if (!hasVerifiedFactor) {
       const url = request.nextUrl.clone();
       url.pathname = "/mfa-setup";
+      return NextResponse.redirect(url);
+    }
+
+    // MFA satisfied — make sure signup/OAuth onboarding gaps (business
+    // country/currency, terms acceptance) are filled in before letting the
+    // user any further into the app.
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("org_id, terms_accepted")
+      .eq("id", user.id)
+      .single();
+    let needsOnboarding = !profileRow || !profileRow.terms_accepted;
+    if (profileRow && profileRow.terms_accepted) {
+      const { data: orgRow } = await supabase
+        .from("organizations")
+        .select("country")
+        .eq("id", profileRow.org_id)
+        .single();
+      needsOnboarding = !orgRow?.country;
+    }
+
+    if (needsOnboarding && path !== ONBOARDING_ROUTE) {
+      const url = request.nextUrl.clone();
+      url.pathname = ONBOARDING_ROUTE;
+      return NextResponse.redirect(url);
+    }
+    if (!needsOnboarding && path === ONBOARDING_ROUTE) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/dashboard";
       return NextResponse.redirect(url);
     }
   } else if (path === "/login" || path === "/signup") {

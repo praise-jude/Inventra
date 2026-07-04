@@ -1,13 +1,4 @@
-export function formatMoneyCompact(n: number): string {
-  const abs = Math.abs(n);
-  if (abs >= 1_000_000) return `$${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
-  if (abs >= 1_000) return `$${(n / 1_000).toFixed(1).replace(/\.0$/, "")}k`;
-  return `$${n.toFixed(0)}`;
-}
-
-export function formatMoney(n: number): string {
-  return `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
+export { formatMoney, formatMoneyCompact, currencySymbol } from "@/lib/currency";
 
 export function formatNumber(n: number): string {
   return n.toLocaleString();

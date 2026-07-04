@@ -6,7 +6,7 @@ import { useToast } from "@/components/app/ToastProvider";
 import { changePlan } from "@/lib/actions/billing";
 import { PLANS } from "@/lib/billing-plans";
 import type { Invoice } from "@/lib/billing-plans";
-import { formatMoney } from "@/lib/format";
+import { useCurrency } from "@/components/app/CurrencyProvider";
 
 interface Props {
   planKey: string;
@@ -26,6 +26,7 @@ const INVOICE_STYLE: Record<string, { color: string; background: string }> = {
 export function BillingClient({ planKey, seatsUsed, skuCount, warehouseCount, renewsAt, invoices }: Props) {
   const router = useRouter();
   const flash = useToast();
+  const { format: formatMoney } = useCurrency();
   const [busy, setBusy] = useState<string | null>(null);
   const current = PLANS.find((p) => p.key === planKey) ?? PLANS[0];
 

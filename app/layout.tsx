@@ -30,7 +30,7 @@ export default async function RootLayout({
 
   return (
     <html lang="en" data-theme={theme} className={`${hanken.variable} ${jetbrains.variable}`}>
-      <body>{children}</body>
+      <body suppressHydrationWarning>{children}</body>
     </html>
   );
 }

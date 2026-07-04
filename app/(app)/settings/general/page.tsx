@@ -9,6 +9,8 @@ export default async function GeneralSettingsPage() {
       name={org.name}
       supportEmail={org.support_email ?? ""}
       currency={org.currency}
+      country={org.country ?? ""}
+      state={org.state ?? ""}
       timezone={org.timezone}
       taxRate={Number(org.tax_rate)}
       themePreference={profile.theme_preference}

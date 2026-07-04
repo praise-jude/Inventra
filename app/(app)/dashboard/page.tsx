@@ -34,7 +34,7 @@ function timeAgo(iso: string): string {
 }
 
 export default async function DashboardPage() {
-  const { profile } = await requireProfile();
+  const { profile, org } = await requireProfile();
   const [kpis, categoryMix, topSellers, stockHealth, monthlyStats, activity] = await Promise.all([
     getKpis(),
     getCategoryMix(),
@@ -59,7 +59,7 @@ export default async function DashboardPage() {
     { label: "Total products", value: formatNumber(kpis.total_products), icon: "📦", iconBg: "var(--accent-weak)", sub: "active SKUs", delta: null as string | null, deltaColor: "" },
     {
       label: "Today's revenue",
-      value: formatMoneyCompact(kpis.today_revenue),
+      value: formatMoneyCompact(kpis.today_revenue, org.currency),
       icon: "💰",
       iconBg: "var(--green-weak)",
       sub: "vs yesterday",
@@ -68,7 +68,7 @@ export default async function DashboardPage() {
     },
     {
       label: "Monthly profit",
-      value: kpis.monthly_profit !== null ? formatMoneyCompact(kpis.monthly_profit) : "—",
+      value: kpis.monthly_profit !== null ? formatMoneyCompact(kpis.monthly_profit, org.currency) : "—",
       icon: "📈",
       iconBg: "var(--sky-weak)",
       sub: "vs last month",
@@ -149,7 +149,7 @@ export default async function DashboardPage() {
           <div className="mb-1.5 text-[12.5px] text-muted">Share of inventory value</div>
           <div className="flex flex-1 items-center gap-3.5">
             <div className="h-[130px] w-[130px] flex-shrink-0">
-              <DonutChart data={categoryMix} totalLabel={formatMoneyCompact(totalCategoryValue)} />
+              <DonutChart data={categoryMix} totalLabel={formatMoneyCompact(totalCategoryValue, org.currency)} />
             </div>
             <div className="flex flex-1 flex-col gap-2.5">
               {categoryMix.slice(0, 5).map((c, i) => (
@@ -188,7 +188,7 @@ export default async function DashboardPage() {
                   <div className="text-[11.5px] text-muted">{formatNumber(p.units)} sold</div>
                 </div>
                 <div className="text-right">
-                  <div className="font-mono text-[13px] font-bold">{formatMoneyCompact(p.revenue)}</div>
+                  <div className="font-mono text-[13px] font-bold">{formatMoneyCompact(p.revenue, org.currency)}</div>
                   {p.trend_pct !== null && (
                     <div className="text-[11px] font-semibold" style={{ color: p.trend_pct >= 0 ? "var(--green)" : "var(--red)" }}>
                       {formatPct(p.trend_pct, 0)}
