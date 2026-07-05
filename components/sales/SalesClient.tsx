@@ -7,8 +7,9 @@ import { useWorkspace } from "@/components/app/CurrencyProvider";
 import { fetchSaleDetail } from "@/lib/actions/sales";
 import { SaleDetailSlideOver } from "@/components/sales/SaleDetailSlideOver";
 import type { SaleListRow, SaleDetail } from "@/lib/queries/sales";
+import type { CustomerOption } from "@/lib/queries/customers";
 
-export function SalesClient({ sales }: { sales: SaleListRow[] }) {
+export function SalesClient({ sales, customers, canDelete }: { sales: SaleListRow[]; customers: CustomerOption[]; canDelete: boolean }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { format: formatMoney, formatDateTime } = useWorkspace();
@@ -75,7 +76,19 @@ export function SalesClient({ sales }: { sales: SaleListRow[] }) {
                   onClick={() => fetchSaleDetail(s.id).then((d) => d && setDetail(d))}
                   className="cursor-pointer border-t border-border-2 hover:bg-hover"
                 >
-                  <td className="px-4 py-3 text-[13.5px] font-semibold">{s.customerName}</td>
+                  <td className="px-4 py-3 text-[13.5px] font-semibold">
+                    <div className="flex items-center gap-2">
+                      {s.customerName}
+                      {s.isVoided && (
+                        <span
+                          className="inline-flex items-center rounded-[20px] px-2 py-px text-[10.5px] font-bold text-red"
+                          style={{ background: "var(--red-weak)" }}
+                        >
+                          Voided
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-3.5 py-3 text-right font-mono text-[13px]">{s.itemCount}</td>
                   <td className="px-3.5 py-3 text-[12.5px] text-text-2">{s.paymentSummary}</td>
                   <td className="px-3.5 py-3 text-[12.5px] text-text-2">{formatDateTime(s.createdAt)}</td>
@@ -94,7 +107,7 @@ export function SalesClient({ sales }: { sales: SaleListRow[] }) {
         </div>
       </div>
 
-      {detail && <SaleDetailSlideOver sale={detail} onClose={closeDetail} />}
+      {detail && <SaleDetailSlideOver sale={detail} customers={customers} canDelete={canDelete} onClose={closeDetail} />}
     </div>
   );
 }

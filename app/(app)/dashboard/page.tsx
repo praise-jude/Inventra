@@ -6,6 +6,7 @@ import {
   getStockHealth,
   getMonthlyStats,
   getRecentActivity,
+  getDailyProductProfit,
 } from "@/lib/queries/dashboard";
 import type { ActivityRow } from "@/lib/queries/dashboard";
 import { requireProfile } from "@/lib/queries/session";
@@ -36,14 +37,16 @@ function timeAgo(iso: string): string {
 
 export default async function DashboardPage() {
   const { profile, org } = await requireProfile();
-  const [kpis, categoryMix, topSellers, stockHealth, monthlyStats, activity] = await Promise.all([
+  const [kpis, categoryMix, topSellers, stockHealth, monthlyStats, activity, dailyProfit] = await Promise.all([
     getKpis(),
     getCategoryMix(),
     getTopSellers(5),
     getStockHealth(),
     getMonthlyStats(),
     getRecentActivity(5),
+    getDailyProductProfit(),
   ]);
+  const todaysProfit = dailyProfit.reduce((sum, p) => sum + (Number(p.profit) || 0), 0);
 
   const totalCategoryValue = categoryMix.reduce((sum, c) => sum + Number(c.value), 0);
   const totalStock = stockHealth.reduce(
@@ -254,6 +257,57 @@ export default async function DashboardPage() {
             })}
           </div>
         </div>
+      </div>
+
+      {/* DAILY PROFIT */}
+      <div className="mt-4 rounded-2xl border border-border bg-surface p-[18px_20px] shadow-[var(--shadow-sm)]">
+        <div className="mb-3.5 flex items-center justify-between">
+          <div>
+            <div className="text-[15px] font-bold">Today&apos;s profit by product</div>
+            <div className="text-[12.5px] text-muted">Cost vs. sale price × units sold today</div>
+          </div>
+          <div className="text-right">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted">Today&apos;s profit</div>
+            <div className="font-mono text-[19px] font-bold" style={{ color: todaysProfit >= 0 ? "var(--green)" : "var(--red)" }}>
+              {formatMoneyCompact(todaysProfit, org.currency)}
+            </div>
+          </div>
+        </div>
+        {dailyProfit.length === 0 ? (
+          <p className="text-[12.5px] text-muted">No sales recorded today yet.</p>
+        ) : (
+          <div className="overflow-hidden rounded-[10px] border border-border">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-surface-2">
+                  <th className="px-3.5 py-2 text-left text-[11px] font-bold uppercase tracking-[0.04em] text-muted">Product</th>
+                  <th className="px-3.5 py-2 text-right text-[11px] font-bold uppercase tracking-[0.04em] text-muted">Units sold</th>
+                  <th className="px-3.5 py-2 text-right text-[11px] font-bold uppercase tracking-[0.04em] text-muted">Revenue</th>
+                  <th className="px-3.5 py-2 text-right text-[11px] font-bold uppercase tracking-[0.04em] text-muted">Cost</th>
+                  <th className="px-3.5 py-2 text-right text-[11px] font-bold uppercase tracking-[0.04em] text-muted">Profit</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dailyProfit.map((p) => (
+                  <tr key={p.product_id} className="border-t border-border-2">
+                    <td className="px-3.5 py-2.5 text-[13px] font-semibold">
+                      {p.emoji || "📦"} {p.name}
+                    </td>
+                    <td className="px-3.5 py-2.5 text-right font-mono text-[13px]">{formatNumber(Number(p.units_sold) || 0)}</td>
+                    <td className="px-3.5 py-2.5 text-right font-mono text-[13px]">{formatMoneyCompact(Number(p.revenue) || 0, org.currency)}</td>
+                    <td className="px-3.5 py-2.5 text-right font-mono text-[13px] text-text-2">{formatMoneyCompact(Number(p.cost) || 0, org.currency)}</td>
+                    <td
+                      className="px-3.5 py-2.5 text-right font-mono text-[13px] font-bold"
+                      style={{ color: (Number(p.profit) || 0) >= 0 ? "var(--green)" : "var(--red)" }}
+                    >
+                      {formatMoneyCompact(Number(p.profit) || 0, org.currency)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

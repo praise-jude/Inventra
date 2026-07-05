@@ -31,9 +31,11 @@ export async function createCategory(input: CategoryInput) {
   const name = input.name.trim();
   if (!name) throw new Error("Category name is required.");
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("categories")
-    .insert({ org_id: orgId, name, emoji: input.emoji?.trim() || null });
+    .insert({ org_id: orgId, name, emoji: input.emoji?.trim() || null })
+    .select("id, name")
+    .single();
   if (error) {
     if (error.code === "23505") throw new Error("A category with this name already exists.");
     console.error("[Inventra] createCategory failed:", error);
@@ -41,6 +43,7 @@ export async function createCategory(input: CategoryInput) {
   }
   revalidatePath("/inventory/categories");
   revalidatePath("/products");
+  return data;
 }
 
 export async function updateCategory(id: string, input: CategoryInput) {

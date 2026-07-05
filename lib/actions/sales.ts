@@ -13,7 +13,7 @@ async function requireSalesOrgId() {
   const { data: profile } = await supabase.from("profiles").select("org_id, role").eq("id", user.id).single();
   if (!profile) throw new Error("No profile");
   if (profile.role === "warehouse") throw new Error("Warehouse accounts can't record sales.");
-  return { supabase, orgId: profile.org_id as string, userId: user.id };
+  return { supabase, orgId: profile.org_id as string, userId: user.id, role: profile.role as string };
 }
 
 export async function fetchSaleDetail(id: string): Promise<SaleDetail | null> {
@@ -149,4 +149,116 @@ export async function recordSale(input: RecordSaleInput) {
   revalidatePath("/products");
   revalidatePath("/inventory");
   return sale.id as string;
+}
+
+export interface UpdateSaleInput {
+  customerId?: string;
+  walkInName?: string;
+  notes?: string;
+  paymentMethod?: string;
+}
+
+export async function updateSale(id: string, input: UpdateSaleInput) {
+  const { supabase } = await requireSalesOrgId();
+
+  const { data: existing, error: fetchError } = await supabase
+    .from("sales")
+    .select("id, voided_at")
+    .eq("id", id)
+    .single();
+  if (fetchError || !existing) throw new Error("Sale not found.");
+  if (existing.voided_at) throw new Error("This sale has been voided and can't be edited.");
+
+  const { error: saleError } = await supabase
+    .from("sales")
+    .update({
+      customer_id: input.customerId || null,
+      walk_in_name: input.customerId ? null : input.walkInName?.trim() || null,
+      notes: input.notes?.trim() || null,
+    })
+    .eq("id", id);
+  if (saleError) {
+    console.error("[Inventra] updateSale (sales) failed:", saleError);
+    throw new Error("Could not update the sale.");
+  }
+
+  if (input.paymentMethod) {
+    const { data: payments, error: payFetchError } = await supabase
+      .from("sale_payments")
+      .select("id")
+      .eq("sale_id", id);
+    if (payFetchError) {
+      console.error("[Inventra] updateSale (payments fetch) failed:", payFetchError);
+      throw new Error("Could not update the sale's payment method.");
+    }
+    if ((payments ?? []).length === 1) {
+      const { error: payError } = await supabase
+        .from("sale_payments")
+        .update({ method: input.paymentMethod })
+        .eq("id", payments![0].id);
+      if (payError) {
+        console.error("[Inventra] updateSale (payments update) failed:", payError);
+        throw new Error("Could not update the sale's payment method.");
+      }
+    }
+  }
+
+  revalidatePath("/sales");
+}
+
+export async function voidSale(id: string, reason?: string) {
+  const { supabase, orgId, userId, role } = await requireSalesOrgId();
+  if (!["owner", "admin"].includes(role)) {
+    throw new Error("Only an owner or admin can delete a sale.");
+  }
+
+  const { data: sale, error: saleError } = await supabase
+    .from("sales")
+    .select("id, voided_at")
+    .eq("id", id)
+    .single();
+  if (saleError || !sale) throw new Error("Sale not found.");
+  if (sale.voided_at) throw new Error("This sale has already been voided.");
+
+  const { data: lines, error: linesError } = await supabase
+    .from("stock_movements")
+    .select("product_id, warehouse_id, qty_delta, unit_price")
+    .eq("sale_id", id);
+  if (linesError) {
+    console.error("[Inventra] voidSale (lines fetch) failed:", linesError);
+    throw new Error("Could not load this sale's line items.");
+  }
+
+  if ((lines ?? []).length > 0) {
+    const { error: reversalError } = await supabase.from("stock_movements").insert(
+      (lines ?? []).map((l) => ({
+        org_id: orgId,
+        product_id: l.product_id,
+        warehouse_id: l.warehouse_id,
+        type: "sale",
+        qty_delta: -l.qty_delta,
+        unit_price: l.unit_price,
+        reason: "Voided sale — reversal",
+        sale_id: null,
+        created_by: userId,
+      })),
+    );
+    if (reversalError) {
+      console.error("[Inventra] voidSale (reversal insert) failed:", reversalError);
+      throw new Error("Could not reverse this sale's stock impact.");
+    }
+  }
+
+  const { error: voidError } = await supabase
+    .from("sales")
+    .update({ voided_at: new Date().toISOString(), void_reason: reason?.trim() || null })
+    .eq("id", id);
+  if (voidError) {
+    console.error("[Inventra] voidSale (sales update) failed:", voidError);
+    throw new Error("Could not void the sale.");
+  }
+
+  revalidatePath("/sales");
+  revalidatePath("/dashboard");
+  revalidatePath("/products");
 }

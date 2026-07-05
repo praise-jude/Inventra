@@ -1,8 +1,14 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useToast } from "@/components/app/ToastProvider";
 import { useWorkspace } from "@/components/app/CurrencyProvider";
+import { voidSale } from "@/lib/actions/sales";
 import type { SaleDetail } from "@/lib/queries/sales";
+import type { CustomerOption } from "@/lib/queries/customers";
 import type { PaymentMethod } from "@/lib/supabase/database.types";
+import { SaleEditModal } from "@/components/sales/SaleEditModal";
 
 const PAYMENT_LABEL: Record<PaymentMethod, string> = {
   cash: "Cash",
@@ -11,8 +17,37 @@ const PAYMENT_LABEL: Record<PaymentMethod, string> = {
   mobile_money: "Mobile Money",
 };
 
-export function SaleDetailSlideOver({ sale, onClose }: { sale: SaleDetail; onClose: () => void }) {
+export function SaleDetailSlideOver({
+  sale,
+  customers,
+  canDelete,
+  onClose,
+}: {
+  sale: SaleDetail;
+  customers: CustomerOption[];
+  canDelete: boolean;
+  onClose: () => void;
+}) {
+  const router = useRouter();
+  const flash = useToast();
   const { format: formatMoney, formatDateTime } = useWorkspace();
+  const [showEdit, setShowEdit] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function handleVoid() {
+    if (!window.confirm("Delete this sale? Stock will be restocked and this can't be undone.")) return;
+    setBusy(true);
+    try {
+      await voidSale(sale.id);
+      flash("Sale deleted");
+      onClose();
+      router.refresh();
+    } catch (err) {
+      flash(err instanceof Error ? err.message : "Could not delete the sale.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <>
@@ -21,7 +56,17 @@ export function SaleDetailSlideOver({ sale, onClose }: { sale: SaleDetail; onClo
         <div className="sticky top-0 z-[2] flex items-center gap-3 border-b border-border bg-surface px-[22px] py-[18px]">
           <div className="flex h-11 w-11 items-center justify-center rounded-[11px] bg-accent-weak text-[20px]">🧾</div>
           <div className="min-w-0 flex-1">
-            <div className="truncate text-[16px] font-bold tracking-tight">{sale.customerName}</div>
+            <div className="flex items-center gap-2">
+              <div className="truncate text-[16px] font-bold tracking-tight">{sale.customerName}</div>
+              {sale.isVoided && (
+                <span
+                  className="inline-flex items-center rounded-[20px] px-2 py-px text-[11px] font-bold text-red"
+                  style={{ background: "var(--red-weak)" }}
+                >
+                  Voided
+                </span>
+              )}
+            </div>
             <div className="text-[12px] text-muted">{formatDateTime(sale.createdAt)}</div>
           </div>
           <button onClick={onClose} className="h-8 w-8 rounded-[8px] border border-border bg-surface text-[15px] text-text">
@@ -29,6 +74,30 @@ export function SaleDetailSlideOver({ sale, onClose }: { sale: SaleDetail; onClo
           </button>
         </div>
         <div className="px-[22px] py-5">
+          {!sale.isVoided && (
+            <div className="mb-5 flex gap-2">
+              <button
+                onClick={() => setShowEdit(true)}
+                className="h-[38px] flex-1 rounded-[9px] bg-accent text-[13px] font-semibold text-white"
+              >
+                Edit
+              </button>
+              {canDelete && (
+                <button
+                  onClick={handleVoid}
+                  disabled={busy}
+                  className="h-[38px] rounded-[9px] border border-border bg-surface px-3.5 text-[13px] font-semibold text-red"
+                >
+                  Delete
+                </button>
+              )}
+            </div>
+          )}
+          {sale.isVoided && sale.voidReason && (
+            <div className="mb-5 rounded-[10px] border border-border bg-surface-2 px-3 py-2.5 text-[12.5px] text-text-2">
+              Voided: {sale.voidReason}
+            </div>
+          )}
           <div className="mb-2.5 text-[14px] font-bold">Items</div>
           <div className="mb-5 flex flex-col gap-2">
             {sale.items.map((i) => (
@@ -78,6 +147,14 @@ export function SaleDetailSlideOver({ sale, onClose }: { sale: SaleDetail; onClo
           )}
         </div>
       </div>
+      {showEdit && (
+        <SaleEditModal
+          sale={sale}
+          customers={customers}
+          paymentMethod={sale.payments.length === 1 ? sale.payments[0].method : null}
+          onClose={() => setShowEdit(false)}
+        />
+      )}
     </>
   );
 }

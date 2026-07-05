@@ -72,6 +72,16 @@ export async function updateDebtor(id: string, input: DebtorInput & { status?: s
   revalidatePath("/debtors");
 }
 
+export async function updateDebtorStatus(id: string, status: string) {
+  const { supabase } = await requireOrgId();
+  const { error } = await supabase.from("debtors").update({ status }).eq("id", id);
+  if (error) {
+    console.error("[Inventra] updateDebtorStatus failed:", error);
+    throw new Error("Could not update the debtor's status.");
+  }
+  revalidatePath("/debtors");
+}
+
 export async function deleteDebtor(id: string) {
   const { supabase, role } = await requireOrgId();
   if (!["owner", "admin"].includes(role)) {

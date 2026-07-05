@@ -9,6 +9,7 @@ export interface SaleListRow {
   paymentSummary: string;
   itemCount: number;
   createdAt: string;
+  isVoided: boolean;
 }
 
 const PAYMENT_LABEL: Record<PaymentMethod, string> = {
@@ -22,11 +23,11 @@ export async function getSalesList(): Promise<SaleListRow[]> {
   const supabase = await createClient();
   const { data: sales, error } = await supabase
     .from("sales")
-    .select("id, walk_in_name, total, created_at, customers(name)")
+    .select("id, walk_in_name, total, created_at, voided_at, customers(name)")
     .order("created_at", { ascending: false })
     .limit(100);
   if (error) {
-    console.error("[Inventra] getSalesList (sales) failed:", error);
+    console.error("[Inventra] getSalesList (sales) failed:", error.message, error.details, error.hint, error.code);
     throw new Error("Could not load sales.");
   }
 
@@ -38,11 +39,11 @@ export async function getSalesList(): Promise<SaleListRow[]> {
     supabase.from("stock_movements").select("sale_id").in("sale_id", saleIds),
   ]);
   if (payError) {
-    console.error("[Inventra] getSalesList (payments) failed:", payError);
+    console.error("[Inventra] getSalesList (payments) failed:", payError.message, payError.details, payError.hint, payError.code);
     throw new Error("Could not load sales.");
   }
   if (itemError) {
-    console.error("[Inventra] getSalesList (items) failed:", itemError);
+    console.error("[Inventra] getSalesList (items) failed:", itemError.message, itemError.details, itemError.hint, itemError.code);
     throw new Error("Could not load sales.");
   }
 
@@ -67,6 +68,7 @@ export async function getSalesList(): Promise<SaleListRow[]> {
       paymentSummary,
       itemCount: itemCountBySale.get(s.id) ?? 0,
       createdAt: s.created_at,
+      isVoided: s.voided_at !== null,
     };
   });
 }
@@ -86,13 +88,17 @@ export interface SalePaymentRow {
 
 export interface SaleDetail {
   id: string;
+  customerId: string | null;
   customerName: string;
+  walkInName: string | null;
   subtotal: number;
   discountAmount: number;
   taxAmount: number;
   total: number;
   notes: string | null;
   createdAt: string;
+  isVoided: boolean;
+  voidReason: string | null;
   items: SaleLineItem[];
   payments: SalePaymentRow[];
 }
@@ -101,7 +107,9 @@ export async function getSaleDetail(id: string): Promise<SaleDetail | null> {
   const supabase = await createClient();
   const { data: sale, error: saleError } = await supabase
     .from("sales")
-    .select("id, walk_in_name, subtotal, discount_amount, tax_amount, total, notes, created_at, customers(name)")
+    .select(
+      "id, customer_id, walk_in_name, subtotal, discount_amount, tax_amount, total, notes, created_at, voided_at, void_reason, customers(name)",
+    )
     .eq("id", id)
     .single();
   if (saleError || !sale) return null;
@@ -111,23 +119,27 @@ export async function getSaleDetail(id: string): Promise<SaleDetail | null> {
     supabase.from("sale_payments").select("method, amount").eq("sale_id", id),
   ]);
   if (itemError) {
-    console.error("[Inventra] getSaleDetail (items) failed:", itemError);
+    console.error("[Inventra] getSaleDetail (items) failed:", itemError.message, itemError.details, itemError.hint, itemError.code);
     throw new Error("Could not load this sale's line items.");
   }
   if (payError) {
-    console.error("[Inventra] getSaleDetail (payments) failed:", payError);
+    console.error("[Inventra] getSaleDetail (payments) failed:", payError.message, payError.details, payError.hint, payError.code);
     throw new Error("Could not load this sale's payments.");
   }
 
   return {
     id: sale.id,
+    customerId: sale.customer_id,
     customerName: (sale.customers as unknown as { name: string } | null)?.name ?? sale.walk_in_name ?? "Walk-in customer",
+    walkInName: sale.walk_in_name,
     subtotal: Number(sale.subtotal),
     discountAmount: Number(sale.discount_amount),
     taxAmount: Number(sale.tax_amount),
     total: Number(sale.total),
     notes: sale.notes,
     createdAt: sale.created_at,
+    isVoided: sale.voided_at !== null,
+    voidReason: sale.void_reason,
     items: (items ?? []).map((i) => {
       const qty = Math.abs(i.qty_delta);
       const unitPrice = Number(i.unit_price ?? 0);

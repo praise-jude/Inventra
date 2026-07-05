@@ -50,13 +50,18 @@ export async function createSupplier(input: SupplierInput) {
   const values = normalize(input);
   if (!values.name) throw new Error("Supplier name is required.");
 
-  const { error } = await supabase.from("suppliers").insert({ org_id: orgId, ...values });
+  const { data, error } = await supabase
+    .from("suppliers")
+    .insert({ org_id: orgId, ...values })
+    .select("id, name")
+    .single();
   if (error) {
     console.error("[Inventra] createSupplier failed:", error);
     throw new Error("Could not create the supplier.");
   }
   revalidatePath("/inventory/suppliers");
   revalidatePath("/products");
+  return data;
 }
 
 export async function updateSupplier(id: string, input: SupplierInput) {

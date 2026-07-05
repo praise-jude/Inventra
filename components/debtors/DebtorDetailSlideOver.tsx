@@ -18,7 +18,7 @@ const STATUS_STYLE: Record<string, { color: string; background: string }> = {
 };
 const STATUS_LABEL: Record<string, string> = {
   pending: "Pending",
-  partially_paid: "Partially Paid",
+  partially_paid: "Half Payment",
   paid: "Paid",
   overdue: "Overdue",
   cancelled: "Cancelled",

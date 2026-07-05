@@ -141,6 +141,8 @@ export interface Product {
   expiry_date: string | null;
   batch_number: string | null;
   status: ProductStatus;
+  image_url: string | null;
+  barcode: string | null;
   archived_at: string | null;
   created_at: string;
   updated_at: string;
@@ -191,6 +193,8 @@ export interface Sale {
   notes: string | null;
   created_by: string | null;
   created_at: string;
+  voided_at: string | null;
+  void_reason: string | null;
 }
 
 export interface SalePayment {
@@ -262,6 +266,16 @@ export interface TopSellerRow {
 export interface StockHealthRow {
   label: "in_stock" | "low_stock" | "out_of_stock" | "expiring";
   count: number;
+}
+
+export interface DailyProductProfitRow {
+  product_id: string;
+  name: string;
+  emoji: string | null;
+  units_sold: number;
+  revenue: number;
+  cost: number;
+  profit: number;
 }
 
 // Minimal Database shape — enough for the typed supabase-js client used by

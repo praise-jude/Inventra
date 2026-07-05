@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/app/ToastProvider";
-import { createProduct } from "@/lib/actions/products";
+import { updateProduct } from "@/lib/actions/products";
+import type { ProductDetail } from "@/lib/queries/products";
 import { ProductFormFields, type ProductFormState } from "@/components/products/ProductFormFields";
 import { Button } from "@/components/ui/Button";
 
@@ -12,12 +13,14 @@ interface Option {
   name: string;
 }
 
-export function AddProductModal({
+export function EditProductModal({
+  product,
   categories,
   warehouses,
   suppliers,
   onClose,
 }: {
+  product: ProductDetail;
   categories: Option[];
   warehouses: Option[];
   suppliers: Option[];
@@ -30,20 +33,20 @@ export function AddProductModal({
   const [categoryOptions, setCategoryOptions] = useState(categories);
   const [supplierOptions, setSupplierOptions] = useState(suppliers);
   const [form, setForm] = useState<ProductFormState>({
-    name: "",
-    description: "",
-    sku: "",
-    barcode: "",
-    categoryId: categories[0]?.id ?? "",
-    unit: "each",
-    brand: "",
-    costPrice: "",
-    sellPrice: "",
-    reorderLevel: "",
-    supplierId: suppliers[0]?.id ?? "",
-    warehouseId: warehouses[0]?.id ?? "",
-    expiryDate: "",
-    imageUrl: "",
+    name: product.name,
+    description: product.description ?? "",
+    sku: product.sku,
+    barcode: product.barcode ?? "",
+    categoryId: product.categoryId ?? "",
+    unit: product.unit,
+    brand: product.brand ?? "",
+    costPrice: String(product.cost_price),
+    sellPrice: String(product.sell_price),
+    reorderLevel: String(product.reorder_level),
+    supplierId: product.supplierId ?? "",
+    warehouseId: product.warehouseId ?? "",
+    expiryDate: product.expiry_date ?? "",
+    imageUrl: product.imageUrl ?? "",
     openingQty: "0",
   });
 
@@ -60,26 +63,27 @@ export function AddProductModal({
     }
     setSaving(true);
     try {
-      await createProduct({
+      await updateProduct(product.id, {
         name: form.name,
         description: form.description,
         sku: form.sku,
         barcode: form.barcode,
         categoryId: form.categoryId,
         unit: form.unit,
+        brand: form.brand,
         costPrice: parseFloat(form.costPrice) || 0,
         sellPrice: parseFloat(form.sellPrice) || 0,
         reorderLevel: parseInt(form.reorderLevel, 10) || 0,
         supplierId: form.supplierId,
         warehouseId: form.warehouseId,
-        openingQty: parseInt(form.openingQty, 10) || 0,
+        expiryDate: form.expiryDate,
         imageUrl: form.imageUrl,
       });
-      flash("Product created");
+      flash("Product updated");
       onClose();
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not create product.");
+      setError(err instanceof Error ? err.message : "Could not update product.");
     } finally {
       setSaving(false);
     }
@@ -97,8 +101,8 @@ export function AddProductModal({
       >
         <div className="sticky top-0 flex items-center justify-between border-b border-border bg-surface px-[22px] py-[18px]">
           <div>
-            <div className="text-[16px] font-bold">New product</div>
-            <div className="text-[12.5px] text-muted">Add an item to your catalog.</div>
+            <div className="text-[16px] font-bold">Edit product</div>
+            <div className="text-[12.5px] text-muted">Update this item&apos;s details.</div>
           </div>
           <button type="button" onClick={onClose} className="h-8 w-8 rounded-[8px] border border-border bg-surface text-text">
             ✕
@@ -113,7 +117,7 @@ export function AddProductModal({
             warehouses={warehouses}
             onCategoryCreated={(opt) => setCategoryOptions((c) => [...c, opt])}
             onSupplierCreated={(opt) => setSupplierOptions((s) => [...s, opt])}
-            showOpeningQty
+            showOpeningQty={false}
           />
           {error && <p className="mt-3 text-[13px] font-medium text-red">{error}</p>}
         </div>
@@ -122,7 +126,7 @@ export function AddProductModal({
             Cancel
           </Button>
           <Button type="submit" disabled={saving}>
-            {saving ? "Creating…" : "Create product"}
+            {saving ? "Saving…" : "Save changes"}
           </Button>
         </div>
       </form>
