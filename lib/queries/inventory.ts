@@ -67,6 +67,28 @@ export async function getStockMovements(limit = 50): Promise<MovementRow[]> {
   }));
 }
 
+// The adjustment log shows manual corrections only — adjustments and expiry
+// write-offs — not the full ledger (sales, receipts, transfers, returns).
+export async function getAdjustments(limit = 50): Promise<MovementRow[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("stock_movements")
+    .select("id, type, qty_delta, reason, created_at, products(name), profiles(first_name, last_name)")
+    .in("type", ["adjustment", "expired"])
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []).map((m) => ({
+    id: m.id,
+    type: m.type,
+    qty_delta: m.qty_delta,
+    reason: m.reason,
+    created_at: m.created_at,
+    product_name: (m.products as unknown as { name: string } | null)?.name ?? "—",
+    who: m.profiles ? `${(m.profiles as unknown as { first_name: string; last_name: string }).first_name} ${(m.profiles as unknown as { first_name: string; last_name: string }).last_name}` : "System",
+  }));
+}
+
 export interface WarehouseOverview {
   id: string;
   name: string;

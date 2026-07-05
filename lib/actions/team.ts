@@ -26,6 +26,11 @@ export async function inviteMember(email: string, role: string, firstName: strin
     throw new Error("Only an owner or admin can invite team members.");
   }
 
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    throw new Error(
+      "Invites need the SUPABASE_SERVICE_ROLE_KEY server secret — add it to the deployment's environment (Supabase dashboard → Project Settings → API).",
+    );
+  }
   const admin = createAdminClient();
   const { error } = await admin.auth.admin.inviteUserByEmail(email, {
     data: { org_id: profile.org_id, role, first_name: firstName, last_name: lastName },

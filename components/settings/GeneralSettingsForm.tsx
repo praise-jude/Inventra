@@ -116,7 +116,15 @@ export function GeneralSettingsForm({ name, supportEmail, currency, country, sta
         <ThemePicker initialPreference={themePreference} />
       </div>
       <div className="flex justify-end gap-2.5">
-        <Button variant="secondary">Cancel</Button>
+        <Button
+          variant="secondary"
+          onClick={() => {
+            setForm({ name, supportEmail, currency, country, state, timezone, taxRate: String(taxRate) });
+            flash("Changes discarded");
+          }}
+        >
+          Cancel
+        </Button>
         <Button onClick={handleSave} disabled={saving}>
           {saving ? "Saving…" : "Save changes"}
         </Button>

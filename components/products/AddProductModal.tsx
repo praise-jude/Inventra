@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/app/ToastProvider";
-import { createProduct } from "@/lib/actions/products";
+import { createProduct, updateProduct } from "@/lib/actions/products";
+import type { ProductDetail } from "@/lib/queries/products";
 import { Field } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 
@@ -16,11 +17,13 @@ export function AddProductModal({
   categories,
   warehouses,
   suppliers,
+  editing,
   onClose,
 }: {
   categories: Option[];
   warehouses: Option[];
   suppliers: Option[];
+  editing?: ProductDetail;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -28,16 +31,16 @@ export function AddProductModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
-    name: "",
-    description: "",
-    sku: "",
-    categoryId: categories[0]?.id ?? "",
-    unit: "each",
-    costPrice: "",
-    sellPrice: "",
-    reorderLevel: "",
-    supplierId: suppliers[0]?.id ?? "",
-    warehouseId: warehouses[0]?.id ?? "",
+    name: editing?.name ?? "",
+    description: editing?.description ?? "",
+    sku: editing?.sku ?? "",
+    categoryId: editing ? (editing.category_id ?? "") : (categories[0]?.id ?? ""),
+    unit: editing?.unit ?? "each",
+    costPrice: editing ? String(editing.cost_price) : "",
+    sellPrice: editing ? String(editing.sell_price) : "",
+    reorderLevel: editing ? String(editing.reorder_level) : "",
+    supplierId: editing ? (editing.supplier_id ?? "") : (suppliers[0]?.id ?? ""),
+    warehouseId: editing ? (editing.warehouse_id ?? "") : (warehouses[0]?.id ?? ""),
     openingQty: "0",
   });
 
@@ -54,7 +57,7 @@ export function AddProductModal({
     }
     setSaving(true);
     try {
-      await createProduct({
+      const common = {
         name: form.name,
         description: form.description,
         sku: form.sku,
@@ -65,13 +68,18 @@ export function AddProductModal({
         reorderLevel: parseInt(form.reorderLevel, 10) || 0,
         supplierId: form.supplierId,
         warehouseId: form.warehouseId,
-        openingQty: parseInt(form.openingQty, 10) || 0,
-      });
-      flash("Product created");
+      };
+      if (editing) {
+        await updateProduct(editing.id, common);
+        flash("Product updated");
+      } else {
+        await createProduct({ ...common, openingQty: parseInt(form.openingQty, 10) || 0 });
+        flash("Product created");
+      }
       onClose();
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not create product.");
+      setError(err instanceof Error ? err.message : editing ? "Could not update product." : "Could not create product.");
     } finally {
       setSaving(false);
     }
@@ -89,8 +97,10 @@ export function AddProductModal({
       >
         <div className="sticky top-0 flex items-center justify-between border-b border-border bg-surface px-[22px] py-[18px]">
           <div>
-            <div className="text-[16px] font-bold">New product</div>
-            <div className="text-[12.5px] text-muted">Add an item to your catalog.</div>
+            <div className="text-[16px] font-bold">{editing ? "Edit product" : "New product"}</div>
+            <div className="text-[12.5px] text-muted">
+              {editing ? `Update ${editing.sku} — stock is managed via movements.` : "Add an item to your catalog."}
+            </div>
           </div>
           <button type="button" onClick={onClose} className="h-8 w-8 rounded-[8px] border border-border bg-surface text-text">
             ✕
@@ -118,6 +128,7 @@ export function AddProductModal({
                 onChange={(e) => set("categoryId", e.target.value)}
                 className="h-[40px] w-full rounded-[9px] border border-border bg-surface-2 px-3 text-[13.5px] text-text"
               >
+                <option value="">— None —</option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -136,6 +147,7 @@ export function AddProductModal({
                 onChange={(e) => set("supplierId", e.target.value)}
                 className="h-[40px] w-full rounded-[9px] border border-border bg-surface-2 px-3 text-[13.5px] text-text"
               >
+                <option value="">— None —</option>
                 {suppliers.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
@@ -150,6 +162,7 @@ export function AddProductModal({
                 onChange={(e) => set("warehouseId", e.target.value)}
                 className="h-[40px] w-full rounded-[9px] border border-border bg-surface-2 px-3 text-[13.5px] text-text"
               >
+                <option value="">— None —</option>
                 {warehouses.map((w) => (
                   <option key={w.id} value={w.id}>
                     {w.name}
@@ -157,7 +170,9 @@ export function AddProductModal({
                 ))}
               </select>
             </div>
-            <Field label="Opening qty" placeholder="0" type="number" value={form.openingQty} onChange={(e) => set("openingQty", e.target.value)} />
+            {!editing && (
+              <Field label="Opening qty" placeholder="0" type="number" value={form.openingQty} onChange={(e) => set("openingQty", e.target.value)} />
+            )}
           </div>
           {error && <p className="text-[13px] font-medium text-red">{error}</p>}
         </div>
@@ -166,7 +181,7 @@ export function AddProductModal({
             Cancel
           </Button>
           <Button type="submit" disabled={saving}>
-            {saving ? "Creating…" : "Create product"}
+            {saving ? (editing ? "Saving…" : "Creating…") : editing ? "Save changes" : "Create product"}
           </Button>
         </div>
       </form>

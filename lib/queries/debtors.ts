@@ -2,6 +2,15 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import type { DebtorStatus } from "@/lib/supabase/database.types";
 
+// Nothing in the DB flips a debtor to 'overdue' when its due_date passes —
+// derive it at read time so the KPI and badges stay honest without a cron.
+function effectiveStatus(status: DebtorStatus, dueDate: string | null): DebtorStatus {
+  if ((status === "pending" || status === "partially_paid") && dueDate && dueDate < new Date().toISOString().slice(0, 10)) {
+    return "overdue";
+  }
+  return status;
+}
+
 export interface DebtorRow {
   id: string;
   customerName: string;
@@ -39,7 +48,7 @@ export async function getDebtorsOverview(): Promise<DebtorsOverview> {
     throw new Error("Could not load debtors.");
   }
 
-  const rows = debtors ?? [];
+  const rows = (debtors ?? []).map((d) => ({ ...d, status: effectiveStatus(d.status, d.due_date) }));
   const totalOutstanding = rows.filter((d) => d.status !== "cancelled").reduce((s, d) => s + Number(d.amount_owed), 0);
   const overdueAmount = rows.filter((d) => d.status === "overdue").reduce((s, d) => s + Number(d.amount_owed), 0);
   const totalPaid = (payments ?? []).reduce((s, p) => s + Number(p.amount), 0);
@@ -101,7 +110,7 @@ export async function getDebtorDetail(id: string): Promise<DebtorDetail | null> 
     notes: debtor.notes,
     amountOwed: Number(debtor.amount_owed),
     dueDate: debtor.due_date,
-    status: debtor.status,
+    status: effectiveStatus(debtor.status, debtor.due_date),
     payments: (payments ?? []).map((p) => ({ id: p.id, amount: Number(p.amount), paidAt: p.paid_at, note: p.note })),
   };
 }

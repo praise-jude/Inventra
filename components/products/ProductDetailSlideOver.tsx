@@ -9,7 +9,15 @@ import { useWorkspace } from "@/components/app/CurrencyProvider";
 
 const BAR_PATTERN = [1, 2, 1, 3, 1, 1, 2, 1];
 
-export function ProductDetailSlideOver({ product, onClose }: { product: ProductDetail; onClose: () => void }) {
+export function ProductDetailSlideOver({
+  product,
+  onClose,
+  onEdit,
+}: {
+  product: ProductDetail;
+  onClose: () => void;
+  onEdit: (product: ProductDetail) => void;
+}) {
   const router = useRouter();
   const flash = useToast();
   const { format: formatMoney } = useWorkspace();
@@ -64,7 +72,12 @@ export function ProductDetailSlideOver({ product, onClose }: { product: ProductD
         </div>
         <div className="px-[22px] py-5">
           <div className="mb-5 flex gap-2">
-            <button className="h-[38px] flex-1 rounded-[9px] bg-accent text-[13px] font-semibold text-white">Edit</button>
+            <button
+              onClick={() => onEdit(product)}
+              className="h-[38px] flex-1 rounded-[9px] bg-accent text-[13px] font-semibold text-white"
+            >
+              Edit
+            </button>
             <button
               onClick={handleDuplicate}
               disabled={busy}
