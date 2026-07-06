@@ -44,7 +44,7 @@ export default function AcceptInvitePage() {
   return (
     <div>
       <h1 className="mb-1.5 text-2xl font-bold tracking-tight">Join your team</h1>
-      <p className="mb-[26px] text-text-2">Set a password to activate your Stockwell account.</p>
+      <p className="mb-[26px] text-text-2">Set a password to activate your Inventra account.</p>
       <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
         <Field
           label="Password"

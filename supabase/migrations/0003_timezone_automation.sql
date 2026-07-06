@@ -1,5 +1,5 @@
 -- ============================================================================
--- Stockwell — timezone automation
+-- Inventra — timezone automation
 -- handle_new_user() previously never set organizations.timezone from signup
 -- metadata at all (every new business landed on the column's hardcoded
 -- 'America/New_York' default regardless of country). Mirrors the existing

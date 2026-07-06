@@ -18,8 +18,13 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Stockwell — Inventory that runs itself",
+  title: "Inventra — Inventory that runs itself",
   description: "Real-time stock, supplier orders, and profit analytics for modern retail.",
+  icons: {
+    icon: "/inventra-logo.svg",
+    shortcut: "/inventra-logo.svg",
+    apple: "/inventra-logo.svg",
+  },
 };
 
 export default async function RootLayout({

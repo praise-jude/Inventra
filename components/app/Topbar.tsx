@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { useToast } from "@/components/app/ToastProvider";
+import { getStockAlerts, type StockAlert } from "@/lib/actions/alerts";
 
 const TITLES: Record<string, string> = {
   "/dashboard": "Overview",
@@ -37,17 +37,25 @@ export function Topbar({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const flash = useToast();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [alertsOpen, setAlertsOpen] = useState(false);
+  const [alerts, setAlerts] = useState<StockAlert[]>([]);
   const menuRef = useRef<HTMLDivElement>(null);
+  const alertsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+      if (alertsRef.current && !alertsRef.current.contains(e.target as Node)) setAlertsOpen(false);
     }
     document.addEventListener("click", onDocClick);
     return () => document.removeEventListener("click", onDocClick);
   }, []);
+
+  // Refresh stock alerts on every navigation so the badge tracks reality.
+  useEffect(() => {
+    getStockAlerts().then(setAlerts).catch(() => setAlerts([]));
+  }, [pathname]);
 
   async function handleLogout() {
     const supabase = createClient();
@@ -82,13 +90,51 @@ export function Topbar({
       >
         {theme === "light" ? "☾" : "☀"}
       </button>
-      <button
-        onClick={() => flash("You have 5 unread notifications")}
-        className="relative h-9 w-9 rounded-[9px] border border-border bg-surface text-[15px] text-text hover:bg-hover"
-      >
-        🔔
-        <span className="absolute right-2 top-[7px] h-[7px] w-[7px] rounded-full border-[1.5px] border-surface bg-red" />
-      </button>
+      <div className="relative" ref={alertsRef}>
+        <button
+          onClick={() => setAlertsOpen((v) => !v)}
+          title="Stock alerts"
+          className="relative h-9 w-9 rounded-[9px] border border-border bg-surface text-[15px] text-text hover:bg-hover"
+        >
+          🔔
+          {alerts.length > 0 && (
+            <span className="absolute right-2 top-[7px] h-[7px] w-[7px] rounded-full border-[1.5px] border-surface bg-red" />
+          )}
+        </button>
+        {alertsOpen && (
+          <div className="absolute right-0 top-[calc(100%+6px)] w-[320px] rounded-[12px] border border-border bg-surface shadow-[var(--shadow)]">
+            <div className="border-b border-border-2 px-3.5 py-2.5 text-[13px] font-bold">
+              Stock alerts {alerts.length > 0 && <span className="text-muted">({alerts.length})</span>}
+            </div>
+            <div className="scroll max-h-[320px] overflow-y-auto py-1">
+              {alerts.length === 0 && (
+                <div className="px-3.5 py-5 text-center text-[12.5px] text-muted">All clear — no stock alerts.</div>
+              )}
+              {alerts.map((a) => (
+                <button
+                  key={a.id}
+                  onClick={() => {
+                    setAlertsOpen(false);
+                    router.push(`/products?open=${a.productId}`);
+                  }}
+                  className="flex w-full items-start gap-2.5 px-3.5 py-2.5 text-left hover:bg-hover"
+                >
+                  <span
+                    className="mt-px flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-[8px] text-[13px]"
+                    style={{ background: `var(--${a.severity}-weak)` }}
+                  >
+                    {a.emoji ?? "📦"}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-[12.5px] font-semibold">{a.title}</span>
+                    <span className="block text-[11.5px] text-muted">{a.detail}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
       <div className="relative" ref={menuRef}>
         <button
           onClick={() => setMenuOpen((v) => !v)}

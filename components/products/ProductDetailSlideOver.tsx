@@ -16,6 +16,12 @@ interface Option {
 
 export function ProductDetailSlideOver({
   product,
+  onClose,
+  onEdit,
+}: {
+  product: ProductDetail;
+  onClose: () => void;
+  onEdit: (product: ProductDetail) => void;
   categories,
   warehouses,
   suppliers,
@@ -107,6 +113,7 @@ export function ProductDetailSlideOver({
         <div className="px-[22px] py-5">
           <div className="mb-5 flex gap-2">
             <button
+              onClick={() => onEdit(product)}
               onClick={() => setShowEdit(true)}
               className="h-[38px] flex-1 rounded-[9px] bg-accent text-[13px] font-semibold text-white"
             >

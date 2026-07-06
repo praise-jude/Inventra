@@ -1,5 +1,5 @@
 -- ============================================================================
--- Stockwell — onboarding & authentication extensions
+-- Inventra — onboarding & authentication extensions
 -- Adds business location/contact fields, a terms-of-service acceptance audit
 -- trail, and a service-role-only signup rate-limit table. Extends
 -- handle_new_user() to persist the new signup fields without changing the

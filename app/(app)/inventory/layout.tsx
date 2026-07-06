@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getInventoryCards } from "@/lib/queries/inventory";
 import { InventoryTabs } from "@/components/inventory/InventoryTabs";
 import { formatNumber } from "@/lib/format";
@@ -12,9 +13,12 @@ export default async function InventoryLayout({ children }: { children: React.Re
           <div className="text-[22px] font-bold tracking-tight">Inventory</div>
           <div className="mt-[3px] text-text-2">Live stock levels and full movement history.</div>
         </div>
-        <button className="h-[37px] rounded-[9px] bg-accent px-[15px] text-[13px] font-semibold text-white shadow-[var(--shadow-sm)]">
+        <Link
+          href="/inventory/adjustments?new=1"
+          className="flex h-[37px] items-center rounded-[9px] bg-accent px-[15px] text-[13px] font-semibold text-white shadow-[var(--shadow-sm)]"
+        >
           + Stock adjustment
-        </button>
+        </Link>
       </div>
 
       <div className="mb-[18px] grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(158px,1fr))" }}>

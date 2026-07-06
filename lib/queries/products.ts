@@ -13,12 +13,15 @@ export interface ProductListRow {
   qty: number;
   status: "in_stock" | "low_stock" | "out_of_stock";
   category: string | null;
+  category_id: string | null;
+  warehouse_id: string | null;
 }
 
 export async function getProducts(): Promise<ProductListRow[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("products")
+    .select("id, sku, name, brand, emoji, sell_price, qty_on_hand, status, category_id, warehouse_id, categories(name)")
     .select("id, sku, barcode, name, brand, emoji, image_url, sell_price, qty_on_hand, status, categories(name)")
     .is("archived_at", null)
     .order("created_at", { ascending: false });
@@ -35,6 +38,8 @@ export async function getProducts(): Promise<ProductListRow[]> {
     qty: p.qty_on_hand,
     status: p.status,
     category: (p.categories as unknown as { name: string } | null)?.name ?? null,
+    category_id: p.category_id,
+    warehouse_id: p.warehouse_id,
   }));
 }
 
@@ -59,6 +64,9 @@ export interface ProductDetail {
   supplier: string | null;
   warehouseId: string | null;
   warehouse: string | null;
+  category_id: string | null;
+  warehouse_id: string | null;
+  supplier_id: string | null;
   variants: { id: string; name: string; sku_suffix: string | null; qty_on_hand: number }[];
 }
 
@@ -67,6 +75,7 @@ export async function getProductDetail(id: string): Promise<ProductDetail | null
   const { data, error } = await supabase
     .from("products")
     .select(
+      "id, sku, name, description, brand, emoji, unit, cost_price, sell_price, qty_on_hand, reorder_level, expiry_date, category_id, warehouse_id, supplier_id, categories(name), warehouses(name), product_variants(id, name, sku_suffix, qty_on_hand)",
       "id, sku, barcode, name, description, brand, emoji, image_url, unit, cost_price, sell_price, qty_on_hand, reorder_level, expiry_date, category_id, supplier_id, warehouse_id, categories(name), suppliers(name), warehouses(name), product_variants(id, name, sku_suffix, qty_on_hand)",
     )
     .eq("id", id)
@@ -95,6 +104,9 @@ export async function getProductDetail(id: string): Promise<ProductDetail | null
     supplier: (data.suppliers as unknown as { name: string } | null)?.name ?? null,
     warehouseId: data.warehouse_id,
     warehouse: (data.warehouses as unknown as { name: string } | null)?.name ?? null,
+    category_id: data.category_id,
+    warehouse_id: data.warehouse_id,
+    supplier_id: data.supplier_id,
     variants: (data.product_variants as unknown as ProductDetail["variants"]) ?? [],
   };
 }

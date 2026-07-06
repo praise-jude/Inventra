@@ -43,6 +43,29 @@ export function BillingClient({ planKey, seatsUsed, skuCount, warehouseCount, re
     }
   }
 
+  function downloadInvoice(inv: Invoice) {
+    const body = [
+      "STOCKWELL — TAX INVOICE",
+      "",
+      `Invoice number: ${inv.invoice_number}`,
+      `Issued:         ${formatLongDate(inv.issued_at)}`,
+      `Status:         ${inv.status.toUpperCase()}`,
+      "",
+      `Plan subscription (${current.name})    ${formatMoney(inv.amount)}`,
+      "----------------------------------------",
+      `Total                          ${formatMoney(inv.amount)}`,
+      "",
+      "Thank you for your business.",
+    ].join("\n");
+    const blob = new Blob([body], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${inv.invoice_number}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="animate-fade-up">
       <div className="mb-[18px]">
@@ -82,7 +105,10 @@ export function BillingClient({ planKey, seatsUsed, skuCount, warehouseCount, re
             </div>
           </div>
         </div>
-        <button className="h-[38px] rounded-[9px] bg-white px-4.5 text-[13.5px] font-bold text-accent-2">
+        <button
+          onClick={() => flash("Card payments are handled by Stripe — connect it under Settings → Integrations.")}
+          className="h-[38px] rounded-[9px] bg-white px-4.5 text-[13.5px] font-bold text-accent-2"
+        >
           Manage payment
         </button>
       </div>
@@ -149,7 +175,9 @@ export function BillingClient({ planKey, seatsUsed, skuCount, warehouseCount, re
             <span className="rounded-[20px] px-[9px] py-0.5 text-[11.5px] font-bold capitalize" style={INVOICE_STYLE[i.status]}>
               {i.status}
             </span>
-            <span className="cursor-pointer text-[12.5px] font-semibold text-accent-text">Download</span>
+            <button onClick={() => downloadInvoice(i)} className="cursor-pointer text-[12.5px] font-semibold text-accent-text">
+              Download
+            </button>
           </div>
         ))}
         {invoices.length === 0 && <div className="px-4 py-6 text-center text-[13px] text-muted">No invoices yet.</div>}

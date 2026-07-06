@@ -1,5 +1,5 @@
 -- ============================================================================
--- Stockwell — initial schema
+-- Inventra — initial schema
 -- Multi-tenant by org_id (denormalized onto every table so RLS policies are
 -- flat, single-column predicates with no joins).
 -- ============================================================================

@@ -1,5 +1,5 @@
 -- ============================================================================
--- Stockwell — Debtors & Expenses modules
+-- Inventra — Debtors & Expenses modules
 -- Debtors mirrors the existing stock_movements ledger pattern: a mutable
 -- running balance (debtors.amount_owed) plus an append-only payment ledger,
 -- kept in sync by a trigger — same shape as products.qty_on_hand +
