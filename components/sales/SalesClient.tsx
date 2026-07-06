@@ -7,8 +7,9 @@ import { useWorkspace } from "@/components/app/CurrencyProvider";
 import { fetchSaleDetail } from "@/lib/actions/sales";
 import { SaleDetailSlideOver } from "@/components/sales/SaleDetailSlideOver";
 import type { SaleListRow, SaleDetail } from "@/lib/queries/sales";
+import type { CustomerOption } from "@/lib/queries/customers";
 
-export function SalesClient({ sales }: { sales: SaleListRow[] }) {
+export function SalesClient({ sales, customers, canDelete }: { sales: SaleListRow[]; customers: CustomerOption[]; canDelete: boolean }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { format: formatMoney, formatDateTime } = useWorkspace();
@@ -94,7 +95,7 @@ export function SalesClient({ sales }: { sales: SaleListRow[] }) {
         </div>
       </div>
 
-      {detail && <SaleDetailSlideOver sale={detail} onClose={closeDetail} />}
+      {detail && <SaleDetailSlideOver sale={detail} customers={customers} canDelete={canDelete} onClose={closeDetail} />}
     </div>
   );
 }

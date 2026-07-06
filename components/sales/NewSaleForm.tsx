@@ -10,6 +10,7 @@ import type { CustomerOption } from "@/lib/queries/customers";
 import { Field } from "@/components/ui/Field";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
+import { BarcodeScannerModal } from "@/components/products/BarcodeScannerModal";
 
 const PAYMENT_OPTIONS = [
   { value: "cash", label: "Cash" },
@@ -49,6 +50,7 @@ export function NewSaleForm({
   const [newCustomerPhone, setNewCustomerPhone] = useState("");
 
   const [productQuery, setProductQuery] = useState("");
+  const [showScanner, setShowScanner] = useState(false);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [notes, setNotes] = useState("");
@@ -79,6 +81,24 @@ export function NewSaleForm({
 
   function removeLine(productId: string) {
     setCart((c) => c.filter((l) => l.productId !== productId));
+  }
+
+  function handleProductSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key !== "Enter") return;
+    const code = productQuery.trim();
+    if (!code) return;
+    const match = products.find((p) => p.sku === code || p.barcode === code);
+    if (match) addProduct(match);
+  }
+
+  function handleScanDetected(code: string) {
+    setShowScanner(false);
+    const match = products.find((p) => p.sku === code || p.barcode === code);
+    if (match) {
+      addProduct(match);
+    } else {
+      setError(`No product found for code "${code}"`);
+    }
   }
 
   const totals = useMemo(() => {
@@ -144,6 +164,7 @@ export function NewSaleForm({
   }
 
   return (
+    <>
     <form onSubmit={handleSubmit} className="animate-fade-up flex flex-col gap-4.5">
       <div className="rounded-2xl border border-border bg-surface p-5 shadow-[var(--shadow-sm)]">
         <div className="mb-3.5 flex items-center justify-between">
@@ -204,13 +225,21 @@ export function NewSaleForm({
 
       <div className="rounded-2xl border border-border bg-surface p-5 shadow-[var(--shadow-sm)]">
         <div className="mb-3.5 text-[15px] font-bold">Items</div>
-        <div className="relative">
+        <div className="relative flex gap-2">
           <input
             value={productQuery}
             onChange={(e) => setProductQuery(e.target.value)}
-            placeholder="Search products to add by name or SKU…"
-            className="h-[42px] w-full rounded-[9px] border border-border bg-surface px-[13px] text-[14px] text-text outline-none focus:border-accent"
+            onKeyDown={handleProductSearchKeyDown}
+            placeholder="Search products to add by name, SKU, or scan a barcode…"
+            className="h-[42px] flex-1 rounded-[9px] border border-border bg-surface px-[13px] text-[14px] text-text outline-none focus:border-accent"
           />
+          <button
+            type="button"
+            onClick={() => setShowScanner(true)}
+            className="h-[42px] rounded-[9px] border border-border bg-surface px-3.5 text-[13px] font-semibold text-text hover:bg-hover"
+          >
+            📷 Scan
+          </button>
           {matchingProducts.length > 0 && (
             <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-[9px] border border-border bg-surface shadow-[var(--shadow-lg)]">
               {matchingProducts.map((p) => (
@@ -326,5 +355,7 @@ export function NewSaleForm({
         </div>
       </div>
     </form>
+    {showScanner && <BarcodeScannerModal onDetected={handleScanDetected} onClose={() => setShowScanner(false)} />}
+    </>
   );
 }

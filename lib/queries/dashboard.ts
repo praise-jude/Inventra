@@ -1,7 +1,14 @@
 import "server-only";
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
-import type { CategoryMixRow, DashboardKpis, MonthlyStat, StockHealthRow, TopSellerRow } from "@/lib/supabase/database.types";
+import type {
+  CategoryMixRow,
+  DailyProductProfitRow,
+  DashboardKpis,
+  MonthlyStat,
+  StockHealthRow,
+  TopSellerRow,
+} from "@/lib/supabase/database.types";
 
 // Both the app-shell layout (sidebar badge) and the dashboard page itself
 // need these KPIs on every dashboard request — cache() dedupes them to a
@@ -42,6 +49,15 @@ export async function getMonthlyStats(): Promise<MonthlyStat[]> {
     .order("month", { ascending: true });
   if (error) throw error;
   return data ?? [];
+}
+
+// The deployed RPC always computes for the current date server-side and
+// takes no arguments — there is no p_date parameter to pass.
+export async function getDailyProductProfit(): Promise<DailyProductProfitRow[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_daily_product_profit");
+  if (error) throw error;
+  return (data ?? []) as DailyProductProfitRow[];
 }
 
 export interface ActivityRow {

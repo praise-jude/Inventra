@@ -1,7 +1,8 @@
 export { formatMoney, formatMoneyCompact, currencySymbol } from "@/lib/currency";
 
-export function formatNumber(n: number): string {
-  return n.toLocaleString();
+export function formatNumber(n: number | null | undefined): string {
+  if (n === null || n === undefined || Number.isNaN(Number(n))) return "0";
+  return Number(n).toLocaleString();
 }
 
 export function pctDelta(current: number, prior: number | null | undefined): number | null {

@@ -1,8 +1,14 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useToast } from "@/components/app/ToastProvider";
 import { useWorkspace } from "@/components/app/CurrencyProvider";
+import { deleteSale } from "@/lib/actions/sales";
 import type { SaleDetail } from "@/lib/queries/sales";
+import type { CustomerOption } from "@/lib/queries/customers";
 import type { PaymentMethod } from "@/lib/supabase/database.types";
+import { SaleEditModal } from "@/components/sales/SaleEditModal";
 
 const PAYMENT_LABEL: Record<PaymentMethod, string> = {
   cash: "Cash",
@@ -11,8 +17,37 @@ const PAYMENT_LABEL: Record<PaymentMethod, string> = {
   mobile_money: "Mobile Money",
 };
 
-export function SaleDetailSlideOver({ sale, onClose }: { sale: SaleDetail; onClose: () => void }) {
+export function SaleDetailSlideOver({
+  sale,
+  customers,
+  canDelete,
+  onClose,
+}: {
+  sale: SaleDetail;
+  customers: CustomerOption[];
+  canDelete: boolean;
+  onClose: () => void;
+}) {
+  const router = useRouter();
+  const flash = useToast();
   const { format: formatMoney, formatDateTime } = useWorkspace();
+  const [showEdit, setShowEdit] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function handleDelete() {
+    if (!window.confirm("Delete this sale? Stock will be restocked and this can't be undone.")) return;
+    setBusy(true);
+    try {
+      await deleteSale(sale.id);
+      flash("Sale deleted");
+      onClose();
+      router.refresh();
+    } catch (err) {
+      flash(err instanceof Error ? err.message : "Could not delete the sale.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <>
@@ -29,6 +64,23 @@ export function SaleDetailSlideOver({ sale, onClose }: { sale: SaleDetail; onClo
           </button>
         </div>
         <div className="px-[22px] py-5">
+          <div className="mb-5 flex gap-2">
+            <button
+              onClick={() => setShowEdit(true)}
+              className="h-[38px] flex-1 rounded-[9px] bg-accent text-[13px] font-semibold text-white"
+            >
+              Edit
+            </button>
+            {canDelete && (
+              <button
+                onClick={handleDelete}
+                disabled={busy}
+                className="h-[38px] rounded-[9px] border border-border bg-surface px-3.5 text-[13px] font-semibold text-red"
+              >
+                Delete
+              </button>
+            )}
+          </div>
           <div className="mb-2.5 text-[14px] font-bold">Items</div>
           <div className="mb-5 flex flex-col gap-2">
             {sale.items.map((i) => (
@@ -78,6 +130,14 @@ export function SaleDetailSlideOver({ sale, onClose }: { sale: SaleDetail; onClo
           )}
         </div>
       </div>
+      {showEdit && (
+        <SaleEditModal
+          sale={sale}
+          customers={customers}
+          paymentMethod={sale.payments.length === 1 ? sale.payments[0].method : null}
+          onClose={() => setShowEdit(false)}
+        />
+      )}
     </>
   );
 }

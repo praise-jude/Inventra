@@ -13,7 +13,7 @@ async function requireSalesOrgId() {
   const { data: profile } = await supabase.from("profiles").select("org_id, role").eq("id", user.id).single();
   if (!profile) throw new Error("No profile");
   if (profile.role === "warehouse") throw new Error("Warehouse accounts can't record sales.");
-  return { supabase, orgId: profile.org_id as string, userId: user.id };
+  return { supabase, orgId: profile.org_id as string, userId: user.id, role: profile.role as string };
 }
 
 export async function fetchSaleDetail(id: string): Promise<SaleDetail | null> {
@@ -149,4 +149,87 @@ export async function recordSale(input: RecordSaleInput) {
   revalidatePath("/products");
   revalidatePath("/inventory");
   return sale.id as string;
+}
+
+export interface UpdateSaleInput {
+  customerId?: string;
+  walkInName?: string;
+  notes?: string;
+  paymentMethod?: string;
+}
+
+export async function updateSale(id: string, input: UpdateSaleInput) {
+  const { supabase } = await requireSalesOrgId();
+
+  const { data: updated, error: saleError } = await supabase
+    .from("sales")
+    .update({
+      customer_id: input.customerId || null,
+      walk_in_name: input.customerId ? null : input.walkInName?.trim() || null,
+      notes: input.notes?.trim() || null,
+    })
+    .eq("id", id)
+    .select("id")
+    .maybeSingle();
+  if (saleError) {
+    console.error("[Inventra] updateSale (sales) failed:", saleError);
+    throw new Error("Could not update the sale.");
+  }
+  if (!updated) throw new Error("Sale not found, or you don't have permission to edit it.");
+
+  if (input.paymentMethod) {
+    const { data: payments, error: payFetchError } = await supabase
+      .from("sale_payments")
+      .select("id")
+      .eq("sale_id", id);
+    if (payFetchError) {
+      console.error("[Inventra] updateSale (payments fetch) failed:", payFetchError);
+      throw new Error("Could not update the sale's payment method.");
+    }
+    if ((payments ?? []).length === 1) {
+      const { error: payError } = await supabase
+        .from("sale_payments")
+        .update({ method: input.paymentMethod })
+        .eq("id", payments![0].id);
+      if (payError) {
+        console.error("[Inventra] updateSale (payments update) failed:", payError);
+        throw new Error("Could not update the sale's payment method.");
+      }
+    }
+  }
+
+  revalidatePath("/sales");
+}
+
+export async function deleteSale(id: string) {
+  const { supabase, role } = await requireSalesOrgId();
+  if (!["owner", "admin", "manager"].includes(role)) {
+    throw new Error("Only an owner, admin, or manager can delete a sale.");
+  }
+
+  const { data: sale, error: saleError } = await supabase.from("sales").select("id").eq("id", id).maybeSingle();
+  if (saleError) {
+    console.error("[Inventra] deleteSale (sale fetch) failed:", saleError);
+    throw new Error("Could not load this sale.");
+  }
+  if (!sale) throw new Error("Sale not found.");
+
+  // Deleting each stock_movements row fires the reverse_stock_movement
+  // trigger, which restores qty_on_hand — no manual compensating entry
+  // needed. The sales row delete then cascades to sale_payments.
+  const { error: movementsError } = await supabase.from("stock_movements").delete().eq("sale_id", id);
+  if (movementsError) {
+    console.error("[Inventra] deleteSale (stock_movements) failed:", movementsError);
+    throw new Error("Could not reverse this sale's stock impact.");
+  }
+
+  const { error: deleteError } = await supabase.from("sales").delete().eq("id", id);
+  if (deleteError) {
+    console.error("[Inventra] deleteSale (sales) failed:", deleteError);
+    throw new Error("Could not delete the sale.");
+  }
+
+  revalidatePath("/sales");
+  revalidatePath("/dashboard");
+  revalidatePath("/products");
 }

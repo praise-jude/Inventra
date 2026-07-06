@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/Button";
 
 const STATUS_OPTIONS = [
   { value: "pending", label: "Pending" },
-  { value: "partially_paid", label: "Partially Paid" },
+  { value: "partially_paid", label: "Half Payment" },
   { value: "paid", label: "Paid" },
   { value: "overdue", label: "Overdue" },
   { value: "cancelled", label: "Cancelled" },

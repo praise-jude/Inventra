@@ -2,11 +2,21 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Papa from "papaparse";
 import { AddProductModal } from "@/components/products/AddProductModal";
 import { ProductDetailSlideOver } from "@/components/products/ProductDetailSlideOver";
 import { ImportCsvModal } from "@/components/products/ImportCsvModal";
 import { fetchProductDetail } from "@/lib/actions/products";
+import { BarcodeScannerModal } from "@/components/products/BarcodeScannerModal";
+import {
+  fetchProductDetail,
+  exportProductsCsv,
+  importProductsCsv,
+  lookupProductByCode,
+  type ImportProductRow,
+} from "@/lib/actions/products";
 import type { ProductDetail, ProductListRow } from "@/lib/queries/products";
+import { useToast } from "@/components/app/ToastProvider";
 import { useWorkspace } from "@/components/app/CurrencyProvider";
 import { useToast } from "@/components/app/ToastProvider";
 
@@ -20,6 +30,24 @@ const STATUS_LABEL: Record<string, string> = {
   low_stock: "Low stock",
   out_of_stock: "Out of stock",
 };
+
+const EXPORT_COLUMNS = [
+  "name",
+  "sku",
+  "barcode",
+  "description",
+  "brand",
+  "category",
+  "supplier",
+  "warehouse",
+  "unit",
+  "cost_price",
+  "sell_price",
+  "reorder_level",
+  "qty_on_hand",
+  "expiry_date",
+  "image_url",
+] as const;
 
 interface Option {
   id: string;
@@ -39,6 +67,7 @@ export function ProductsClient({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const flash = useToast();
   const { format: formatMoney } = useWorkspace();
   const flash = useToast();
   const [query, setQuery] = useState("");
@@ -51,6 +80,9 @@ export function ProductsClient({
   const [statusFilter, setStatusFilter] = useState("");
   const [openFilter, setOpenFilter] = useState<"category" | "warehouse" | "status" | null>(null);
   const filtersRef = useRef<HTMLDivElement>(null);
+  const [showScanner, setShowScanner] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const openId = searchParams.get("open");
@@ -103,6 +135,13 @@ export function ProductsClient({
     const header = "sku,name,brand,category,price,stock,status";
     const lines = filtered.map((p) =>
       [p.sku, p.name, p.brand, p.category, p.price, p.qty, STATUS_LABEL[p.status]].map(esc).join(","),
+    if (!q) return products;
+    return products.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        p.sku.toLowerCase().includes(q) ||
+        (p.brand ?? "").toLowerCase().includes(q) ||
+        (p.barcode ?? "").toLowerCase().includes(q),
     );
     const blob = new Blob([`${header}\n${lines.join("\n")}\n`], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -112,6 +151,78 @@ export function ProductsClient({
     a.click();
     URL.revokeObjectURL(url);
     flash(`Exported ${filtered.length} product${filtered.length === 1 ? "" : "s"}`);
+  }
+
+  function handleSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key !== "Enter") return;
+    const code = query.trim();
+    if (!code) return;
+    const matches = products.filter((p) => p.sku === code || p.barcode === code);
+    if (matches.length === 1) {
+      setQuery("");
+      openDetail(matches[0].id);
+    }
+  }
+
+  async function handleScanDetected(code: string) {
+    setShowScanner(false);
+    try {
+      const detail = await lookupProductByCode(code);
+      if (detail) {
+        setSelected(detail);
+      } else {
+        flash(`No product found for code "${code}"`);
+      }
+    } catch {
+      flash("Could not look up that code.");
+    }
+  }
+
+  async function handleExport() {
+    try {
+      const rows = await exportProductsCsv();
+      const csv = Papa.unparse({
+        fields: [...EXPORT_COLUMNS],
+        data: rows.map((r) => EXPORT_COLUMNS.map((col) => r[col] ?? "")),
+      });
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `products-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      flash("Export ready");
+    } catch {
+      flash("Could not export products.");
+    }
+  }
+
+  function handleImportClick() {
+    fileInputRef.current?.click();
+  }
+
+  async function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setImporting(true);
+    try {
+      const text = await file.text();
+      const parsed = Papa.parse<ImportProductRow>(text, { header: true, skipEmptyLines: true });
+      const result = await importProductsCsv(parsed.data);
+      flash(
+        `Import complete: ${result.created} created, ${result.updated} updated${result.failed ? `, ${result.failed} failed` : ""}`,
+      );
+      if (result.errors.length > 0) {
+        console.error("[Inventra] CSV import errors:", result.errors);
+      }
+      router.refresh();
+    } catch {
+      flash("Could not import that CSV file.");
+    } finally {
+      setImporting(false);
+    }
   }
 
   const categoryCount = new Set(products.map((p) => p.category).filter(Boolean)).size;
@@ -129,6 +240,15 @@ export function ProductsClient({
         <div className="flex gap-2.5">
           <button
             onClick={exportCsv}
+          <input ref={fileInputRef} type="file" accept=".csv" hidden onChange={handleImportFile} />
+          <button
+            onClick={() => setShowScanner(true)}
+            className="h-[37px] rounded-[9px] border border-border bg-surface px-3.5 text-[13px] font-semibold text-text hover:bg-hover"
+          >
+            📷 Scan
+          </button>
+          <button
+            onClick={handleExport}
             className="h-[37px] rounded-[9px] border border-border bg-surface px-3.5 text-[13px] font-semibold text-text hover:bg-hover"
           >
             ⤓ Export
@@ -138,6 +258,11 @@ export function ProductsClient({
             className="h-[37px] rounded-[9px] border border-border bg-surface px-3.5 text-[13px] font-semibold text-text hover:bg-hover"
           >
             ⤒ Import CSV
+            onClick={handleImportClick}
+            disabled={importing}
+            className="h-[37px] rounded-[9px] border border-border bg-surface px-3.5 text-[13px] font-semibold text-text hover:bg-hover disabled:opacity-60"
+          >
+            {importing ? "Importing…" : "⤒ Import CSV"}
           </button>
           <button
             onClick={() => setShowAdd(true)}
@@ -154,7 +279,8 @@ export function ProductsClient({
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by name, SKU, brand…"
+            onKeyDown={handleSearchKeyDown}
+            placeholder="Search by name, SKU, brand, or scan a barcode…"
             className="flex-1 border-none bg-transparent text-[13px] text-text outline-none"
           />
         </div>
@@ -250,8 +376,13 @@ export function ProductsClient({
                 <tr key={p.id} onClick={() => openDetail(p.id)} className="cursor-pointer border-t border-border-2 hover:bg-hover">
                   <td className="px-4 py-[11px] pl-4">
                     <div className="flex items-center gap-[11px]">
-                      <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[9px] bg-accent-weak text-[17px]">
-                        {p.emoji || "📦"}
+                      <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-[9px] bg-accent-weak text-[17px]">
+                        {p.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={p.imageUrl} alt={p.name} className="h-full w-full object-cover" />
+                        ) : (
+                          p.emoji || "📦"
+                        )}
                       </div>
                       <div>
                         <div className="text-[13.5px] font-semibold">{p.name}</div>
@@ -303,6 +434,16 @@ export function ProductsClient({
       )}
       {showImport && <ImportCsvModal onClose={() => setShowImport(false)} />}
       {selected && <ProductDetailSlideOver product={selected} onClose={closeDetail} onEdit={startEdit} />}
+      {selected && (
+        <ProductDetailSlideOver
+          product={selected}
+          categories={categories}
+          warehouses={warehouses}
+          suppliers={suppliers}
+          onClose={closeDetail}
+        />
+      )}
+      {showScanner && <BarcodeScannerModal onDetected={handleScanDetected} onClose={() => setShowScanner(false)} />}
     </div>
   );
 }

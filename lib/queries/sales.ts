@@ -26,7 +26,7 @@ export async function getSalesList(): Promise<SaleListRow[]> {
     .order("created_at", { ascending: false })
     .limit(100);
   if (error) {
-    console.error("[Inventra] getSalesList (sales) failed:", error);
+    console.error("[Inventra] getSalesList (sales) failed:", error.message, error.details, error.hint, error.code);
     throw new Error("Could not load sales.");
   }
 
@@ -38,11 +38,11 @@ export async function getSalesList(): Promise<SaleListRow[]> {
     supabase.from("stock_movements").select("sale_id").in("sale_id", saleIds),
   ]);
   if (payError) {
-    console.error("[Inventra] getSalesList (payments) failed:", payError);
+    console.error("[Inventra] getSalesList (payments) failed:", payError.message, payError.details, payError.hint, payError.code);
     throw new Error("Could not load sales.");
   }
   if (itemError) {
-    console.error("[Inventra] getSalesList (items) failed:", itemError);
+    console.error("[Inventra] getSalesList (items) failed:", itemError.message, itemError.details, itemError.hint, itemError.code);
     throw new Error("Could not load sales.");
   }
 
@@ -86,7 +86,9 @@ export interface SalePaymentRow {
 
 export interface SaleDetail {
   id: string;
+  customerId: string | null;
   customerName: string;
+  walkInName: string | null;
   subtotal: number;
   discountAmount: number;
   taxAmount: number;
@@ -101,7 +103,9 @@ export async function getSaleDetail(id: string): Promise<SaleDetail | null> {
   const supabase = await createClient();
   const { data: sale, error: saleError } = await supabase
     .from("sales")
-    .select("id, walk_in_name, subtotal, discount_amount, tax_amount, total, notes, created_at, customers(name)")
+    .select(
+      "id, customer_id, walk_in_name, subtotal, discount_amount, tax_amount, total, notes, created_at, customers(name)",
+    )
     .eq("id", id)
     .single();
   if (saleError || !sale) return null;
@@ -111,17 +115,19 @@ export async function getSaleDetail(id: string): Promise<SaleDetail | null> {
     supabase.from("sale_payments").select("method, amount").eq("sale_id", id),
   ]);
   if (itemError) {
-    console.error("[Inventra] getSaleDetail (items) failed:", itemError);
+    console.error("[Inventra] getSaleDetail (items) failed:", itemError.message, itemError.details, itemError.hint, itemError.code);
     throw new Error("Could not load this sale's line items.");
   }
   if (payError) {
-    console.error("[Inventra] getSaleDetail (payments) failed:", payError);
+    console.error("[Inventra] getSaleDetail (payments) failed:", payError.message, payError.details, payError.hint, payError.code);
     throw new Error("Could not load this sale's payments.");
   }
 
   return {
     id: sale.id,
+    customerId: sale.customer_id,
     customerName: (sale.customers as unknown as { name: string } | null)?.name ?? sale.walk_in_name ?? "Walk-in customer",
+    walkInName: sale.walk_in_name,
     subtotal: Number(sale.subtotal),
     discountAmount: Number(sale.discount_amount),
     taxAmount: Number(sale.tax_amount),

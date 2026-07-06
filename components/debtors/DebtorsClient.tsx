@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/app/ToastProvider";
 import { useWorkspace } from "@/components/app/CurrencyProvider";
-import { deleteDebtor, fetchDebtorDetail } from "@/lib/actions/debtors";
+import { deleteDebtor, fetchDebtorDetail, updateDebtorStatus } from "@/lib/actions/debtors";
 import { DebtorModal } from "@/components/debtors/DebtorModal";
 import { DebtorDetailSlideOver } from "@/components/debtors/DebtorDetailSlideOver";
 import type { DebtorsOverview, DebtorRow, DebtorDetail } from "@/lib/queries/debtors";
@@ -18,7 +18,7 @@ const STATUS_STYLE: Record<string, { color: string; background: string }> = {
 };
 const STATUS_LABEL: Record<string, string> = {
   pending: "Pending",
-  partially_paid: "Partially Paid",
+  partially_paid: "Half Payment",
   paid: "Paid",
   overdue: "Overdue",
   cancelled: "Cancelled",
@@ -33,6 +33,20 @@ export function DebtorsClient({ overview, canDelete }: { overview: DebtorsOvervi
   const [modalDebtor, setModalDebtor] = useState<DebtorRow | null | undefined>(undefined);
   const [detail, setDetail] = useState<DebtorDetail | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [statusBusyId, setStatusBusyId] = useState<string | null>(null);
+
+  async function handleStatusChange(debtor: DebtorRow, status: string) {
+    setStatusBusyId(debtor.id);
+    try {
+      await updateDebtorStatus(debtor.id, status);
+      flash("Status updated");
+      router.refresh();
+    } catch (err) {
+      flash(err instanceof Error ? err.message : "Could not update the status.");
+    } finally {
+      setStatusBusyId(null);
+    }
+  }
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -144,13 +158,20 @@ export function DebtorsClient({ overview, canDelete }: { overview: DebtorsOvervi
                   </td>
                   <td className="px-3.5 py-3 text-right font-mono text-[13px] font-bold">{formatMoney(d.amountOwed)}</td>
                   <td className="px-3.5 py-3 text-[12.5px] text-text-2">{d.dueDate ? formatShortDate(d.dueDate) : "—"}</td>
-                  <td className="px-3.5 py-3">
-                    <span
-                      className="inline-flex items-center gap-1.5 rounded-[20px] px-[9px] py-px text-[11.5px] font-bold"
+                  <td className="px-3.5 py-3" onClick={(e) => e.stopPropagation()}>
+                    <select
+                      value={d.status}
+                      onChange={(e) => handleStatusChange(d, e.target.value)}
+                      disabled={statusBusyId === d.id}
+                      className="h-7 rounded-[20px] border-none px-[9px] py-px text-[11.5px] font-bold outline-none disabled:opacity-60"
                       style={STATUS_STYLE[d.status]}
                     >
-                      {STATUS_LABEL[d.status]}
-                    </span>
+                      {Object.entries(STATUS_LABEL).map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-2">

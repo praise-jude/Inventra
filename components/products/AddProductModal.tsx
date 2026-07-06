@@ -6,6 +6,8 @@ import { useToast } from "@/components/app/ToastProvider";
 import { createProduct, updateProduct } from "@/lib/actions/products";
 import type { ProductDetail } from "@/lib/queries/products";
 import { Field } from "@/components/ui/Field";
+import { createProduct } from "@/lib/actions/products";
+import { ProductFormFields, type ProductFormState } from "@/components/products/ProductFormFields";
 import { Button } from "@/components/ui/Button";
 
 interface Option {
@@ -41,10 +43,27 @@ export function AddProductModal({
     reorderLevel: editing ? String(editing.reorder_level) : "",
     supplierId: editing ? (editing.supplier_id ?? "") : (suppliers[0]?.id ?? ""),
     warehouseId: editing ? (editing.warehouse_id ?? "") : (warehouses[0]?.id ?? ""),
+  const [categoryOptions, setCategoryOptions] = useState(categories);
+  const [supplierOptions, setSupplierOptions] = useState(suppliers);
+  const [form, setForm] = useState<ProductFormState>({
+    name: "",
+    description: "",
+    sku: "",
+    barcode: "",
+    categoryId: categories[0]?.id ?? "",
+    unit: "each",
+    brand: "",
+    costPrice: "",
+    sellPrice: "",
+    reorderLevel: "",
+    supplierId: suppliers[0]?.id ?? "",
+    warehouseId: warehouses[0]?.id ?? "",
+    expiryDate: "",
+    imageUrl: "",
     openingQty: "0",
   });
 
-  function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
+  function set<K extends keyof ProductFormState>(key: K, value: ProductFormState[K]) {
     setForm((f) => ({ ...f, [key]: value }));
   }
 
@@ -61,6 +80,7 @@ export function AddProductModal({
         name: form.name,
         description: form.description,
         sku: form.sku,
+        barcode: form.barcode,
         categoryId: form.categoryId,
         unit: form.unit,
         costPrice: parseFloat(form.costPrice) || 0,
@@ -76,6 +96,10 @@ export function AddProductModal({
         await createProduct({ ...common, openingQty: parseInt(form.openingQty, 10) || 0 });
         flash("Product created");
       }
+        openingQty: parseInt(form.openingQty, 10) || 0,
+        imageUrl: form.imageUrl,
+      });
+      flash("Product created");
       onClose();
       router.refresh();
     } catch (err) {
@@ -175,6 +199,18 @@ export function AddProductModal({
             )}
           </div>
           {error && <p className="text-[13px] font-medium text-red">{error}</p>}
+        <div className="px-[22px] py-5">
+          <ProductFormFields
+            form={form}
+            set={set}
+            categories={categoryOptions}
+            suppliers={supplierOptions}
+            warehouses={warehouses}
+            onCategoryCreated={(opt) => setCategoryOptions((c) => [...c, opt])}
+            onSupplierCreated={(opt) => setSupplierOptions((s) => [...s, opt])}
+            showOpeningQty
+          />
+          {error && <p className="mt-3 text-[13px] font-medium text-red">{error}</p>}
         </div>
         <div className="sticky bottom-0 flex justify-end gap-2.5 border-t border-border bg-surface px-[22px] py-4">
           <Button type="button" variant="secondary" onClick={onClose}>
