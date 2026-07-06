@@ -5,8 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Papa from "papaparse";
 import { AddProductModal } from "@/components/products/AddProductModal";
 import { ProductDetailSlideOver } from "@/components/products/ProductDetailSlideOver";
-import { ImportCsvModal } from "@/components/products/ImportCsvModal";
-import { fetchProductDetail } from "@/lib/actions/products";
 import { BarcodeScannerModal } from "@/components/products/BarcodeScannerModal";
 import {
   fetchProductDetail,
@@ -18,7 +16,6 @@ import {
 import type { ProductDetail, ProductListRow } from "@/lib/queries/products";
 import { useToast } from "@/components/app/ToastProvider";
 import { useWorkspace } from "@/components/app/CurrencyProvider";
-import { useToast } from "@/components/app/ToastProvider";
 
 const STATUS_STYLE: Record<string, { color: string; background: string }> = {
   in_stock: { color: "var(--green)", background: "var(--green-weak)" },
@@ -69,17 +66,9 @@ export function ProductsClient({
   const searchParams = useSearchParams();
   const flash = useToast();
   const { format: formatMoney } = useWorkspace();
-  const flash = useToast();
   const [query, setQuery] = useState("");
   const [showAdd, setShowAdd] = useState(() => searchParams.get("new") === "1");
-  const [showImport, setShowImport] = useState(false);
   const [selected, setSelected] = useState<ProductDetail | null>(null);
-  const [editing, setEditing] = useState<ProductDetail | null>(null);
-  const [categoryFilter, setCategoryFilter] = useState("");
-  const [warehouseFilter, setWarehouseFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [openFilter, setOpenFilter] = useState<"category" | "warehouse" | "status" | null>(null);
-  const filtersRef = useRef<HTMLDivElement>(null);
   const [showScanner, setShowScanner] = useState(false);
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -90,14 +79,6 @@ export function ProductsClient({
       fetchProductDetail(openId).then((d) => d && setSelected(d));
     }
   }, [searchParams]);
-
-  useEffect(() => {
-    function onDocClick(e: MouseEvent) {
-      if (filtersRef.current && !filtersRef.current.contains(e.target as Node)) setOpenFilter(null);
-    }
-    document.addEventListener("click", onDocClick);
-    return () => document.removeEventListener("click", onDocClick);
-  }, []);
 
   function closeAdd() {
     setShowAdd(false);
@@ -111,30 +92,9 @@ export function ProductsClient({
     const detail = await fetchProductDetail(id);
     if (detail) setSelected(detail);
   }
-  function startEdit(product: ProductDetail) {
-    setSelected(null);
-    setEditing(product);
-  }
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return products.filter((p) => {
-      if (q && !(p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || (p.brand ?? "").toLowerCase().includes(q))) return false;
-      if (categoryFilter && p.category_id !== categoryFilter) return false;
-      if (warehouseFilter && p.warehouse_id !== warehouseFilter) return false;
-      if (statusFilter && p.status !== statusFilter) return false;
-      return true;
-    });
-  }, [products, query, categoryFilter, warehouseFilter, statusFilter]);
-
-  function exportCsv() {
-    const esc = (v: string | number | null) => {
-      const s = String(v ?? "");
-      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-    };
-    const header = "sku,name,brand,category,price,stock,status";
-    const lines = filtered.map((p) =>
-      [p.sku, p.name, p.brand, p.category, p.price, p.qty, STATUS_LABEL[p.status]].map(esc).join(","),
     if (!q) return products;
     return products.filter(
       (p) =>
@@ -143,15 +103,7 @@ export function ProductsClient({
         (p.brand ?? "").toLowerCase().includes(q) ||
         (p.barcode ?? "").toLowerCase().includes(q),
     );
-    const blob = new Blob([`${header}\n${lines.join("\n")}\n`], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `products-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    flash(`Exported ${filtered.length} product${filtered.length === 1 ? "" : "s"}`);
-  }
+  }, [products, query]);
 
   function handleSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key !== "Enter") return;
@@ -238,8 +190,6 @@ export function ProductsClient({
           </div>
         </div>
         <div className="flex gap-2.5">
-          <button
-            onClick={exportCsv}
           <input ref={fileInputRef} type="file" accept=".csv" hidden onChange={handleImportFile} />
           <button
             onClick={() => setShowScanner(true)}
@@ -254,10 +204,6 @@ export function ProductsClient({
             ⤓ Export
           </button>
           <button
-            onClick={() => setShowImport(true)}
-            className="h-[37px] rounded-[9px] border border-border bg-surface px-3.5 text-[13px] font-semibold text-text hover:bg-hover"
-          >
-            ⤒ Import CSV
             onClick={handleImportClick}
             disabled={importing}
             className="h-[37px] rounded-[9px] border border-border bg-surface px-3.5 text-[13px] font-semibold text-text hover:bg-hover disabled:opacity-60"
@@ -284,77 +230,15 @@ export function ProductsClient({
             className="flex-1 border-none bg-transparent text-[13px] text-text outline-none"
           />
         </div>
-        <div ref={filtersRef} className="flex gap-2.5">
-          {(
-            [
-              {
-                key: "category" as const,
-                label: "Category",
-                value: categoryFilter,
-                setValue: setCategoryFilter,
-                options: categories.map((c) => ({ value: c.id, label: c.name })),
-              },
-              {
-                key: "warehouse" as const,
-                label: "Warehouse",
-                value: warehouseFilter,
-                setValue: setWarehouseFilter,
-                options: warehouses.map((w) => ({ value: w.id, label: w.name })),
-              },
-              {
-                key: "status" as const,
-                label: "Status",
-                value: statusFilter,
-                setValue: setStatusFilter,
-                options: Object.entries(STATUS_LABEL).map(([value, label]) => ({ value, label })),
-              },
-            ]
-          ).map((f) => {
-            const activeLabel = f.options.find((o) => o.value === f.value)?.label;
-            return (
-              <div key={f.key} className="relative">
-                <button
-                  onClick={() => setOpenFilter((v) => (v === f.key ? null : f.key))}
-                  className="h-[37px] rounded-[9px] border px-3.5 text-[13px] font-semibold hover:bg-hover"
-                  style={
-                    f.value
-                      ? { borderColor: "var(--accent)", background: "var(--accent-weak)", color: "var(--accent-text)" }
-                      : { borderColor: "var(--border)", background: "var(--surface)", color: "var(--text-2)" }
-                  }
-                >
-                  {activeLabel ?? f.label} ⌄
-                </button>
-                {openFilter === f.key && (
-                  <div className="absolute left-0 top-[calc(100%+5px)] z-20 min-w-[180px] rounded-[10px] border border-border bg-surface py-1.5 shadow-[var(--shadow)]">
-                    <button
-                      onClick={() => {
-                        f.setValue("");
-                        setOpenFilter(null);
-                      }}
-                      className="block w-full px-3.5 py-2 text-left text-[13px] font-medium text-text-2 hover:bg-hover"
-                    >
-                      All {f.label.toLowerCase() === "status" ? "statuses" : `${f.label.toLowerCase()}s`}
-                    </button>
-                    {f.options.map((o) => (
-                      <button
-                        key={o.value}
-                        onClick={() => {
-                          f.setValue(o.value);
-                          setOpenFilter(null);
-                        }}
-                        className="block w-full px-3.5 py-2 text-left text-[13px] font-medium hover:bg-hover"
-                        style={{ color: o.value === f.value ? "var(--accent-text)" : "var(--text)" }}
-                      >
-                        {o.label}
-                        {o.value === f.value ? " ✓" : ""}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+        <button className="h-[37px] rounded-[9px] border border-border bg-surface px-3.5 text-[13px] font-semibold text-text-2 hover:bg-hover">
+          Category ⌄
+        </button>
+        <button className="h-[37px] rounded-[9px] border border-border bg-surface px-3.5 text-[13px] font-semibold text-text-2 hover:bg-hover">
+          Warehouse ⌄
+        </button>
+        <button className="h-[37px] rounded-[9px] border border-border bg-surface px-3.5 text-[13px] font-semibold text-text-2 hover:bg-hover">
+          Status ⌄
+        </button>
       </div>
 
       <div className="overflow-hidden rounded-[14px] border border-border bg-surface shadow-[var(--shadow-sm)]">
@@ -423,17 +307,6 @@ export function ProductsClient({
       {showAdd && (
         <AddProductModal categories={categories} warehouses={warehouses} suppliers={suppliers} onClose={closeAdd} />
       )}
-      {editing && (
-        <AddProductModal
-          categories={categories}
-          warehouses={warehouses}
-          suppliers={suppliers}
-          editing={editing}
-          onClose={() => setEditing(null)}
-        />
-      )}
-      {showImport && <ImportCsvModal onClose={() => setShowImport(false)} />}
-      {selected && <ProductDetailSlideOver product={selected} onClose={closeDetail} onEdit={startEdit} />}
       {selected && (
         <ProductDetailSlideOver
           product={selected}
