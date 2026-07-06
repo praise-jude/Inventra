@@ -3,7 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useToast } from "@/components/app/ToastProvider";
-import { archiveProduct, deleteProduct, duplicateProduct } from "@/lib/actions/products";
+import { archiveProduct, deleteProduct, duplicateProduct, fetchProductDetail } from "@/lib/actions/products";
+import { createAdjustment } from "@/lib/actions/inventory";
+import { notifyDataChanged } from "@/lib/client-events";
 import type { ProductDetail } from "@/lib/queries/products";
 import { useWorkspace } from "@/components/app/CurrencyProvider";
 import { EditProductModal } from "@/components/products/EditProductModal";
@@ -20,25 +22,32 @@ export function ProductDetailSlideOver({
   warehouses,
   suppliers,
   onClose,
+  onProductUpdated,
 }: {
   product: ProductDetail;
   categories: Option[];
   warehouses: Option[];
   suppliers: Option[];
   onClose: () => void;
+  onProductUpdated: (updated: ProductDetail) => void;
 }) {
   const router = useRouter();
   const flash = useToast();
   const { format: formatMoney } = useWorkspace();
   const [busy, setBusy] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
+  const [showAdjust, setShowAdjust] = useState(false);
+  const [adjustQty, setAdjustQty] = useState("");
+  const [adjustReason, setAdjustReason] = useState("");
+  const [adjustKind, setAdjustKind] = useState<"adjustment" | "expired">("adjustment");
+  const [adjustError, setAdjustError] = useState<string | null>(null);
+  const [adjustSaving, setAdjustSaving] = useState(false);
 
   const margin = product.sell_price > 0 ? Math.round((1 - product.cost_price / product.sell_price) * 100) : 0;
   const facts = [
     { k: "Cost price", v: formatMoney(product.cost_price) },
     { k: "Selling price", v: formatMoney(product.sell_price) },
     { k: "Margin", v: `${margin}%` },
-    { k: "On hand", v: String(product.qty_on_hand) },
     { k: "Reorder at", v: String(product.reorder_level) },
     { k: "Warehouse", v: product.warehouse ?? "—" },
     { k: "Category", v: product.category ?? "—" },
@@ -79,6 +88,39 @@ export function ProductDetailSlideOver({
     setBusy(false);
     flash("Product duplicated");
     router.refresh();
+  }
+
+  async function handleAdjustStock(e: React.FormEvent) {
+    e.preventDefault();
+    setAdjustError(null);
+    const qtyDelta = parseInt(adjustQty, 10);
+    if (!Number.isInteger(qtyDelta) || qtyDelta === 0) {
+      setAdjustError("Enter a non-zero whole number (negative to remove stock).");
+      return;
+    }
+    if (!adjustReason.trim()) {
+      setAdjustError("A reason is required for the audit trail.");
+      return;
+    }
+    setAdjustSaving(true);
+    try {
+      await createAdjustment({ productId: product.id, qtyDelta, reason: adjustReason.trim(), kind: adjustKind });
+      // Stock only ever changes through the stock_movements ledger (a DB
+      // trigger applies qty_delta to products.qty_on_hand), so the fresh
+      // read here is the single source of truth for what's now on hand.
+      const fresh = await fetchProductDetail(product.id);
+      if (fresh) onProductUpdated(fresh);
+      flash(qtyDelta > 0 ? `Added ${qtyDelta} units` : `Removed ${Math.abs(qtyDelta)} units`);
+      setShowAdjust(false);
+      setAdjustQty("");
+      setAdjustReason("");
+      router.refresh();
+      notifyDataChanged();
+    } catch (err) {
+      setAdjustError(err instanceof Error ? err.message : "Could not adjust stock.");
+    } finally {
+      setAdjustSaving(false);
+    }
   }
 
   return (
@@ -143,6 +185,57 @@ export function ProductDetailSlideOver({
             )}
           </div>
 
+          <div className="mb-5 rounded-xl border border-border bg-surface-2 p-[13px_15px]">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted">On hand</div>
+                <div className="mt-0.5 font-mono text-[19px] font-bold">{product.qty_on_hand}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAdjust((v) => !v)}
+                className="h-8 rounded-[8px] border border-border bg-surface px-3 text-[12.5px] font-semibold text-text hover:bg-hover"
+              >
+                Adjust stock
+              </button>
+            </div>
+            {showAdjust && (
+              <form onSubmit={handleAdjustStock} className="mt-3 flex flex-col gap-2 border-t border-border pt-3">
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    value={adjustQty}
+                    onChange={(e) => setAdjustQty(e.target.value)}
+                    placeholder="e.g. -5 or 20"
+                    className="h-9 w-24 rounded-[7px] border border-border bg-surface px-2 text-[13px] text-text outline-none"
+                  />
+                  <select
+                    value={adjustKind}
+                    onChange={(e) => setAdjustKind(e.target.value as "adjustment" | "expired")}
+                    className="h-9 flex-1 rounded-[7px] border border-border bg-surface px-2 text-[13px] text-text"
+                  >
+                    <option value="adjustment">Adjustment (recount, damage, loss)</option>
+                    <option value="expired">Expired write-off</option>
+                  </select>
+                </div>
+                <input
+                  value={adjustReason}
+                  onChange={(e) => setAdjustReason(e.target.value)}
+                  placeholder="Reason (required for the audit trail)"
+                  className="h-9 rounded-[7px] border border-border bg-surface px-2.5 text-[13px] text-text outline-none"
+                />
+                {adjustError && <p className="text-[12.5px] font-medium text-red">{adjustError}</p>}
+                <button
+                  type="submit"
+                  disabled={adjustSaving}
+                  className="h-9 rounded-[7px] bg-accent text-[12.5px] font-semibold text-white disabled:opacity-60"
+                >
+                  {adjustSaving ? "Saving…" : "Save adjustment"}
+                </button>
+              </form>
+            )}
+          </div>
+
           <div className="mb-5 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border">
             {facts.map((f) => (
               <div key={f.k} className="bg-surface p-[11px_13px]">
@@ -182,6 +275,7 @@ export function ProductDetailSlideOver({
           warehouses={warehouses}
           suppliers={suppliers}
           onClose={() => setShowEdit(false)}
+          onSaved={onProductUpdated}
         />
       )}
     </>

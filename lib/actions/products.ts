@@ -114,7 +114,7 @@ export interface UpdateProductInput {
   imageUrl?: string;
 }
 
-export async function updateProduct(id: string, input: UpdateProductInput) {
+export async function updateProduct(id: string, input: UpdateProductInput): Promise<ProductDetail> {
   const { supabase, orgId } = await requireOrgId();
   const name = input.name.trim();
   const sku = input.sku.trim();
@@ -130,7 +130,7 @@ export async function updateProduct(id: string, input: UpdateProductInput) {
     .maybeSingle();
   if (clash) throw new Error("Another product already uses this SKU.");
 
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from("products")
     .update({
       name,
@@ -148,27 +148,50 @@ export async function updateProduct(id: string, input: UpdateProductInput) {
       expiry_date: input.expiryDate || null,
       image_url: input.imageUrl || null,
     })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("org_id", orgId)
+    .select("id")
+    .maybeSingle();
   if (error) {
     if (error.code === "23505") throw new Error("A product with this SKU or barcode already exists.");
     console.error("[Inventra] updateProduct failed:", error);
     throw new Error("Could not update the product.");
   }
+  // A Postgres UPDATE that matches zero rows (wrong id, or blocked by RLS)
+  // returns no error at all — without this check the caller would show a
+  // false "Product updated" success while nothing changed in the database.
+  if (!updated) {
+    throw new Error("Could not update the product — it may have been deleted or you no longer have access to it.");
+  }
 
   revalidatePath("/products");
   revalidatePath("/dashboard");
+
+  const fresh = await getProductDetail(id);
+  if (!fresh) throw new Error("Product updated, but could not reload its details.");
+  return fresh;
 }
 
 export async function archiveProduct(id: string) {
-  const supabase = await createClient();
-  const { error } = await supabase.from("products").update({ archived_at: new Date().toISOString() }).eq("id", id);
+  const { supabase, orgId } = await requireOrgId();
+  const { data: archived, error } = await supabase
+    .from("products")
+    .update({ archived_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("org_id", orgId)
+    .select("id")
+    .maybeSingle();
   if (error) throw error;
+  if (!archived) throw new Error("Could not archive the product — it may have been deleted or you no longer have access to it.");
   revalidatePath("/products");
   revalidatePath("/dashboard");
 }
 
 export async function deleteProduct(id: string) {
-  const { supabase } = await requireOrgId();
+  const { supabase, orgId, role } = await requireOrgId();
+  if (!["owner", "admin", "manager"].includes(role)) {
+    throw new Error("Only an owner, admin, or manager can delete a product.");
+  }
 
   const { count } = await supabase
     .from("stock_movements")
@@ -178,11 +201,18 @@ export async function deleteProduct(id: string) {
     throw new Error("This product has stock/sale history — use Archive instead to keep its records intact.");
   }
 
-  const { error } = await supabase.from("products").delete().eq("id", id);
+  const { data: deleted, error } = await supabase
+    .from("products")
+    .delete()
+    .eq("id", id)
+    .eq("org_id", orgId)
+    .select("id")
+    .maybeSingle();
   if (error) {
     console.error("[Inventra] deleteProduct failed:", error);
     throw new Error("Could not delete the product.");
   }
+  if (!deleted) throw new Error("Could not delete the product — it may have already been removed.");
   revalidatePath("/products");
   revalidatePath("/dashboard");
 }

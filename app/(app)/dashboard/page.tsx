@@ -10,11 +10,15 @@ import {
 } from "@/lib/queries/dashboard";
 import type { ActivityRow } from "@/lib/queries/dashboard";
 import { requireProfile } from "@/lib/queries/session";
+import { getTeamMembers } from "@/lib/queries/team";
 import { AreaChart } from "@/components/charts/AreaChart";
 import { DonutChart } from "@/components/charts/DonutChart";
+import { TeamPresenceCard } from "@/components/team/TeamPresenceCard";
 import { formatMoneyCompact, formatNumber, formatPct, pctDelta } from "@/lib/format";
 import { formatTodayHeader } from "@/lib/datetime";
 import { MOVEMENT_META } from "@/lib/movement-meta";
+
+const ADMIN_TIER = ["owner", "admin", "manager"];
 
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -37,7 +41,8 @@ function timeAgo(iso: string): string {
 
 export default async function DashboardPage() {
   const { profile, org } = await requireProfile();
-  const [kpis, categoryMix, topSellers, stockHealth, monthlyStats, activity, dailyProfit] = await Promise.all([
+  const isAdminTier = ADMIN_TIER.includes(profile.role);
+  const [kpis, categoryMix, topSellers, stockHealth, monthlyStats, activity, dailyProfit, teamMembers] = await Promise.all([
     getKpis(),
     getCategoryMix(),
     getTopSellers(5),
@@ -45,6 +50,7 @@ export default async function DashboardPage() {
     getMonthlyStats(),
     getRecentActivity(5),
     getDailyProductProfit(),
+    isAdminTier ? getTeamMembers() : Promise.resolve([]),
   ]);
   const todaysProfit = dailyProfit.reduce((sum, p) => sum + (Number(p.profit) || 0), 0);
 
@@ -258,6 +264,12 @@ export default async function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {isAdminTier && (
+        <div className="mt-4">
+          <TeamPresenceCard members={teamMembers} showRoleBreakdown />
+        </div>
+      )}
 
       {/* DAILY PROFIT */}
       <div className="mt-4 rounded-2xl border border-border bg-surface p-[18px_20px] shadow-[var(--shadow-sm)]">

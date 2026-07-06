@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { getStockAlerts, type StockAlert } from "@/lib/actions/alerts";
+import { onDataChanged } from "@/lib/client-events";
+import { usePresence } from "@/components/app/PresenceProvider";
 
 const TITLES: Record<string, string> = {
   "/dashboard": "Overview",
@@ -37,6 +39,7 @@ export function Topbar({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { selfStatus } = usePresence();
   const [menuOpen, setMenuOpen] = useState(false);
   const [alertsOpen, setAlertsOpen] = useState(false);
   const [alerts, setAlerts] = useState<StockAlert[]>([]);
@@ -56,6 +59,15 @@ export function Topbar({
   useEffect(() => {
     getStockAlerts().then(setAlerts).catch(() => setAlerts([]));
   }, [pathname]);
+
+  // Also refresh immediately when a product/stock mutation happens on the
+  // current page — without this the bell would only catch up on the next
+  // navigation, even though the edit already persisted.
+  useEffect(() => {
+    return onDataChanged(() => {
+      getStockAlerts().then(setAlerts).catch(() => setAlerts([]));
+    });
+  }, []);
 
   async function handleLogout() {
     const supabase = createClient();
@@ -140,11 +152,18 @@ export function Topbar({
           onClick={() => setMenuOpen((v) => !v)}
           className="flex h-9 items-center gap-2 rounded-[9px] border border-border bg-surface py-[3px] pl-[3px] pr-2.5 hover:bg-hover"
         >
-          <div
-            className="flex h-[26px] w-[26px] items-center justify-center rounded-[6px] text-[12px] font-bold text-white"
-            style={{ background: "linear-gradient(135deg,#635bff,#8a86ff)" }}
-          >
-            {initials}
+          <div className="relative">
+            <div
+              className="flex h-[26px] w-[26px] items-center justify-center rounded-[6px] text-[12px] font-bold text-white"
+              style={{ background: "linear-gradient(135deg,#635bff,#8a86ff)" }}
+            >
+              {initials}
+            </div>
+            <span
+              title={selfStatus === "online" ? "Online" : "Idle"}
+              className="absolute -right-[2px] -top-[2px] h-[9px] w-[9px] rounded-full border-[1.5px] border-surface"
+              style={{ background: selfStatus === "online" ? "var(--green)" : "var(--amber)" }}
+            />
           </div>
           <span className="username text-[13px] font-semibold">{firstName}</span>
         </button>

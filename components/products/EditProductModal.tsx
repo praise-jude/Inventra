@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/app/ToastProvider";
 import { updateProduct } from "@/lib/actions/products";
+import { notifyDataChanged } from "@/lib/client-events";
 import type { ProductDetail } from "@/lib/queries/products";
 import { ProductFormFields, type ProductFormState } from "@/components/products/ProductFormFields";
 import { Button } from "@/components/ui/Button";
@@ -19,12 +20,14 @@ export function EditProductModal({
   warehouses,
   suppliers,
   onClose,
+  onSaved,
 }: {
   product: ProductDetail;
   categories: Option[];
   warehouses: Option[];
   suppliers: Option[];
   onClose: () => void;
+  onSaved: (updated: ProductDetail) => void;
 }) {
   const router = useRouter();
   const flash = useToast();
@@ -63,7 +66,7 @@ export function EditProductModal({
     }
     setSaving(true);
     try {
-      await updateProduct(product.id, {
+      const updated = await updateProduct(product.id, {
         name: form.name,
         description: form.description,
         sku: form.sku,
@@ -80,8 +83,14 @@ export function EditProductModal({
         imageUrl: form.imageUrl,
       });
       flash("Product updated");
+      // Hand the freshly-persisted row back up before closing — the detail
+      // panel this modal opened from holds its own copy of the product in
+      // React state, and router.refresh() only refreshes server-rendered
+      // props, not that client-side snapshot.
+      onSaved(updated);
       onClose();
       router.refresh();
+      notifyDataChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not update product.");
     } finally {

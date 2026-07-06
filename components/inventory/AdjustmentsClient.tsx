@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useToast } from "@/components/app/ToastProvider";
 import { createAdjustment } from "@/lib/actions/inventory";
+import { notifyDataChanged } from "@/lib/client-events";
 import type { MovementRow } from "@/lib/queries/inventory";
 import { MOVEMENT_META } from "@/lib/movement-meta";
 import { Field } from "@/components/ui/Field";
@@ -68,6 +69,7 @@ function CreateAdjustmentModal({ products, onClose }: { products: ProductOption[
       flash("Adjustment recorded");
       onClose();
       router.refresh();
+      notifyDataChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not record adjustment.");
     } finally {

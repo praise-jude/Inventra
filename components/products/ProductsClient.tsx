@@ -71,7 +71,35 @@ export function ProductsClient({
   const [selected, setSelected] = useState<ProductDetail | null>(null);
   const [showScanner, setShowScanner] = useState(false);
   const [importing, setImporting] = useState(false);
+  // Instant local patch for a just-saved row so the table doesn't sit stale
+  // for the round trip router.refresh() takes to re-fetch server props.
+  // Cleared whenever fresh `products` props actually arrive — adjusted
+  // during render (not an effect) per React's guidance for resetting state
+  // when a prop changes.
+  const [rowOverrides, setRowOverrides] = useState<Record<string, Partial<ProductListRow>>>({});
+  const [prevProducts, setPrevProducts] = useState(products);
+  if (products !== prevProducts) {
+    setPrevProducts(products);
+    setRowOverrides({});
+  }
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function handleProductUpdated(updated: ProductDetail) {
+    setSelected(updated);
+    setRowOverrides((prev) => ({
+      ...prev,
+      [updated.id]: {
+        name: updated.name,
+        sku: updated.sku,
+        barcode: updated.barcode,
+        brand: updated.brand,
+        imageUrl: updated.imageUrl,
+        price: updated.sell_price,
+        qty: updated.qty_on_hand,
+        category: updated.category,
+      },
+    }));
+  }
 
   useEffect(() => {
     const openId = searchParams.get("open");
@@ -93,17 +121,22 @@ export function ProductsClient({
     if (detail) setSelected(detail);
   }
 
+  const rows = useMemo(() => {
+    if (Object.keys(rowOverrides).length === 0) return products;
+    return products.map((p) => (rowOverrides[p.id] ? { ...p, ...rowOverrides[p.id] } : p));
+  }, [products, rowOverrides]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return products;
-    return products.filter(
+    if (!q) return rows;
+    return rows.filter(
       (p) =>
         p.name.toLowerCase().includes(q) ||
         p.sku.toLowerCase().includes(q) ||
         (p.brand ?? "").toLowerCase().includes(q) ||
         (p.barcode ?? "").toLowerCase().includes(q),
     );
-  }, [products, query]);
+  }, [rows, query]);
 
   function handleSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key !== "Enter") return;
@@ -314,6 +347,7 @@ export function ProductsClient({
           warehouses={warehouses}
           suppliers={suppliers}
           onClose={closeDetail}
+          onProductUpdated={handleProductUpdated}
         />
       )}
       {showScanner && <BarcodeScannerModal onDetected={handleScanDetected} onClose={() => setShowScanner(false)} />}

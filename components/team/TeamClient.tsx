@@ -3,7 +3,18 @@
 import { useState } from "react";
 import { InviteMemberModal } from "@/components/team/InviteMemberModal";
 import { useWorkspace } from "@/components/app/CurrencyProvider";
+import { usePresence } from "@/components/app/PresenceProvider";
 import type { TeamMemberRow } from "@/lib/queries/team";
+
+function timeAgo(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const mins = Math.round(diffMs / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs} hr ago`;
+  return `${Math.round(hrs / 24)}d ago`;
+}
 
 const ROLE_STYLE: Record<string, { color: string; background: string }> = {
   owner: { color: "var(--accent-text)", background: "var(--accent-weak)" },
@@ -32,6 +43,8 @@ const ROLE_LEGEND = [
 export function TeamClient({ members, seatsUsed, seatsTotal }: { members: TeamMemberRow[]; seatsUsed: number; seatsTotal: number }) {
   const [showInvite, setShowInvite] = useState(false);
   const { formatDateTime } = useWorkspace();
+  const { online } = usePresence();
+  const presenceById = new Map(online.map((u) => [u.userId, u]));
 
   return (
     <div className="animate-fade-up">
@@ -62,15 +75,26 @@ export function TeamClient({ members, seatsUsed, seatsTotal }: { members: TeamMe
               </tr>
             </thead>
             <tbody>
-              {members.map((m, i) => (
+              {members.map((m, i) => {
+                const presence = presenceById.get(m.id);
+                return (
                 <tr key={m.id} className="border-t border-border-2 hover:bg-hover">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-[11px]">
-                      <div
-                        className="flex h-[34px] w-[34px] items-center justify-center rounded-[9px] text-[12.5px] font-bold text-white"
-                        style={{ background: GRADIENTS[i % GRADIENTS.length] }}
-                      >
-                        {m.initials}
+                      <div className="relative">
+                        <div
+                          className="flex h-[34px] w-[34px] items-center justify-center rounded-[9px] text-[12.5px] font-bold text-white"
+                          style={{ background: GRADIENTS[i % GRADIENTS.length] }}
+                        >
+                          {m.initials}
+                        </div>
+                        {m.status === "active" && (
+                          <span
+                            title={presence ? (presence.status === "online" ? "Online" : "Idle") : "Offline"}
+                            className="absolute -right-px -top-px h-[9px] w-[9px] rounded-full border-[1.5px] border-surface"
+                            style={{ background: presence ? (presence.status === "online" ? "var(--green)" : "var(--amber)") : "var(--faint)" }}
+                          />
+                        )}
                       </div>
                       <div>
                         <div className="text-[13.5px] font-semibold">{m.name}</div>
@@ -96,10 +120,19 @@ export function TeamClient({ members, seatsUsed, seatsTotal }: { members: TeamMe
                     </span>
                   </td>
                   <td className="px-3.5 py-3 text-[12.5px] text-text-2">
-                    {m.status === "invited" ? "Pending" : m.lastActive ? formatDateTime(m.lastActive) : "—"}
+                    {m.status === "invited"
+                      ? "Pending"
+                      : presence
+                        ? presence.status === "online"
+                          ? "Online now"
+                          : `Idle · since ${formatDateTime(presence.since)}`
+                        : m.lastActive
+                          ? timeAgo(m.lastActive)
+                          : "—"}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
