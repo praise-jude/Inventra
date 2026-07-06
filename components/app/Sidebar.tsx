@@ -43,11 +43,9 @@ export function Sidebar({
       style={{ position: "sticky", top: 0 }}
     >
       <div className="flex items-center gap-2.5 px-4 pb-3 pt-4">
-        <div className="flex h-[30px] w-[30px] items-center justify-center rounded-[8px] bg-accent text-[15px] font-extrabold text-white">
-          S
-        </div>
+        <img src="/inventra-logo.svg" alt="" className="h-[30px] w-[30px] flex-shrink-0" />
         <div className="min-w-0 flex-1">
-          <div className="text-[15px] font-bold tracking-tight">Stockwell</div>
+          <div className="text-[15px] font-bold tracking-tight">Inventra</div>
         </div>
       </div>
       <div className="px-3 pb-2.5 pt-1">

@@ -33,7 +33,7 @@ async function must<T>(promise: PromiseLike<{ data: T; error: unknown }>, label:
 }
 
 async function main() {
-  console.log("Seeding Stockwell demo data for FreshMart Co. …");
+  console.log("Seeding Inventra demo data for FreshMart Co. …");
 
   const avaPassword = `Fresh${crypto.randomBytes(6).toString("base64url")}!2`;
 

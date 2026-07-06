@@ -1,5 +1,5 @@
 -- ============================================================================
--- Stockwell — Sales Recording
+-- Inventra — Sales Recording
 -- Records sales as ordinary stock_movements rows (type = 'sale'), the same
 -- ledger get_kpis()/get_top_sellers()/get_recent_activity() already read —
 -- no RPC changes needed, revenue/best-sellers/stock update automatically.

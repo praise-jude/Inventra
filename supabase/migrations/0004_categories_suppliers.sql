@@ -1,5 +1,5 @@
 -- ============================================================================
--- Stockwell — Categories & Suppliers management
+-- Inventra — Categories & Suppliers management
 -- Adds the contact fields the Supplier module needs, and splits the
 -- previously-permissive categories/suppliers RLS so any org member can read
 -- (dropdowns, POS lookups later) but only owner/admin/manager can mutate —

@@ -7,10 +7,10 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         style={{ background: "linear-gradient(160deg,#4b45d1,#635bff 55%,#8a86ff)" }}
       >
         <div className="relative z-[2] flex items-center gap-[11px]">
-          <div className="flex h-[34px] w-[34px] items-center justify-center rounded-[9px] bg-white font-extrabold text-[#4b45d1]">
-            S
+          <div className="flex h-[70px] w-[70px] items-center justify-center rounded-[9px] bg-white p-1">
+            <img src="/inventra-logo.svg" alt="" className="h-full w-full" />
           </div>
-          <span className="text-[17px] font-bold tracking-tight">Stockwell</span>
+          <span className="text-[17px] font-bold tracking-tight">Inventra</span>
         </div>
         <div className="relative z-[2]">
           <div className="max-w-[440px] text-[34px] font-bold leading-[1.15] tracking-tight">
@@ -46,10 +46,8 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       <div className="flex min-w-0 flex-1 items-center justify-center p-8">
         <div className="w-full max-w-[388px] animate-fade-up">
           <div className="mb-[34px] flex items-center gap-2.5">
-            <div className="flex h-[30px] w-[30px] items-center justify-center rounded-[8px] bg-accent font-extrabold text-white">
-              S
-            </div>
-            <span className="text-[16px] font-bold tracking-tight">Stockwell</span>
+            <img src="/inventra-logo.svg" alt="Inventra" className="h-[60px] w-[60px]" />
+            <span className="text-[16px] font-bold tracking-tight">Inventra</span>
           </div>
           {children}
         </div>

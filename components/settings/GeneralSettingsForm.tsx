@@ -112,7 +112,7 @@ export function GeneralSettingsForm({ name, supportEmail, currency, country, sta
       </div>
       <div className="rounded-2xl border border-border bg-surface p-5 shadow-[var(--shadow-sm)]">
         <div className="text-[15px] font-bold">Appearance</div>
-        <div className="mb-3.5 mt-1 text-[12.5px] text-text-2">Choose how Stockwell looks on this device.</div>
+        <div className="mb-3.5 mt-1 text-[12.5px] text-text-2">Choose how Inventra looks on this device.</div>
         <ThemePicker initialPreference={themePreference} />
       </div>
       <div className="flex justify-end gap-2.5">
