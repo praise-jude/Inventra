@@ -51,9 +51,11 @@ export async function getMonthlyStats(): Promise<MonthlyStat[]> {
   return data ?? [];
 }
 
-export async function getDailyProductProfit(date?: string): Promise<DailyProductProfitRow[]> {
+// The deployed RPC always computes for the current date server-side and
+// takes no arguments — there is no p_date parameter to pass.
+export async function getDailyProductProfit(): Promise<DailyProductProfitRow[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("get_daily_product_profit", date ? { p_date: date } : {});
+  const { data, error } = await supabase.rpc("get_daily_product_profit");
   if (error) throw error;
   return (data ?? []) as DailyProductProfitRow[];
 }

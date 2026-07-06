@@ -193,8 +193,6 @@ export interface Sale {
   notes: string | null;
   created_by: string | null;
   created_at: string;
-  voided_at: string | null;
-  void_reason: string | null;
 }
 
 export interface SalePayment {
@@ -272,7 +270,7 @@ export interface DailyProductProfitRow {
   product_id: string;
   name: string;
   emoji: string | null;
-  units_sold: number;
+  units: number;
   revenue: number;
   cost: number;
   profit: number;

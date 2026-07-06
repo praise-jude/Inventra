@@ -7,7 +7,7 @@ import { SalesClient } from "@/components/sales/SalesClient";
 export default async function SalesPage() {
   const { profile } = await requireSalesProfile();
   const [sales, customers] = await Promise.all([getSalesList(), getCustomerOptions()]);
-  const canDelete = profile.role === "owner" || profile.role === "admin";
+  const canDelete = ["owner", "admin", "manager"].includes(profile.role);
 
   return (
     <Suspense>

@@ -76,19 +76,7 @@ export function SalesClient({ sales, customers, canDelete }: { sales: SaleListRo
                   onClick={() => fetchSaleDetail(s.id).then((d) => d && setDetail(d))}
                   className="cursor-pointer border-t border-border-2 hover:bg-hover"
                 >
-                  <td className="px-4 py-3 text-[13.5px] font-semibold">
-                    <div className="flex items-center gap-2">
-                      {s.customerName}
-                      {s.isVoided && (
-                        <span
-                          className="inline-flex items-center rounded-[20px] px-2 py-px text-[10.5px] font-bold text-red"
-                          style={{ background: "var(--red-weak)" }}
-                        >
-                          Voided
-                        </span>
-                      )}
-                    </div>
-                  </td>
+                  <td className="px-4 py-3 text-[13.5px] font-semibold">{s.customerName}</td>
                   <td className="px-3.5 py-3 text-right font-mono text-[13px]">{s.itemCount}</td>
                   <td className="px-3.5 py-3 text-[12.5px] text-text-2">{s.paymentSummary}</td>
                   <td className="px-3.5 py-3 text-[12.5px] text-text-2">{formatDateTime(s.createdAt)}</td>

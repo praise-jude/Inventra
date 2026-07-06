@@ -9,7 +9,6 @@ export interface SaleListRow {
   paymentSummary: string;
   itemCount: number;
   createdAt: string;
-  isVoided: boolean;
 }
 
 const PAYMENT_LABEL: Record<PaymentMethod, string> = {
@@ -23,7 +22,7 @@ export async function getSalesList(): Promise<SaleListRow[]> {
   const supabase = await createClient();
   const { data: sales, error } = await supabase
     .from("sales")
-    .select("id, walk_in_name, total, created_at, voided_at, customers(name)")
+    .select("id, walk_in_name, total, created_at, customers(name)")
     .order("created_at", { ascending: false })
     .limit(100);
   if (error) {
@@ -68,7 +67,6 @@ export async function getSalesList(): Promise<SaleListRow[]> {
       paymentSummary,
       itemCount: itemCountBySale.get(s.id) ?? 0,
       createdAt: s.created_at,
-      isVoided: s.voided_at !== null,
     };
   });
 }
@@ -97,8 +95,6 @@ export interface SaleDetail {
   total: number;
   notes: string | null;
   createdAt: string;
-  isVoided: boolean;
-  voidReason: string | null;
   items: SaleLineItem[];
   payments: SalePaymentRow[];
 }
@@ -108,7 +104,7 @@ export async function getSaleDetail(id: string): Promise<SaleDetail | null> {
   const { data: sale, error: saleError } = await supabase
     .from("sales")
     .select(
-      "id, customer_id, walk_in_name, subtotal, discount_amount, tax_amount, total, notes, created_at, voided_at, void_reason, customers(name)",
+      "id, customer_id, walk_in_name, subtotal, discount_amount, tax_amount, total, notes, created_at, customers(name)",
     )
     .eq("id", id)
     .single();
@@ -138,8 +134,6 @@ export async function getSaleDetail(id: string): Promise<SaleDetail | null> {
     total: Number(sale.total),
     notes: sale.notes,
     createdAt: sale.created_at,
-    isVoided: sale.voided_at !== null,
-    voidReason: sale.void_reason,
     items: (items ?? []).map((i) => {
       const qty = Math.abs(i.qty_delta);
       const unitPrice = Number(i.unit_price ?? 0);

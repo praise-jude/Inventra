@@ -293,7 +293,7 @@ export default async function DashboardPage() {
                     <td className="px-3.5 py-2.5 text-[13px] font-semibold">
                       {p.emoji || "📦"} {p.name}
                     </td>
-                    <td className="px-3.5 py-2.5 text-right font-mono text-[13px]">{formatNumber(Number(p.units_sold) || 0)}</td>
+                    <td className="px-3.5 py-2.5 text-right font-mono text-[13px]">{formatNumber(Number(p.units) || 0)}</td>
                     <td className="px-3.5 py-2.5 text-right font-mono text-[13px]">{formatMoneyCompact(Number(p.revenue) || 0, org.currency)}</td>
                     <td className="px-3.5 py-2.5 text-right font-mono text-[13px] text-text-2">{formatMoneyCompact(Number(p.cost) || 0, org.currency)}</td>
                     <td

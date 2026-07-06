@@ -161,26 +161,21 @@ export interface UpdateSaleInput {
 export async function updateSale(id: string, input: UpdateSaleInput) {
   const { supabase } = await requireSalesOrgId();
 
-  const { data: existing, error: fetchError } = await supabase
-    .from("sales")
-    .select("id, voided_at")
-    .eq("id", id)
-    .single();
-  if (fetchError || !existing) throw new Error("Sale not found.");
-  if (existing.voided_at) throw new Error("This sale has been voided and can't be edited.");
-
-  const { error: saleError } = await supabase
+  const { data: updated, error: saleError } = await supabase
     .from("sales")
     .update({
       customer_id: input.customerId || null,
       walk_in_name: input.customerId ? null : input.walkInName?.trim() || null,
       notes: input.notes?.trim() || null,
     })
-    .eq("id", id);
+    .eq("id", id)
+    .select("id")
+    .maybeSingle();
   if (saleError) {
     console.error("[Inventra] updateSale (sales) failed:", saleError);
     throw new Error("Could not update the sale.");
   }
+  if (!updated) throw new Error("Sale not found, or you don't have permission to edit it.");
 
   if (input.paymentMethod) {
     const { data: payments, error: payFetchError } = await supabase
@@ -206,56 +201,32 @@ export async function updateSale(id: string, input: UpdateSaleInput) {
   revalidatePath("/sales");
 }
 
-export async function voidSale(id: string, reason?: string) {
-  const { supabase, orgId, userId, role } = await requireSalesOrgId();
-  if (!["owner", "admin"].includes(role)) {
-    throw new Error("Only an owner or admin can delete a sale.");
+export async function deleteSale(id: string) {
+  const { supabase, role } = await requireSalesOrgId();
+  if (!["owner", "admin", "manager"].includes(role)) {
+    throw new Error("Only an owner, admin, or manager can delete a sale.");
   }
 
-  const { data: sale, error: saleError } = await supabase
-    .from("sales")
-    .select("id, voided_at")
-    .eq("id", id)
-    .single();
-  if (saleError || !sale) throw new Error("Sale not found.");
-  if (sale.voided_at) throw new Error("This sale has already been voided.");
+  const { data: sale, error: saleError } = await supabase.from("sales").select("id").eq("id", id).maybeSingle();
+  if (saleError) {
+    console.error("[Inventra] deleteSale (sale fetch) failed:", saleError);
+    throw new Error("Could not load this sale.");
+  }
+  if (!sale) throw new Error("Sale not found.");
 
-  const { data: lines, error: linesError } = await supabase
-    .from("stock_movements")
-    .select("product_id, warehouse_id, qty_delta, unit_price")
-    .eq("sale_id", id);
-  if (linesError) {
-    console.error("[Inventra] voidSale (lines fetch) failed:", linesError);
-    throw new Error("Could not load this sale's line items.");
+  // Deleting each stock_movements row fires the reverse_stock_movement
+  // trigger, which restores qty_on_hand — no manual compensating entry
+  // needed. The sales row delete then cascades to sale_payments.
+  const { error: movementsError } = await supabase.from("stock_movements").delete().eq("sale_id", id);
+  if (movementsError) {
+    console.error("[Inventra] deleteSale (stock_movements) failed:", movementsError);
+    throw new Error("Could not reverse this sale's stock impact.");
   }
 
-  if ((lines ?? []).length > 0) {
-    const { error: reversalError } = await supabase.from("stock_movements").insert(
-      (lines ?? []).map((l) => ({
-        org_id: orgId,
-        product_id: l.product_id,
-        warehouse_id: l.warehouse_id,
-        type: "sale",
-        qty_delta: -l.qty_delta,
-        unit_price: l.unit_price,
-        reason: "Voided sale — reversal",
-        sale_id: null,
-        created_by: userId,
-      })),
-    );
-    if (reversalError) {
-      console.error("[Inventra] voidSale (reversal insert) failed:", reversalError);
-      throw new Error("Could not reverse this sale's stock impact.");
-    }
-  }
-
-  const { error: voidError } = await supabase
-    .from("sales")
-    .update({ voided_at: new Date().toISOString(), void_reason: reason?.trim() || null })
-    .eq("id", id);
-  if (voidError) {
-    console.error("[Inventra] voidSale (sales update) failed:", voidError);
-    throw new Error("Could not void the sale.");
+  const { error: deleteError } = await supabase.from("sales").delete().eq("id", id);
+  if (deleteError) {
+    console.error("[Inventra] deleteSale (sales) failed:", deleteError);
+    throw new Error("Could not delete the sale.");
   }
 
   revalidatePath("/sales");
