@@ -8,6 +8,7 @@ import { usePresence } from "@/components/app/PresenceProvider";
 import { useToast } from "@/components/app/ToastProvider";
 import { reactivateMember, removeMember, resendInvite, suspendMember, updateMemberRole } from "@/lib/actions/team";
 import type { TeamMemberRow } from "@/lib/queries/team";
+import { Table, type TableColumn } from "@/components/ui/Table";
 
 const InviteMemberModal = dynamic(() => import("@/components/team/InviteMemberModal").then((m) => m.InviteMemberModal));
 
@@ -32,10 +33,10 @@ const ROLE_STYLE: Record<string, { color: string; background: string }> = {
 const ASSIGNABLE_ROLES = ["admin", "manager", "cashier", "warehouse"];
 
 const GRADIENTS = [
-  "linear-gradient(135deg,#635bff,#8a86ff)",
-  "linear-gradient(135deg,#0e7cc4,#5cc0f5)",
-  "linear-gradient(135deg,#12805c,#3ddc9a)",
-  "linear-gradient(135deg,#b7791f,#f0b352)",
+  "linear-gradient(135deg,#2563eb,#6366f1)",
+  "linear-gradient(135deg,#0891b2,#22d3ee)",
+  "linear-gradient(135deg,#10b981,#34d399)",
+  "linear-gradient(135deg,#f59e0b,#fbbf24)",
   "linear-gradient(135deg,#55607a,#8a94a8)",
 ];
 
@@ -103,6 +104,175 @@ export function TeamClient({
     run(m.id, () => removeMember(m.id), "Member removed");
   }
 
+  const gradientIndex = new Map(members.map((m, i) => [m.id, i]));
+
+  const columns: TableColumn<TeamMemberRow>[] = [
+    {
+      key: "member",
+      header: "Member",
+      sortable: true,
+      sortValue: (m) => m.name,
+      render: (m) => {
+        const presence = presenceById.get(m.id);
+        const isSelf = m.id === currentUserId;
+        const isSuspended = !!m.suspendedAt;
+        return (
+          <div className="flex items-center gap-[11px]">
+            <div className="relative">
+              <div
+                className="flex h-[34px] w-[34px] items-center justify-center rounded-[9px] text-[12.5px] font-bold text-white"
+                style={{ background: GRADIENTS[(gradientIndex.get(m.id) ?? 0) % GRADIENTS.length] }}
+              >
+                {m.initials}
+              </div>
+              {m.status === "active" && !isSuspended && (
+                <span
+                  title={presence ? (presence.status === "online" ? "Online" : "Idle") : "Offline"}
+                  className="absolute -right-px -top-px h-[9px] w-[9px] rounded-full border-[1.5px] border-surface"
+                  style={{ background: presence ? (presence.status === "online" ? "var(--green)" : "var(--amber)") : "var(--faint)" }}
+                />
+              )}
+            </div>
+            <div>
+              <div className="text-[13.5px] font-semibold">
+                {m.name} {isSelf && <span className="text-muted">(you)</span>}
+              </div>
+              <div className="text-[11.5px] text-muted">{m.email}</div>
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      key: "role",
+      header: "Role",
+      sortable: true,
+      sortValue: (m) => m.role,
+      render: (m) => {
+        const isSelf = m.id === currentUserId;
+        const isBusy = busyId === m.id;
+        return m.role === "owner" || isSelf ? (
+          <span className="rounded-[20px] px-[9px] py-0.5 text-[11.5px] font-bold capitalize" style={ROLE_STYLE[m.role]}>
+            {m.role}
+          </span>
+        ) : (
+          <select
+            value={m.role}
+            onChange={(e) => handleRoleChange(m.id, e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+            disabled={isBusy}
+            className="rounded-[8px] border border-border bg-surface px-2 py-1 text-[12px] font-semibold capitalize text-text disabled:opacity-60"
+          >
+            {ASSIGNABLE_ROLES.map((r) => (
+              <option key={r} value={r}>
+                {r[0].toUpperCase() + r.slice(1)}
+              </option>
+            ))}
+          </select>
+        );
+      },
+    },
+    {
+      key: "status",
+      header: "Status",
+      sortable: true,
+      sortValue: (m) => (m.suspendedAt ? "suspended" : m.status),
+      render: (m) => {
+        const isSuspended = !!m.suspendedAt;
+        return (
+          <span
+            className="rounded-[20px] px-[9px] py-0.5 text-[11.5px] font-bold"
+            style={
+              isSuspended
+                ? { color: "var(--red)", background: "var(--red-weak)" }
+                : m.status === "active"
+                  ? { color: "var(--green)", background: "var(--green-weak)" }
+                  : { color: "var(--amber)", background: "var(--amber-weak)" }
+            }
+          >
+            {isSuspended ? "Suspended" : m.status === "active" ? "Active" : "Invited"}
+          </span>
+        );
+      },
+    },
+    {
+      key: "lastActive",
+      header: "Last active",
+      render: (m) => {
+        const presence = presenceById.get(m.id);
+        const isSuspended = !!m.suspendedAt;
+        return (
+          <span className="text-[12.5px] text-text-2">
+            {isSuspended
+              ? "—"
+              : m.status === "invited"
+                ? "Pending"
+                : presence
+                  ? presence.status === "online"
+                    ? "Online now"
+                    : `Idle · since ${formatDateTime(presence.since)}`
+                  : m.lastActive
+                    ? timeAgo(m.lastActive)
+                    : "—"}
+          </span>
+        );
+      },
+    },
+    {
+      key: "actions",
+      header: "",
+      hideable: false,
+      align: "right",
+      render: (m) => {
+        const isSelf = m.id === currentUserId;
+        const isBusy = busyId === m.id;
+        const isSuspended = !!m.suspendedAt;
+        if (isSelf || m.role === "owner") return null;
+        return (
+          <div className="relative" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setMenuOpenId(menuOpenId === m.id ? null : m.id)}
+              disabled={isBusy}
+              className="h-7 rounded-[7px] border border-border bg-surface px-2.5 text-[12px] font-semibold text-text hover:bg-hover disabled:opacity-60"
+            >
+              {isBusy ? "…" : "Actions ⌄"}
+            </button>
+            {menuOpenId === m.id && (
+              <div className="absolute right-0 top-8 z-10 w-[180px] rounded-[10px] border border-border bg-surface py-1.5 text-left shadow-[var(--shadow-lg)]">
+                {m.status === "invited" && (
+                  <button
+                    onClick={() => handleResendInvite(m)}
+                    className="block w-full px-3.5 py-2 text-left text-[12.5px] text-text hover:bg-hover"
+                  >
+                    Resend invite
+                  </button>
+                )}
+                {isSuspended ? (
+                  <button
+                    onClick={() => handleReactivate(m)}
+                    className="block w-full px-3.5 py-2 text-left text-[12.5px] text-text hover:bg-hover"
+                  >
+                    Reactivate
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleSuspend(m)}
+                    className="block w-full px-3.5 py-2 text-left text-[12.5px] text-text hover:bg-hover"
+                  >
+                    Suspend
+                  </button>
+                )}
+                <button onClick={() => handleRemove(m)} className="block w-full px-3.5 py-2 text-left text-[12.5px] text-red hover:bg-hover">
+                  Remove
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      },
+    },
+  ];
+
   return (
     <div className="animate-fade-up">
       <div className="mb-[18px] flex flex-wrap items-end justify-between gap-3.5">
@@ -120,151 +290,7 @@ export function TeamClient({
         </button>
       </div>
 
-      <div className="overflow-hidden rounded-[14px] border border-border bg-surface shadow-[var(--shadow-sm)]">
-        <div className="scroll overflow-x-auto">
-          <table className="w-full min-w-[760px] border-collapse">
-            <thead>
-              <tr className="bg-surface-2">
-                <th className="px-4 py-[11px] text-left text-[11.5px] font-bold uppercase tracking-[0.04em] text-muted">Member</th>
-                <th className="px-3.5 py-[11px] text-left text-[11.5px] font-bold uppercase tracking-[0.04em] text-muted">Role</th>
-                <th className="px-3.5 py-[11px] text-left text-[11.5px] font-bold uppercase tracking-[0.04em] text-muted">Status</th>
-                <th className="px-3.5 py-[11px] text-left text-[11.5px] font-bold uppercase tracking-[0.04em] text-muted">Last active</th>
-                <th className="px-4 py-[11px]" />
-              </tr>
-            </thead>
-            <tbody>
-              {members.map((m, i) => {
-                const presence = presenceById.get(m.id);
-                const isSelf = m.id === currentUserId;
-                const isSuspended = !!m.suspendedAt;
-                const isBusy = busyId === m.id;
-                return (
-                <tr key={m.id} className="border-t border-border-2 hover:bg-hover">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-[11px]">
-                      <div className="relative">
-                        <div
-                          className="flex h-[34px] w-[34px] items-center justify-center rounded-[9px] text-[12.5px] font-bold text-white"
-                          style={{ background: GRADIENTS[i % GRADIENTS.length] }}
-                        >
-                          {m.initials}
-                        </div>
-                        {m.status === "active" && !isSuspended && (
-                          <span
-                            title={presence ? (presence.status === "online" ? "Online" : "Idle") : "Offline"}
-                            className="absolute -right-px -top-px h-[9px] w-[9px] rounded-full border-[1.5px] border-surface"
-                            style={{ background: presence ? (presence.status === "online" ? "var(--green)" : "var(--amber)") : "var(--faint)" }}
-                          />
-                        )}
-                      </div>
-                      <div>
-                        <div className="text-[13.5px] font-semibold">
-                          {m.name} {isSelf && <span className="text-muted">(you)</span>}
-                        </div>
-                        <div className="text-[11.5px] text-muted">{m.email}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-3.5 py-3">
-                    {m.role === "owner" || isSelf ? (
-                      <span className="rounded-[20px] px-[9px] py-0.5 text-[11.5px] font-bold capitalize" style={ROLE_STYLE[m.role]}>
-                        {m.role}
-                      </span>
-                    ) : (
-                      <select
-                        value={m.role}
-                        onChange={(e) => handleRoleChange(m.id, e.target.value)}
-                        disabled={isBusy}
-                        className="rounded-[8px] border border-border bg-surface px-2 py-1 text-[12px] font-semibold capitalize text-text disabled:opacity-60"
-                      >
-                        {ASSIGNABLE_ROLES.map((r) => (
-                          <option key={r} value={r}>
-                            {r[0].toUpperCase() + r.slice(1)}
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                  </td>
-                  <td className="px-3.5 py-3">
-                    <span
-                      className="rounded-[20px] px-[9px] py-0.5 text-[11.5px] font-bold"
-                      style={
-                        isSuspended
-                          ? { color: "var(--red)", background: "var(--red-weak)" }
-                          : m.status === "active"
-                            ? { color: "var(--green)", background: "var(--green-weak)" }
-                            : { color: "var(--amber)", background: "var(--amber-weak)" }
-                      }
-                    >
-                      {isSuspended ? "Suspended" : m.status === "active" ? "Active" : "Invited"}
-                    </span>
-                  </td>
-                  <td className="px-3.5 py-3 text-[12.5px] text-text-2">
-                    {isSuspended
-                      ? "—"
-                      : m.status === "invited"
-                        ? "Pending"
-                        : presence
-                          ? presence.status === "online"
-                            ? "Online now"
-                            : `Idle · since ${formatDateTime(presence.since)}`
-                          : m.lastActive
-                            ? timeAgo(m.lastActive)
-                            : "—"}
-                  </td>
-                  <td className="relative px-4 py-3 text-right">
-                    {!isSelf && m.role !== "owner" && (
-                      <>
-                        <button
-                          onClick={() => setMenuOpenId(menuOpenId === m.id ? null : m.id)}
-                          disabled={isBusy}
-                          className="h-7 rounded-[7px] border border-border bg-surface px-2.5 text-[12px] font-semibold text-text hover:bg-hover disabled:opacity-60"
-                        >
-                          {isBusy ? "…" : "Actions ⌄"}
-                        </button>
-                        {menuOpenId === m.id && (
-                          <div className="absolute right-4 top-10 z-10 w-[180px] rounded-[10px] border border-border bg-surface py-1.5 text-left shadow-[var(--shadow-lg)]">
-                            {m.status === "invited" && (
-                              <button
-                                onClick={() => handleResendInvite(m)}
-                                className="block w-full px-3.5 py-2 text-left text-[12.5px] text-text hover:bg-hover"
-                              >
-                                Resend invite
-                              </button>
-                            )}
-                            {isSuspended ? (
-                              <button
-                                onClick={() => handleReactivate(m)}
-                                className="block w-full px-3.5 py-2 text-left text-[12.5px] text-text hover:bg-hover"
-                              >
-                                Reactivate
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => handleSuspend(m)}
-                                className="block w-full px-3.5 py-2 text-left text-[12.5px] text-text hover:bg-hover"
-                              >
-                                Suspend
-                              </button>
-                            )}
-                            <button
-                              onClick={() => handleRemove(m)}
-                              className="block w-full px-3.5 py-2 text-left text-[12.5px] text-red hover:bg-hover"
-                            >
-                              Remove
-                            </button>
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </td>
-                </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <Table columns={columns} rows={members} rowKey={(m) => m.id} pageSize={20} />
 
       <div className="mt-4 grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))" }}>
         {ROLE_LEGEND.map((r) => (

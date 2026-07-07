@@ -51,6 +51,34 @@ export async function getMonthlyStats(): Promise<MonthlyStat[]> {
   return data ?? [];
 }
 
+// Sales *volume* (transaction count) is a distinct signal from monthly_stats'
+// revenue/profit — it lets the dashboard show a real "sales trend" chart
+// instead of duplicating the revenue line under a different label.
+export async function getMonthlySalesVolume(): Promise<{ month: string; count: number }[]> {
+  const supabase = await createClient();
+  const since = new Date();
+  since.setUTCMonth(since.getUTCMonth() - 11, 1);
+  const { data, error } = await supabase
+    .from("sales")
+    .select("created_at")
+    .gte("created_at", since.toISOString());
+  if (error) throw error;
+
+  const byMonth = new Map<string, number>();
+  for (const row of data ?? []) {
+    const key = row.created_at.slice(0, 7); // YYYY-MM
+    byMonth.set(key, (byMonth.get(key) ?? 0) + 1);
+  }
+  const months: { month: string; count: number }[] = [];
+  const cursor = new Date(since);
+  for (let i = 0; i < 12; i++) {
+    const key = `${cursor.getUTCFullYear()}-${String(cursor.getUTCMonth() + 1).padStart(2, "0")}`;
+    months.push({ month: `${key}-01`, count: byMonth.get(key) ?? 0 });
+    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+  }
+  return months;
+}
+
 // The deployed RPC always computes for the current date server-side and
 // takes no arguments — there is no p_date parameter to pass.
 export async function getDailyProductProfit(): Promise<DailyProductProfitRow[]> {

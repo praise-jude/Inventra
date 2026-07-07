@@ -7,6 +7,7 @@ import { useToast } from "@/components/app/ToastProvider";
 import { deleteWarehouse } from "@/lib/actions/warehouses";
 import type { WarehouseOverview } from "@/lib/queries/inventory";
 import { formatMoneyCompact, formatNumber } from "@/lib/format";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 const WarehouseModal = dynamic(() => import("@/components/inventory/WarehouseModal").then((m) => m.WarehouseModal));
 const TransferStockModal = dynamic(() =>
@@ -64,6 +65,16 @@ export function WarehousesClient({
         </div>
       )}
 
+      {warehouses.length === 0 ? (
+        <div className="rounded-2xl border border-border bg-surface shadow-[var(--shadow-sm)]">
+          <EmptyState
+            icon="🏬"
+            title="No warehouses yet"
+            description="Add a warehouse to start tracking stock by location."
+            action={canManage ? { label: "New warehouse", onClick: () => setModalWarehouse(null) } : undefined}
+          />
+        </div>
+      ) : (
       <div className="grid gap-3.5" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))" }}>
         {warehouses.map((w) => {
           const color = w.utilizationPct >= 70 ? "var(--amber)" : "var(--green)";
@@ -119,10 +130,8 @@ export function WarehousesClient({
             </div>
           );
         })}
-        {warehouses.length === 0 && (
-          <p className="col-span-full py-10 text-center text-[13px] text-muted">No warehouses yet.</p>
-        )}
       </div>
+      )}
 
       {modalWarehouse !== undefined && (
         <WarehouseModal warehouse={modalWarehouse ?? undefined} managers={managers} onClose={() => setModalWarehouse(undefined)} />

@@ -6,6 +6,8 @@ import dynamic from "next/dynamic";
 import { useToast } from "@/components/app/ToastProvider";
 import { deleteCategory } from "@/lib/actions/categories";
 import type { CategoryRow } from "@/lib/queries/categories";
+import { Table, type TableColumn } from "@/components/ui/Table";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 const CategoryModal = dynamic(() => import("@/components/categories/CategoryModal").then((m) => m.CategoryModal));
 
@@ -15,6 +17,7 @@ export function CategoriesClient({ categories, canManage }: { categories: Catego
   const [query, setQuery] = useState("");
   const [modalCategory, setModalCategory] = useState<CategoryRow | null | undefined>(undefined);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -35,6 +38,75 @@ export function CategoriesClient({ categories, canManage }: { categories: Catego
       setBusyId(null);
     }
   }
+
+  async function handleBulkDelete(rows: CategoryRow[], clear: () => void) {
+    if (!window.confirm(`Delete ${rows.length} categor${rows.length === 1 ? "y" : "ies"}? This can't be undone.`)) return;
+    setBulkBusy(true);
+    let failed = 0;
+    for (const c of rows) {
+      try {
+        await deleteCategory(c.id);
+      } catch {
+        failed++;
+      }
+    }
+    setBulkBusy(false);
+    clear();
+    flash(failed ? `Deleted ${rows.length - failed}, ${failed} failed (still in use)` : `${rows.length} categor${rows.length === 1 ? "y" : "ies"} deleted`);
+    router.refresh();
+  }
+
+  const columns: TableColumn<CategoryRow>[] = [
+    {
+      key: "category",
+      header: "Category",
+      sortable: true,
+      sortValue: (c) => c.name,
+      render: (c) => (
+        <div className="flex items-center gap-[11px]">
+          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[9px] bg-accent-weak text-[17px]">
+            {c.emoji || "📦"}
+          </div>
+          <div className="text-[13.5px] font-semibold">{c.name}</div>
+        </div>
+      ),
+    },
+    {
+      key: "products",
+      header: "Products",
+      align: "right",
+      sortable: true,
+      sortValue: (c) => c.productCount,
+      render: (c) => <span className="font-mono text-[13px] font-bold">{c.productCount}</span>,
+    },
+    ...(canManage
+      ? [
+          {
+            key: "actions",
+            header: "",
+            hideable: false,
+            align: "right" as const,
+            render: (c: CategoryRow) => (
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setModalCategory(c)}
+                  className="h-7 rounded-[7px] border border-border bg-surface px-2.5 text-[12px] font-semibold text-text hover:bg-hover"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => handleDelete(c)}
+                  disabled={busyId === c.id}
+                  className="h-7 rounded-[7px] border border-border bg-surface px-2.5 text-[12px] font-semibold text-red hover:bg-hover"
+                >
+                  Delete
+                </button>
+              </div>
+            ),
+          },
+        ]
+      : []),
+  ];
 
   return (
     <div>
@@ -58,60 +130,27 @@ export function CategoriesClient({ categories, canManage }: { categories: Catego
         )}
       </div>
 
-      <div className="overflow-hidden rounded-[14px] border border-border bg-surface shadow-[var(--shadow-sm)]">
-        <div className="scroll overflow-x-auto">
-          <table className="w-full min-w-[480px] border-collapse">
-            <thead>
-              <tr className="bg-surface-2">
-                <th className="px-4 py-[11px] text-left text-[11.5px] font-bold uppercase tracking-[0.04em] text-muted">Category</th>
-                <th className="px-3.5 py-[11px] text-right text-[11.5px] font-bold uppercase tracking-[0.04em] text-muted">Products</th>
-                {canManage && <th className="px-4 py-[11px]" />}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((c) => (
-                <tr key={c.id} className="border-t border-border-2 hover:bg-hover">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-[11px]">
-                      <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[9px] bg-accent-weak text-[17px]">
-                        {c.emoji || "📦"}
-                      </div>
-                      <div className="text-[13.5px] font-semibold">{c.name}</div>
-                    </div>
-                  </td>
-                  <td className="px-3.5 py-3 text-right font-mono text-[13px] font-bold">{c.productCount}</td>
-                  {canManage && (
-                    <td className="px-4 py-3">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => setModalCategory(c)}
-                          className="h-7 rounded-[7px] border border-border bg-surface px-2.5 text-[12px] font-semibold text-text hover:bg-hover"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(c)}
-                          disabled={busyId === c.id}
-                          className="h-7 rounded-[7px] border border-border bg-surface px-2.5 text-[12px] font-semibold text-red hover:bg-hover"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  )}
-                </tr>
-              ))}
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={canManage ? 3 : 2} className="px-4 py-10 text-center text-[13px] text-muted">
-                    No categories match your search.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <Table
+        columns={columns}
+        rows={filtered}
+        rowKey={(c) => c.id}
+        pageSize={20}
+        selectable={canManage}
+        bulkActions={
+          canManage
+            ? (selected, clear) => (
+                <button
+                  onClick={() => handleBulkDelete(selected, clear)}
+                  disabled={bulkBusy}
+                  className="h-7 rounded-[7px] border border-border bg-surface px-2.5 text-[12px] font-semibold text-red hover:bg-hover disabled:opacity-60"
+                >
+                  {bulkBusy ? "Deleting…" : "Delete selected"}
+                </button>
+              )
+            : undefined
+        }
+        emptyState={<EmptyState compact icon="🗂️" title="No categories match your search" description="Try a different search term." />}
+      />
 
       {modalCategory !== undefined && (
         <CategoryModal category={modalCategory ?? undefined} onClose={() => setModalCategory(undefined)} />

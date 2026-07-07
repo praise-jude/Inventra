@@ -17,11 +17,19 @@ export function InviteMemberModal({ onClose }: { onClose: () => void }) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("manager");
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{ firstName?: string; lastName?: string; email?: string }>({});
   const [saving, setSaving] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    const errs: { firstName?: string; lastName?: string; email?: string } = {};
+    if (!firstName.trim()) errs.firstName = "First name is required.";
+    if (!lastName.trim()) errs.lastName = "Last name is required.";
+    if (!email.trim()) errs.email = "Email is required.";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) errs.email = "Enter a valid email address.";
+    setFieldErrors(errs);
+    if (Object.keys(errs).length > 0) return;
     setSaving(true);
     try {
       await inviteMember(email, role, firstName, lastName);
@@ -54,13 +62,41 @@ export function InviteMemberModal({ onClose }: { onClose: () => void }) {
         <div className="flex flex-col gap-3.5 px-[22px] py-5">
           <div className="flex gap-3">
             <div className="flex-1">
-              <Field label="First name" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
+              <Field
+                label="First name"
+                value={firstName}
+                onChange={(e) => {
+                  setFirstName(e.target.value);
+                  setFieldErrors((fe) => ({ ...fe, firstName: undefined }));
+                }}
+                required
+                error={fieldErrors.firstName}
+              />
             </div>
             <div className="flex-1">
-              <Field label="Last name" value={lastName} onChange={(e) => setLastName(e.target.value)} required />
+              <Field
+                label="Last name"
+                value={lastName}
+                onChange={(e) => {
+                  setLastName(e.target.value);
+                  setFieldErrors((fe) => ({ ...fe, lastName: undefined }));
+                }}
+                required
+                error={fieldErrors.lastName}
+              />
             </div>
           </div>
-          <Field label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <Field
+            label="Email"
+            type="email"
+            value={email}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              setFieldErrors((fe) => ({ ...fe, email: undefined }));
+            }}
+            required
+            error={fieldErrors.email}
+          />
           <div>
             <label className="mb-1.5 block text-[12.5px] font-semibold text-text-2">Role</label>
             <select

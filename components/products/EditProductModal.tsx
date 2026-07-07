@@ -33,6 +33,7 @@ export function EditProductModal({
   const flash = useToast();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{ name?: string; sku?: string }>({});
   const [categoryOptions, setCategoryOptions] = useState(categories);
   const [supplierOptions, setSupplierOptions] = useState(suppliers);
   const [form, setForm] = useState<ProductFormState>({
@@ -55,15 +56,17 @@ export function EditProductModal({
 
   function set<K extends keyof ProductFormState>(key: K, value: ProductFormState[K]) {
     setForm((f) => ({ ...f, [key]: value }));
+    if (key === "name" || key === "sku") setFieldErrors((fe) => ({ ...fe, [key]: undefined }));
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!form.name || !form.sku) {
-      setError("Name and SKU are required.");
-      return;
-    }
+    const errs: { name?: string; sku?: string } = {};
+    if (!form.name.trim()) errs.name = "Product name is required.";
+    if (!form.sku.trim()) errs.sku = "SKU is required.";
+    setFieldErrors(errs);
+    if (Object.keys(errs).length > 0) return;
     setSaving(true);
     try {
       const updated = await updateProduct(product.id, {
@@ -127,6 +130,7 @@ export function EditProductModal({
             onCategoryCreated={(opt) => setCategoryOptions((c) => [...c, opt])}
             onSupplierCreated={(opt) => setSupplierOptions((s) => [...s, opt])}
             showOpeningQty={false}
+            fieldErrors={fieldErrors}
           />
           {error && <p className="mt-3 text-[13px] font-medium text-red">{error}</p>}
         </div>

@@ -43,6 +43,7 @@ export function ProductFormFields({
   onCategoryCreated,
   onSupplierCreated,
   showOpeningQty,
+  fieldErrors,
 }: {
   form: ProductFormState;
   set: <K extends keyof ProductFormState>(key: K, value: ProductFormState[K]) => void;
@@ -52,6 +53,7 @@ export function ProductFormFields({
   onCategoryCreated: (option: Option) => void;
   onSupplierCreated: (option: Option) => void;
   showOpeningQty: boolean;
+  fieldErrors?: { name?: string; sku?: string };
 }) {
   const [addingCategory, setAddingCategory] = useState(false);
   const [addingSupplier, setAddingSupplier] = useState(false);
@@ -153,7 +155,14 @@ export function ProductFormFields({
           <input type="file" accept="image/*" hidden onChange={handleImageChange} />
         </label>
         <div className="flex-1">
-          <Field label="Product name" placeholder="e.g. Organic Whole Milk 1L" value={form.name} onChange={(e) => set("name", e.target.value)} required />
+          <Field
+            label="Product name"
+            placeholder="e.g. Organic Whole Milk 1L"
+            value={form.name}
+            onChange={(e) => set("name", e.target.value)}
+            required
+            error={fieldErrors?.name}
+          />
           <div className="mt-3">
             <Field label="Description" placeholder="Short description" value={form.description} onChange={(e) => set("description", e.target.value)} />
           </div>
@@ -161,7 +170,7 @@ export function ProductFormFields({
       </div>
 
       <div className="grid grid-cols-3 gap-3">
-        <Field label="SKU" placeholder="MLK-001" value={form.sku} onChange={(e) => set("sku", e.target.value)} required />
+        <Field label="SKU" placeholder="MLK-001" value={form.sku} onChange={(e) => set("sku", e.target.value)} required error={fieldErrors?.sku} />
         <Field label="Brand" placeholder="e.g. Farmhouse" value={form.brand} onChange={(e) => set("brand", e.target.value)} />
         <div>
           <label className="mb-1.5 block text-[12.5px] font-semibold text-text-2">Category</label>

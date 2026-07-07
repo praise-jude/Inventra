@@ -8,7 +8,10 @@ export type IntegrationProvider =
   | "quickbooks"
   | "slack"
   | "google_drive"
-  | "webhooks";
+  | "webhooks"
+  | "pos_online"
+  | "pos_offline"
+  | "receipt_printing";
 export type ProductStatus = "in_stock" | "low_stock" | "out_of_stock";
 export type DebtorStatus = "pending" | "partially_paid" | "paid" | "overdue" | "cancelled";
 export type ExpenseCategory =
@@ -234,6 +237,13 @@ export interface Integration {
   provider: IntegrationProvider;
   status: string;
   connected_at: string | null;
+}
+
+export interface PrintSettings {
+  org_id: string;
+  paper_size: string;
+  auto_print: boolean;
+  receipt_footer: string | null;
 }
 
 export interface DashboardKpis {

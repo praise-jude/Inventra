@@ -10,6 +10,9 @@ const META: Record<string, { name: string; desc: string; icon: string; bg: strin
   slack: { name: "Slack", desc: "Stock alerts to channels", icon: "💬", bg: "var(--amber-weak)" },
   google_drive: { name: "Google Drive", desc: "Report backups", icon: "📁", bg: "var(--sky-weak)" },
   webhooks: { name: "Webhooks", desc: "Custom event push", icon: "🔗", bg: "var(--accent-weak)" },
+  pos_online: { name: "POS (Online)", desc: "Cloud-connected checkout terminals", icon: "🖥️", bg: "var(--accent-weak)" },
+  pos_offline: { name: "POS (Offline)", desc: "Offline checkout, syncs when back online", icon: "📴", bg: "var(--amber-weak)" },
+  receipt_printing: { name: "Receipt printing", desc: "Print receipts from sales & returns", icon: "🧾", bg: "var(--sky-weak)" },
 };
 
 export function IntegrationsClient({ initial }: { initial: { provider: string; status: string }[] }) {

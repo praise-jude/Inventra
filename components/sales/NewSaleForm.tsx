@@ -52,6 +52,7 @@ export function NewSaleForm({
   const [showNewCustomer, setShowNewCustomer] = useState(false);
   const [newCustomerName, setNewCustomerName] = useState("");
   const [newCustomerPhone, setNewCustomerPhone] = useState("");
+  const [newCustomerNameError, setNewCustomerNameError] = useState<string | null>(null);
 
   const [productQuery, setProductQuery] = useState("");
   const [showScanner, setShowScanner] = useState(false);
@@ -120,8 +121,9 @@ export function NewSaleForm({
 
   async function handleAddCustomer() {
     setError(null);
+    setNewCustomerNameError(null);
     if (!newCustomerName.trim()) {
-      setError("Customer name is required.");
+      setNewCustomerNameError("Customer name is required.");
       return;
     }
     setSavingCustomer(true);
@@ -215,7 +217,15 @@ export function NewSaleForm({
         {showNewCustomer && (
           <div className="mt-3 flex items-end gap-2 rounded-[10px] border border-border bg-surface-2 p-3">
             <div className="flex-1">
-              <Field label="Name" value={newCustomerName} onChange={(e) => setNewCustomerName(e.target.value)} />
+              <Field
+                label="Name"
+                value={newCustomerName}
+                onChange={(e) => {
+                  setNewCustomerName(e.target.value);
+                  setNewCustomerNameError(null);
+                }}
+                error={newCustomerNameError ?? undefined}
+              />
             </div>
             <div className="flex-1">
               <Field label="Phone" value={newCustomerPhone} onChange={(e) => setNewCustomerPhone(e.target.value)} />
@@ -316,7 +326,10 @@ export function NewSaleForm({
           </div>
         )}
         {cart.length === 0 && (
-          <div className="mt-3.5 rounded-[10px] border border-border bg-surface-2 px-3 py-6 text-center text-[13px] text-muted">
+          <div
+            className="mt-3.5 rounded-[10px] border px-3 py-6 text-center text-[13px] text-muted"
+            style={error === "Add at least one product." ? { borderColor: "var(--red)", background: "var(--red-weak)" } : { borderColor: "var(--border)", background: "var(--surface-2)" }}
+          >
             Search above to add products to this sale.
           </div>
         )}

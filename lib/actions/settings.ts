@@ -55,6 +55,26 @@ export async function toggleNotification(field: string, value: boolean) {
   revalidatePath("/settings/notifications");
 }
 
+export interface PrintSettingsInput {
+  paperSize: string;
+  autoPrint: boolean;
+  receiptFooter: string;
+}
+
+export async function updatePrintSettings(input: PrintSettingsInput) {
+  const { supabase, orgId } = await requireAdminOrgId();
+  const { error } = await supabase
+    .from("print_settings")
+    .update({
+      paper_size: input.paperSize,
+      auto_print: input.autoPrint,
+      receipt_footer: input.receiptFooter || null,
+    })
+    .eq("org_id", orgId);
+  if (error) throw error;
+  revalidatePath("/settings/printing");
+}
+
 export async function toggleIntegration(provider: string, connect: boolean) {
   const { supabase, orgId } = await requireAdminOrgId();
   const { error } = await supabase

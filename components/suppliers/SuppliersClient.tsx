@@ -6,6 +6,8 @@ import dynamic from "next/dynamic";
 import { useToast } from "@/components/app/ToastProvider";
 import { deleteSupplier, fetchSupplierDetail } from "@/lib/actions/suppliers";
 import { SupplierDetailSlideOver } from "@/components/suppliers/SupplierDetailSlideOver";
+import { Table, type TableColumn } from "@/components/ui/Table";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 const SupplierModal = dynamic(() => import("@/components/suppliers/SupplierModal").then((m) => m.SupplierModal));
 import type { SupplierRow, SupplierDetail } from "@/lib/queries/suppliers";
@@ -17,6 +19,7 @@ export function SuppliersClient({ suppliers, canManage }: { suppliers: SupplierR
   const [modalSupplier, setModalSupplier] = useState<SupplierRow | null | undefined>(undefined);
   const [detail, setDetail] = useState<SupplierDetail | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -46,6 +49,86 @@ export function SuppliersClient({ suppliers, canManage }: { suppliers: SupplierR
     }
   }
 
+  async function handleBulkDelete(rows: SupplierRow[], clear: () => void) {
+    if (!window.confirm(`Delete ${rows.length} supplier(s)? This can't be undone.`)) return;
+    setBulkBusy(true);
+    let failed = 0;
+    for (const s of rows) {
+      try {
+        await deleteSupplier(s.id);
+      } catch {
+        failed++;
+      }
+    }
+    setBulkBusy(false);
+    clear();
+    flash(failed ? `Deleted ${rows.length - failed}, ${failed} failed (still in use)` : `${rows.length} supplier(s) deleted`);
+    router.refresh();
+  }
+
+  const columns: TableColumn<SupplierRow>[] = [
+    {
+      key: "supplier",
+      header: "Supplier",
+      sortable: true,
+      sortValue: (s) => s.name,
+      render: (s) => (
+        <div>
+          <div className="text-[13.5px] font-semibold">{s.name}</div>
+          <div className="text-[11.5px] text-muted">{s.company ?? "—"}</div>
+        </div>
+      ),
+    },
+    {
+      key: "contact",
+      header: "Contact",
+      render: (s) => (
+        <div className="text-[12.5px] text-text-2">
+          <div>{s.contactPerson ?? "—"}</div>
+          <div className="text-muted">{s.email ?? s.phone ?? "—"}</div>
+        </div>
+      ),
+    },
+    {
+      key: "products",
+      header: "Products",
+      align: "right",
+      sortable: true,
+      sortValue: (s) => s.productCount,
+      render: (s) => <span className="font-mono text-[13px] font-bold">{s.productCount}</span>,
+    },
+    ...(canManage
+      ? [
+          {
+            key: "actions",
+            header: "",
+            hideable: false,
+            align: "right" as const,
+            render: (s: SupplierRow) => (
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={(e: React.MouseEvent) => {
+                    e.stopPropagation();
+                    setModalSupplier(s);
+                  }}
+                  className="h-7 rounded-[7px] border border-border bg-surface px-2.5 text-[12px] font-semibold text-text hover:bg-hover"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={(e: React.MouseEvent) => handleDelete(s, e)}
+                  disabled={busyId === s.id}
+                  className="h-7 rounded-[7px] border border-border bg-surface px-2.5 text-[12px] font-semibold text-red hover:bg-hover"
+                >
+                  Delete
+                </button>
+              </div>
+            ),
+          },
+        ]
+      : []),
+  ];
+
   return (
     <div>
       <div className="mb-3.5 flex flex-wrap items-center gap-2.5">
@@ -68,64 +151,28 @@ export function SuppliersClient({ suppliers, canManage }: { suppliers: SupplierR
         )}
       </div>
 
-      <div className="overflow-hidden rounded-[14px] border border-border bg-surface shadow-[var(--shadow-sm)]">
-        <div className="scroll overflow-x-auto">
-          <table className="w-full min-w-[680px] border-collapse">
-            <thead>
-              <tr className="bg-surface-2">
-                <th className="px-4 py-[11px] text-left text-[11.5px] font-bold uppercase tracking-[0.04em] text-muted">Supplier</th>
-                <th className="px-3.5 py-[11px] text-left text-[11.5px] font-bold uppercase tracking-[0.04em] text-muted">Contact</th>
-                <th className="px-3.5 py-[11px] text-right text-[11.5px] font-bold uppercase tracking-[0.04em] text-muted">Products</th>
-                {canManage && <th className="px-4 py-[11px]" />}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((s) => (
-                <tr key={s.id} onClick={() => openDetail(s.id)} className="cursor-pointer border-t border-border-2 hover:bg-hover">
-                  <td className="px-4 py-3">
-                    <div className="text-[13.5px] font-semibold">{s.name}</div>
-                    <div className="text-[11.5px] text-muted">{s.company ?? "—"}</div>
-                  </td>
-                  <td className="px-3.5 py-3 text-[12.5px] text-text-2">
-                    <div>{s.contactPerson ?? "—"}</div>
-                    <div className="text-muted">{s.email ?? s.phone ?? "—"}</div>
-                  </td>
-                  <td className="px-3.5 py-3 text-right font-mono text-[13px] font-bold">{s.productCount}</td>
-                  {canManage && (
-                    <td className="px-4 py-3">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setModalSupplier(s);
-                          }}
-                          className="h-7 rounded-[7px] border border-border bg-surface px-2.5 text-[12px] font-semibold text-text hover:bg-hover"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={(e) => handleDelete(s, e)}
-                          disabled={busyId === s.id}
-                          className="h-7 rounded-[7px] border border-border bg-surface px-2.5 text-[12px] font-semibold text-red hover:bg-hover"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  )}
-                </tr>
-              ))}
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={canManage ? 4 : 3} className="px-4 py-10 text-center text-[13px] text-muted">
-                    No suppliers match your search.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <Table
+        columns={columns}
+        rows={filtered}
+        rowKey={(s) => s.id}
+        onRowClick={(s) => openDetail(s.id)}
+        pageSize={20}
+        selectable={canManage}
+        bulkActions={
+          canManage
+            ? (selected, clear) => (
+                <button
+                  onClick={() => handleBulkDelete(selected, clear)}
+                  disabled={bulkBusy}
+                  className="h-7 rounded-[7px] border border-border bg-surface px-2.5 text-[12px] font-semibold text-red hover:bg-hover disabled:opacity-60"
+                >
+                  {bulkBusy ? "Deleting…" : "Delete selected"}
+                </button>
+              )
+            : undefined
+        }
+        emptyState={<EmptyState compact icon="🚚" title="No suppliers match your search" description="Try a different search term." />}
+      />
 
       {modalSupplier !== undefined && (
         <SupplierModal supplier={modalSupplier ?? undefined} onClose={() => setModalSupplier(undefined)} />

@@ -7,6 +7,8 @@ import { useToast } from "@/components/app/ToastProvider";
 import { useWorkspace } from "@/components/app/CurrencyProvider";
 import { deleteExpense } from "@/lib/actions/expenses";
 import { ExpenseTrendChart } from "@/components/expenses/ExpenseTrendChart";
+import { Table, type TableColumn } from "@/components/ui/Table";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 const ExpenseModal = dynamic(() => import("@/components/expenses/ExpenseModal").then((m) => m.ExpenseModal));
 import type { ExpensesOverview, ExpenseRow } from "@/lib/queries/expenses";
@@ -29,6 +31,7 @@ export function ExpensesClient({ overview }: { overview: ExpensesOverview }) {
   const [categoryFilter, setCategoryFilter] = useState("");
   const [modalExpense, setModalExpense] = useState<ExpenseRow | null | undefined>(undefined);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -58,6 +61,76 @@ export function ExpensesClient({ overview }: { overview: ExpensesOverview }) {
       setBusyId(null);
     }
   }
+
+  async function handleBulkDelete(rows: ExpenseRow[], clear: () => void) {
+    if (!window.confirm(`Delete ${rows.length} expense(s)? This can't be undone.`)) return;
+    setBulkBusy(true);
+    let failed = 0;
+    for (const e of rows) {
+      try {
+        await deleteExpense(e.id);
+      } catch {
+        failed++;
+      }
+    }
+    setBulkBusy(false);
+    clear();
+    flash(failed ? `Deleted ${rows.length - failed}, ${failed} failed` : `${rows.length} expense(s) deleted`);
+    router.refresh();
+  }
+
+  const columns: TableColumn<ExpenseRow>[] = [
+    {
+      key: "category",
+      header: "Category",
+      sortable: true,
+      sortValue: (e) => CATEGORY_LABEL[e.category],
+      render: (e) => <span className="text-[13.5px] font-semibold">{CATEGORY_LABEL[e.category]}</span>,
+    },
+    {
+      key: "description",
+      header: "Description",
+      render: (e) => <span className="text-[12.5px] text-text-2">{e.description ?? "—"}</span>,
+    },
+    {
+      key: "date",
+      header: "Date",
+      sortable: true,
+      sortValue: (e) => e.incurredAt,
+      render: (e) => <span className="text-[12.5px] text-text-2">{formatShortDate(e.incurredAt)}</span>,
+    },
+    {
+      key: "amount",
+      header: "Amount",
+      align: "right",
+      sortable: true,
+      sortValue: (e) => e.amount,
+      render: (e) => <span className="font-mono text-[13px] font-bold">{formatMoney(e.amount)}</span>,
+    },
+    {
+      key: "actions",
+      header: "",
+      hideable: false,
+      align: "right",
+      render: (e) => (
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={() => setModalExpense(e)}
+            className="h-7 rounded-[7px] border border-border bg-surface px-2.5 text-[12px] font-semibold text-text hover:bg-hover"
+          >
+            Edit
+          </button>
+          <button
+            onClick={() => handleDelete(e)}
+            disabled={busyId === e.id}
+            className="h-7 rounded-[7px] border border-border bg-surface px-2.5 text-[12px] font-semibold text-red hover:bg-hover"
+          >
+            Delete
+          </button>
+        </div>
+      ),
+    },
+  ];
 
   return (
     <div className="animate-fade-up">
@@ -118,55 +191,23 @@ export function ExpensesClient({ overview }: { overview: ExpensesOverview }) {
         </select>
       </div>
 
-      <div className="overflow-hidden rounded-[14px] border border-border bg-surface shadow-[var(--shadow-sm)]">
-        <div className="scroll overflow-x-auto">
-          <table className="w-full min-w-[640px] border-collapse">
-            <thead>
-              <tr className="bg-surface-2">
-                <th className="px-4 py-[11px] text-left text-[11.5px] font-bold uppercase tracking-[0.04em] text-muted">Category</th>
-                <th className="px-3.5 py-[11px] text-left text-[11.5px] font-bold uppercase tracking-[0.04em] text-muted">Description</th>
-                <th className="px-3.5 py-[11px] text-left text-[11.5px] font-bold uppercase tracking-[0.04em] text-muted">Date</th>
-                <th className="px-3.5 py-[11px] text-right text-[11.5px] font-bold uppercase tracking-[0.04em] text-muted">Amount</th>
-                <th className="px-4 py-[11px]" />
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((e) => (
-                <tr key={e.id} className="border-t border-border-2 hover:bg-hover">
-                  <td className="px-4 py-3 text-[13.5px] font-semibold">{CATEGORY_LABEL[e.category]}</td>
-                  <td className="px-3.5 py-3 text-[12.5px] text-text-2">{e.description ?? "—"}</td>
-                  <td className="px-3.5 py-3 text-[12.5px] text-text-2">{formatShortDate(e.incurredAt)}</td>
-                  <td className="px-3.5 py-3 text-right font-mono text-[13px] font-bold">{formatMoney(e.amount)}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex justify-end gap-2">
-                      <button
-                        onClick={() => setModalExpense(e)}
-                        className="h-7 rounded-[7px] border border-border bg-surface px-2.5 text-[12px] font-semibold text-text hover:bg-hover"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDelete(e)}
-                        disabled={busyId === e.id}
-                        className="h-7 rounded-[7px] border border-border bg-surface px-2.5 text-[12px] font-semibold text-red hover:bg-hover"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center text-[13px] text-muted">
-                    No expenses match your search.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <Table
+        columns={columns}
+        rows={filtered}
+        rowKey={(e) => e.id}
+        pageSize={20}
+        selectable
+        bulkActions={(selected, clear) => (
+          <button
+            onClick={() => handleBulkDelete(selected, clear)}
+            disabled={bulkBusy}
+            className="h-7 rounded-[7px] border border-border bg-surface px-2.5 text-[12px] font-semibold text-red hover:bg-hover disabled:opacity-60"
+          >
+            {bulkBusy ? "Deleting…" : "Delete selected"}
+          </button>
+        )}
+        emptyState={<EmptyState compact icon="💸" title="No expenses match your search" description="Try adjusting your search or filters." />}
+      />
 
       {modalExpense !== undefined && <ExpenseModal expense={modalExpense ?? undefined} onClose={() => setModalExpense(undefined)} />}
     </div>

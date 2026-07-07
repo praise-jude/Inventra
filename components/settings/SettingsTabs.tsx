@@ -7,6 +7,7 @@ const TABS = [
   { href: "/settings/general", label: "General" },
   { href: "/settings/notifications", label: "Notifications" },
   { href: "/settings/integrations", label: "Integrations" },
+  { href: "/settings/printing", label: "Printing" },
 ];
 
 export function SettingsTabs() {

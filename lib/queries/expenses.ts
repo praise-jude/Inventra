@@ -27,6 +27,51 @@ function dateKeyInTz(date: Date, timezone: string): string {
   );
 }
 
+const CATEGORY_LABEL: Record<ExpenseCategory, string> = {
+  rent: "Rent",
+  salary: "Salary",
+  transport: "Transport",
+  utilities: "Utilities",
+  inventory_purchase: "Inventory Purchase",
+  logistics: "Logistics",
+  miscellaneous: "Miscellaneous",
+};
+
+export interface ExpenseCategoryBreakdown {
+  category: ExpenseCategory;
+  label: string;
+  amount: number;
+  pct: number;
+}
+
+export async function getExpenseCategoryBreakdown(timezone: string): Promise<ExpenseCategoryBreakdown[]> {
+  const supabase = await createClient();
+  const since = dateKeyInTz(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), timezone);
+
+  const { data, error } = await supabase.from("expenses").select("category, amount").gte("incurred_at", since);
+  if (error) {
+    console.error("[Inventra] getExpenseCategoryBreakdown failed:", error);
+    throw new Error("Could not load expense breakdown.");
+  }
+
+  const totals = new Map<ExpenseCategory, number>();
+  let grandTotal = 0;
+  for (const row of data ?? []) {
+    const amount = Number(row.amount);
+    totals.set(row.category, (totals.get(row.category) ?? 0) + amount);
+    grandTotal += amount;
+  }
+
+  return Array.from(totals.entries())
+    .map(([category, amount]) => ({
+      category,
+      label: CATEGORY_LABEL[category],
+      amount,
+      pct: grandTotal > 0 ? Math.round((amount / grandTotal) * 100) : 0,
+    }))
+    .sort((a, b) => b.amount - a.amount);
+}
+
 export async function getExpensesOverview(timezone: string): Promise<ExpensesOverview> {
   const supabase = await createClient();
   const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);

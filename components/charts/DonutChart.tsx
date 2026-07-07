@@ -1,4 +1,4 @@
-const PALETTE = ["#635bff", "#12805c", "#0e7cc4", "#b7791f", "#d5304a", "#8a94a8"];
+const PALETTE = ["#2563eb", "#10b981", "#0891b2", "#f59e0b", "#ef4444", "#8a94a8"];
 
 export function DonutChart({
   data,

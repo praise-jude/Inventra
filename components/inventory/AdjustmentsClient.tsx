@@ -9,6 +9,8 @@ import type { MovementRow } from "@/lib/queries/inventory";
 import { MOVEMENT_META } from "@/lib/movement-meta";
 import { Field } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
+import { Table, type TableColumn } from "@/components/ui/Table";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 interface ProductOption {
   id: string;
@@ -177,6 +179,62 @@ export function AdjustmentsClient({ adjustments, products }: { adjustments: Move
   const searchParams = useSearchParams();
   const [showCreate, setShowCreate] = useState(() => searchParams.get("new") === "1");
 
+  const columns: TableColumn<MovementRow>[] = [
+    {
+      key: "type",
+      header: "Type",
+      sortable: true,
+      sortValue: (m) => MOVEMENT_META[m.type].label,
+      render: (m) => {
+        const meta = MOVEMENT_META[m.type];
+        return (
+          <span className="inline-flex items-center gap-2 text-[13px] font-semibold">
+            <span className="flex h-7 w-7 items-center justify-center rounded-[8px] text-[13px]" style={{ background: meta.bg }}>
+              {meta.icon}
+            </span>
+            {meta.label}
+          </span>
+        );
+      },
+    },
+    {
+      key: "product",
+      header: "Product",
+      sortable: true,
+      sortValue: (m) => m.product_name,
+      render: (m) => <span className="text-[13px] font-semibold">{m.product_name}</span>,
+    },
+    {
+      key: "qty",
+      header: "Qty",
+      align: "right",
+      sortable: true,
+      sortValue: (m) => m.qty_delta,
+      render: (m) => (
+        <span className="font-mono text-[13.5px] font-bold" style={{ color: m.qty_delta >= 0 ? "var(--green)" : "var(--red)" }}>
+          {m.qty_delta >= 0 ? `+${m.qty_delta}` : m.qty_delta}
+        </span>
+      ),
+    },
+    {
+      key: "reason",
+      header: "Reason",
+      render: (m) => <span className="text-[12.5px] text-text-2">{m.reason ?? "—"}</span>,
+    },
+    {
+      key: "by",
+      header: "By",
+      render: (m) => <span className="text-[12.5px] text-text-2">{m.who}</span>,
+    },
+    {
+      key: "when",
+      header: "When",
+      sortable: true,
+      sortValue: (m) => m.created_at,
+      render: (m) => <span className="font-mono text-[12px] text-muted">{timeLabel(m.created_at)}</span>,
+    },
+  ];
+
   return (
     <div>
       <div className="mb-3.5 flex justify-end">
@@ -188,67 +246,20 @@ export function AdjustmentsClient({ adjustments, products }: { adjustments: Move
         </button>
       </div>
 
-      {adjustments.length === 0 ? (
-        <div className="rounded-[14px] border border-border bg-surface px-5 py-[60px] text-center shadow-[var(--shadow-sm)]">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-weak text-[26px]">
-            🧾
-          </div>
-          <div className="mb-1.5 text-[16px] font-bold">No adjustments this period</div>
-          <div className="mx-auto mb-4.5 max-w-[340px] text-[13.5px] text-text-2">
-            Stock adjustments for damage, loss, or recounts will appear here with a full audit trail.
-          </div>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="h-[37px] rounded-[9px] bg-accent px-4 text-[13px] font-semibold text-white"
-          >
-            Create adjustment
-          </button>
-        </div>
-      ) : (
-        <div className="overflow-hidden rounded-[14px] border border-border bg-surface shadow-[var(--shadow-sm)]">
-          <div className="scroll overflow-x-auto">
-            <table className="w-full min-w-[720px] border-collapse">
-              <thead>
-                <tr className="bg-surface-2">
-                  <th className="px-4 py-[11px] text-left text-[11.5px] font-bold uppercase tracking-[0.04em] text-muted">Type</th>
-                  <th className="px-3.5 py-[11px] text-left text-[11.5px] font-bold uppercase tracking-[0.04em] text-muted">Product</th>
-                  <th className="px-3.5 py-[11px] text-right text-[11.5px] font-bold uppercase tracking-[0.04em] text-muted">Qty</th>
-                  <th className="px-3.5 py-[11px] text-left text-[11.5px] font-bold uppercase tracking-[0.04em] text-muted">Reason</th>
-                  <th className="px-3.5 py-[11px] text-left text-[11.5px] font-bold uppercase tracking-[0.04em] text-muted">By</th>
-                  <th className="px-4 py-[11px] text-left text-[11.5px] font-bold uppercase tracking-[0.04em] text-muted">When</th>
-                </tr>
-              </thead>
-              <tbody>
-                {adjustments.map((m) => {
-                  const meta = MOVEMENT_META[m.type];
-                  return (
-                    <tr key={m.id} className="border-t border-border-2 hover:bg-hover">
-                      <td className="px-4 py-3">
-                        <span className="inline-flex items-center gap-2 text-[13px] font-semibold">
-                          <span className="flex h-7 w-7 items-center justify-center rounded-[8px] text-[13px]" style={{ background: meta.bg }}>
-                            {meta.icon}
-                          </span>
-                          {meta.label}
-                        </span>
-                      </td>
-                      <td className="px-3.5 py-3 text-[13px] font-semibold">{m.product_name}</td>
-                      <td
-                        className="px-3.5 py-3 text-right font-mono text-[13.5px] font-bold"
-                        style={{ color: m.qty_delta >= 0 ? "var(--green)" : "var(--red)" }}
-                      >
-                        {m.qty_delta >= 0 ? `+${m.qty_delta}` : m.qty_delta}
-                      </td>
-                      <td className="px-3.5 py-3 text-[12.5px] text-text-2">{m.reason ?? "—"}</td>
-                      <td className="px-3.5 py-3 text-[12.5px] text-text-2">{m.who}</td>
-                      <td className="px-4 py-3 font-mono text-[12px] text-muted">{timeLabel(m.created_at)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      <Table
+        columns={columns}
+        rows={adjustments}
+        rowKey={(m) => m.id}
+        pageSize={20}
+        emptyState={
+          <EmptyState
+            icon="🧾"
+            title="No adjustments this period"
+            description="Stock adjustments for damage, loss, or recounts will appear here with a full audit trail."
+            action={{ label: "Create adjustment", onClick: () => setShowCreate(true) }}
+          />
+        }
+      />
 
       {showCreate && <CreateAdjustmentModal products={products} onClose={() => setShowCreate(false)} />}
     </div>

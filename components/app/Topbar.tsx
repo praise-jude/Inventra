@@ -42,14 +42,17 @@ export function Topbar({
   const { selfStatus } = usePresence();
   const [menuOpen, setMenuOpen] = useState(false);
   const [alertsOpen, setAlertsOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [alerts, setAlerts] = useState<StockAlert[]>([]);
   const menuRef = useRef<HTMLDivElement>(null);
   const alertsRef = useRef<HTMLDivElement>(null);
+  const helpRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
       if (alertsRef.current && !alertsRef.current.contains(e.target as Node)) setAlertsOpen(false);
+      if (helpRef.current && !helpRef.current.contains(e.target as Node)) setHelpOpen(false);
     }
     document.addEventListener("click", onDocClick);
     return () => document.removeEventListener("click", onDocClick);
@@ -79,9 +82,10 @@ export function Topbar({
     <header className="sticky top-0 z-30 flex h-[58px] flex-shrink-0 items-center gap-3.5 border-b border-border bg-surface/85 px-5 backdrop-blur-md">
       <button
         onClick={onToggleSidebar}
+        aria-label="Toggle sidebar"
         className="hamburger hidden h-[34px] w-[34px] rounded-[8px] border border-border bg-surface text-text"
       >
-        ☰
+        <span aria-hidden="true">☰</span>
       </button>
       <div className="text-[16px] font-bold tracking-tight">{routeTitle(pathname)}</div>
       <button
@@ -95,20 +99,54 @@ export function Topbar({
         </span>
       </button>
       <div className="topspacer flex-1" />
+      <div className="relative" ref={helpRef}>
+        <button
+          onClick={() => setHelpOpen((v) => !v)}
+          title="Help"
+          aria-label="Help"
+          aria-expanded={helpOpen}
+          className="h-9 w-9 rounded-[9px] border border-border bg-surface text-[15px] text-text hover:bg-hover"
+        >
+          <span aria-hidden="true">?</span>
+        </button>
+        {helpOpen && (
+          <div className="absolute right-0 top-[calc(100%+6px)] w-[240px] rounded-[12px] border border-border bg-surface p-2 shadow-[var(--shadow)]">
+            <button
+              onClick={() => {
+                setHelpOpen(false);
+                onOpenPalette();
+              }}
+              className="flex w-full items-center justify-between rounded-[8px] px-2.5 py-2 text-left text-[13px] font-medium text-text hover:bg-hover"
+            >
+              <span>Command palette</span>
+              <span className="rounded-[5px] border border-border px-1.5 py-px font-mono text-[11px] text-faint">⌘K</span>
+            </button>
+            <a
+              href="mailto:support@inventra.app"
+              className="block rounded-[8px] px-2.5 py-2 text-left text-[13px] font-medium text-text hover:bg-hover"
+            >
+              Contact support
+            </a>
+          </div>
+        )}
+      </div>
       <button
         onClick={onToggleTheme}
         title="Toggle theme"
+        aria-label="Toggle theme"
         className="h-9 w-9 rounded-[9px] border border-border bg-surface text-[15px] text-text hover:bg-hover"
       >
-        {theme === "light" ? "☾" : "☀"}
+        <span aria-hidden="true">{theme === "light" ? "☾" : "☀"}</span>
       </button>
       <div className="relative" ref={alertsRef}>
         <button
           onClick={() => setAlertsOpen((v) => !v)}
           title="Stock alerts"
+          aria-label={`Stock alerts${alerts.length > 0 ? ` (${alerts.length})` : ""}`}
+          aria-expanded={alertsOpen}
           className="relative h-9 w-9 rounded-[9px] border border-border bg-surface text-[15px] text-text hover:bg-hover"
         >
-          🔔
+          <span aria-hidden="true">🔔</span>
           {alerts.length > 0 && (
             <span className="absolute right-2 top-[7px] h-[7px] w-[7px] rounded-full border-[1.5px] border-surface bg-red" />
           )}
@@ -150,12 +188,14 @@ export function Topbar({
       <div className="relative" ref={menuRef}>
         <button
           onClick={() => setMenuOpen((v) => !v)}
+          aria-label="Account menu"
+          aria-expanded={menuOpen}
           className="flex h-9 items-center gap-2 rounded-[9px] border border-border bg-surface py-[3px] pl-[3px] pr-2.5 hover:bg-hover"
         >
           <div className="relative">
             <div
               className="flex h-[26px] w-[26px] items-center justify-center rounded-[6px] text-[12px] font-bold text-white"
-              style={{ background: "linear-gradient(135deg,#635bff,#8a86ff)" }}
+              style={{ background: "linear-gradient(135deg,#2563eb,#6366f1)" }}
             >
               {initials}
             </div>

@@ -5,15 +5,20 @@ import {
   getTopSellers,
   getStockHealth,
   getMonthlyStats,
+  getMonthlySalesVolume,
   getRecentActivity,
   getDailyProductProfit,
 } from "@/lib/queries/dashboard";
 import type { ActivityRow } from "@/lib/queries/dashboard";
+import { getExpenseCategoryBreakdown } from "@/lib/queries/expenses";
 import { requireProfile } from "@/lib/queries/session";
 import { getTeamMembers } from "@/lib/queries/team";
 import { AreaChart } from "@/components/charts/AreaChart";
 import { DonutChart } from "@/components/charts/DonutChart";
 import { TeamPresenceCard } from "@/components/team/TeamPresenceCard";
+import { Table, type TableColumn } from "@/components/ui/Table";
+import { EmptyState } from "@/components/ui/EmptyState";
+import type { DailyProductProfitRow } from "@/lib/supabase/database.types";
 import { formatMoneyCompact, formatNumber, formatPct, pctDelta } from "@/lib/format";
 import { formatTodayHeader, formatCurrentTime, greetingFor } from "@/lib/datetime";
 import { countryName } from "@/lib/geo/countries";
@@ -42,31 +47,35 @@ function timeAgo(iso: string): string {
 export default async function DashboardPage() {
   const { profile, org } = await requireProfile();
   const isAdminTier = isManagerRole(profile.role);
-  const [kpis, categoryMix, topSellers, stockHealth, monthlyStats, activity, dailyProfit, teamMembers] = await Promise.all([
-    getKpis(),
-    isAdminTier ? getCategoryMix() : Promise.resolve([]),
-    getTopSellers(5),
-    getStockHealth(),
-    isAdminTier ? getMonthlyStats() : Promise.resolve([]),
-    getRecentActivity(5),
-    isAdminTier ? getDailyProductProfit() : Promise.resolve([]),
-    isAdminTier ? getTeamMembers() : Promise.resolve([]),
-  ]);
+  const [kpis, categoryMix, topSellers, stockHealth, monthlyStats, salesVolume, expenseBreakdown, activity, dailyProfit, teamMembers] =
+    await Promise.all([
+      getKpis(),
+      isAdminTier ? getCategoryMix() : Promise.resolve([]),
+      getTopSellers(5),
+      getStockHealth(),
+      isAdminTier ? getMonthlyStats() : Promise.resolve([]),
+      isAdminTier ? getMonthlySalesVolume() : Promise.resolve([]),
+      isAdminTier ? getExpenseCategoryBreakdown(org.timezone) : Promise.resolve([]),
+      getRecentActivity(5),
+      isAdminTier ? getDailyProductProfit() : Promise.resolve([]),
+      isAdminTier ? getTeamMembers() : Promise.resolve([]),
+    ]);
   const todaysProfit = dailyProfit.reduce((sum, p) => sum + (Number(p.profit) || 0), 0);
 
   const totalCategoryValue = categoryMix.reduce((sum, c) => sum + Number(c.value), 0);
+  const totalExpenseValue = expenseBreakdown.reduce((sum, c) => sum + c.amount, 0);
   const totalStock = stockHealth.reduce(
     (sum, s) => (s.label === "expiring" ? sum : sum + Number(s.count)),
     0,
   );
 
-  const chartData = monthlyStats.map((m) => {
-    const d = new Date(m.month);
-    return { month: MONTH_NAMES[d.getUTCMonth()], revenue: Number(m.revenue), profit: Number(m.profit) };
-  });
+  const chartMonths = monthlyStats.map((m) => MONTH_NAMES[new Date(m.month).getUTCMonth()]);
+  const revenueValues = monthlyStats.map((m) => Number(m.revenue));
+  const profitValues = monthlyStats.map((m) => Number(m.profit));
+  const salesVolumeValues = salesVolume.map((m) => m.count);
 
   const kpiCards = [
-    { label: "Total products", value: formatNumber(kpis.total_products), icon: "📦", iconBg: "var(--accent-weak)", sub: "active SKUs", delta: null as string | null, deltaColor: "", adminOnly: false },
+    { label: "Total products", value: formatNumber(kpis.total_products), icon: "📦", iconBg: "var(--accent-weak)", sub: "active SKUs", delta: null as string | null, deltaColor: "", adminOnly: false, tier: "primary" as const },
     {
       label: "Today's revenue",
       value: formatMoneyCompact(kpis.today_revenue, org.currency),
@@ -76,6 +85,7 @@ export default async function DashboardPage() {
       delta: formatPct(pctDelta(kpis.today_revenue, kpis.yesterday_revenue)),
       deltaColor: kpis.today_revenue >= kpis.yesterday_revenue ? "var(--green)" : "var(--red)",
       adminOnly: true,
+      tier: "primary" as const,
     },
     {
       label: "Monthly profit",
@@ -87,16 +97,7 @@ export default async function DashboardPage() {
       deltaColor:
         (kpis.monthly_profit ?? 0) >= (kpis.prior_monthly_profit ?? 0) ? "var(--green)" : "var(--red)",
       adminOnly: true,
-    },
-    {
-      label: "Total inventory cost",
-      value: formatMoneyCompact(kpis.total_inventory_cost ?? 0, org.currency),
-      icon: "🧾",
-      iconBg: "var(--sky-weak)",
-      sub: "purchase price × stock",
-      delta: null,
-      deltaColor: "",
-      adminOnly: true,
+      tier: "primary" as const,
     },
     {
       label: "Total inventory value",
@@ -107,6 +108,7 @@ export default async function DashboardPage() {
       delta: null,
       deltaColor: "",
       adminOnly: true,
+      tier: "primary" as const,
     },
     {
       label: "Total expected profit",
@@ -117,12 +119,76 @@ export default async function DashboardPage() {
       delta: null,
       deltaColor: "",
       adminOnly: true,
+      tier: "primary" as const,
     },
-    { label: "Total stock quantity", value: formatNumber(kpis.total_stock_qty ?? 0), icon: "🔢", iconBg: "var(--accent-weak)", sub: "units on hand", delta: null, deltaColor: "", adminOnly: false },
-    { label: "Low stock", value: formatNumber(kpis.low_stock_count), icon: "⚠️", iconBg: "var(--amber-weak)", sub: "need reorder", delta: null, deltaColor: "", adminOnly: false },
-    { label: "Out of stock", value: formatNumber(kpis.out_of_stock_count), icon: "⛔", iconBg: "var(--red-weak)", sub: "SKUs", delta: null, deltaColor: "", adminOnly: false },
-    { label: "Active suppliers", value: formatNumber(kpis.active_suppliers), icon: "🚚", iconBg: "var(--accent-weak)", sub: "onboarded", delta: null, deltaColor: "", adminOnly: false },
+    { label: "Low stock", value: formatNumber(kpis.low_stock_count), icon: "⚠️", iconBg: "var(--amber-weak)", sub: "need reorder", delta: null, deltaColor: "", adminOnly: false, tier: "primary" as const },
+    { label: "Out of stock", value: formatNumber(kpis.out_of_stock_count), icon: "⛔", iconBg: "var(--red-weak)", sub: "SKUs", delta: null, deltaColor: "", adminOnly: false, tier: "primary" as const },
+    {
+      label: "Total inventory cost",
+      value: formatMoneyCompact(kpis.total_inventory_cost ?? 0, org.currency),
+      icon: "🧾",
+      iconBg: "var(--sky-weak)",
+      sub: "purchase price × stock",
+      delta: null,
+      deltaColor: "",
+      adminOnly: true,
+      tier: "secondary" as const,
+    },
+    { label: "Total stock quantity", value: formatNumber(kpis.total_stock_qty ?? 0), icon: "🔢", iconBg: "var(--accent-weak)", sub: "units on hand", delta: null, deltaColor: "", adminOnly: false, tier: "secondary" as const },
+    { label: "Active suppliers", value: formatNumber(kpis.active_suppliers), icon: "🚚", iconBg: "var(--accent-weak)", sub: "onboarded", delta: null, deltaColor: "", adminOnly: false, tier: "secondary" as const },
   ].filter((card) => isAdminTier || !card.adminOnly);
+  const primaryKpis = kpiCards.filter((c) => c.tier === "primary");
+  const secondaryKpis = kpiCards.filter((c) => c.tier === "secondary");
+
+  const dailyProfitColumns: TableColumn<DailyProductProfitRow>[] = [
+    {
+      key: "name",
+      header: "Product",
+      sortable: true,
+      sortValue: (p) => p.name,
+      render: (p) => (
+        <span className="font-semibold">
+          {p.emoji || "📦"} {p.name}
+        </span>
+      ),
+    },
+    {
+      key: "units",
+      header: "Units sold",
+      align: "right",
+      sortable: true,
+      sortValue: (p) => Number(p.units) || 0,
+      render: (p) => <span className="font-mono">{formatNumber(Number(p.units) || 0)}</span>,
+    },
+    {
+      key: "revenue",
+      header: "Revenue",
+      align: "right",
+      sortable: true,
+      sortValue: (p) => Number(p.revenue) || 0,
+      render: (p) => <span className="font-mono">{formatMoneyCompact(Number(p.revenue) || 0, org.currency)}</span>,
+    },
+    {
+      key: "cost",
+      header: "Cost",
+      align: "right",
+      sortable: true,
+      sortValue: (p) => Number(p.cost) || 0,
+      render: (p) => <span className="font-mono text-text-2">{formatMoneyCompact(Number(p.cost) || 0, org.currency)}</span>,
+    },
+    {
+      key: "profit",
+      header: "Profit",
+      align: "right",
+      sortable: true,
+      sortValue: (p) => Number(p.profit) || 0,
+      render: (p) => (
+        <span className="font-mono font-bold" style={{ color: (Number(p.profit) || 0) >= 0 ? "var(--green)" : "var(--red)" }}>
+          {formatMoneyCompact(Number(p.profit) || 0, org.currency)}
+        </span>
+      ),
+    },
+  ];
 
   const today = formatTodayHeader(org.timezone);
   const currentTime = formatCurrentTime(org.timezone);
@@ -150,12 +216,12 @@ export default async function DashboardPage() {
       </div>
 
       {/* KPI GRID */}
-      <div className="kpi-grid mb-[22px] grid gap-[13px]" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(210px,1fr))" }}>
-        {kpiCards.map((k) => (
+      <div className="kpi-grid mb-[13px] grid gap-[13px]" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(210px,1fr))" }}>
+        {primaryKpis.map((k) => (
           <div key={k.label} className="relative overflow-hidden rounded-[14px] border border-border bg-surface p-[15px_16px] shadow-[var(--shadow-sm)]">
             <div className="flex items-center justify-between">
               <span className="text-[12.5px] font-semibold text-text-2">{k.label}</span>
-              <span className="flex h-[26px] w-[26px] items-center justify-center rounded-[7px] text-[13px]" style={{ background: k.iconBg }}>
+              <span aria-hidden="true" className="flex h-[26px] w-[26px] items-center justify-center rounded-[7px] text-[13px]" style={{ background: k.iconBg }}>
                 {k.icon}
               </span>
             </div>
@@ -172,30 +238,67 @@ export default async function DashboardPage() {
         ))}
       </div>
 
-      {/* CHART ROW */}
+      {secondaryKpis.length > 0 && (
+        <div className="mb-[22px] grid gap-2.5" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(180px,1fr))" }}>
+          {secondaryKpis.map((k) => (
+            <div key={k.label} className="flex items-center gap-2.5 rounded-[11px] border border-border-2 bg-surface-2 px-3 py-2.5">
+              <span aria-hidden="true" className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-[7px] text-[12px]" style={{ background: k.iconBg }}>
+                {k.icon}
+              </span>
+              <div className="min-w-0">
+                <div className="truncate text-[11px] font-semibold text-muted">{k.label}</div>
+                <div className="font-mono text-[14px] font-bold">{k.value}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* TREND ROW */}
       {isAdminTier && (
-      <div className="chart-row mb-4 grid gap-4" style={{ gridTemplateColumns: "1.6fr 1fr" }}>
+      <div className="chart-row mb-4 grid gap-4" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
         <div className="rounded-2xl border border-border bg-surface p-[18px_20px] shadow-[var(--shadow-sm)]">
-          <div className="mb-1 flex items-center justify-between">
-            <div>
-              <div className="text-[15px] font-bold">Revenue &amp; profit</div>
-              <div className="text-[12.5px] text-muted">Last 12 months</div>
-            </div>
-            <div className="flex gap-3.5 text-xs">
-              <span className="flex items-center gap-1.5 text-text-2">
-                <span className="h-[9px] w-[9px] rounded-[3px] bg-accent" />
-                Revenue
-              </span>
-              <span className="flex items-center gap-1.5 text-text-2">
-                <span className="h-[9px] w-[9px] rounded-[3px] bg-green" />
-                Profit
-              </span>
-            </div>
-          </div>
-          <div className="mt-1.5 h-[230px] w-full">
-            <AreaChart data={chartData} />
+          <div className="text-[15px] font-bold">Sales trend</div>
+          <div className="mb-1.5 text-[12.5px] text-muted">Transactions · last 12 months</div>
+          <div className="mt-1.5 h-[150px] w-full">
+            <AreaChart
+              months={chartMonths}
+              series={[{ key: "sales", color: "var(--sky)", values: salesVolumeValues }]}
+              idPrefix="sales"
+              height={150}
+            />
           </div>
         </div>
+        <div className="rounded-2xl border border-border bg-surface p-[18px_20px] shadow-[var(--shadow-sm)]">
+          <div className="text-[15px] font-bold">Revenue trend</div>
+          <div className="mb-1.5 text-[12.5px] text-muted">Last 12 months</div>
+          <div className="mt-1.5 h-[150px] w-full">
+            <AreaChart
+              months={chartMonths}
+              series={[{ key: "revenue", color: "var(--accent)", values: revenueValues }]}
+              idPrefix="revenue"
+              height={150}
+            />
+          </div>
+        </div>
+        <div className="rounded-2xl border border-border bg-surface p-[18px_20px] shadow-[var(--shadow-sm)]">
+          <div className="text-[15px] font-bold">Monthly profit</div>
+          <div className="mb-1.5 text-[12.5px] text-muted">Last 12 months</div>
+          <div className="mt-1.5 h-[150px] w-full">
+            <AreaChart
+              months={chartMonths}
+              series={[{ key: "profit", color: "var(--green)", values: profitValues }]}
+              idPrefix="profit"
+              height={150}
+            />
+          </div>
+        </div>
+      </div>
+      )}
+
+      {/* BREAKDOWN ROW */}
+      {isAdminTier && (
+      <div className="chart-row mb-4 grid gap-4" style={{ gridTemplateColumns: "1fr 1fr" }}>
         <div className="flex flex-col rounded-2xl border border-border bg-surface p-[18px_20px] shadow-[var(--shadow-sm)]">
           <div className="text-[15px] font-bold">Category mix</div>
           <div className="mb-1.5 text-[12.5px] text-muted">Share of inventory value</div>
@@ -204,14 +307,44 @@ export default async function DashboardPage() {
               <DonutChart data={categoryMix} totalLabel={formatMoneyCompact(totalCategoryValue, org.currency)} />
             </div>
             <div className="flex flex-1 flex-col gap-2.5">
+              {categoryMix.length === 0 && (
+                <EmptyState compact icon="🗂️" title="No inventory value yet" description="Add products to see category share." />
+              )}
               {categoryMix.slice(0, 5).map((c, i) => (
                 <div key={c.name} className="flex items-center gap-2 text-[12.5px]">
                   <span
                     className="h-[9px] w-[9px] flex-shrink-0 rounded-[3px]"
-                    style={{ background: ["#635bff", "#12805c", "#0e7cc4", "#b7791f", "#d5304a", "#8a94a8"][i % 6] }}
+                    style={{ background: ["#2563eb", "#10b981", "#0891b2", "#f59e0b", "#ef4444", "#8a94a8"][i % 6] }}
                   />
                   <span className="flex-1 text-text-2">{c.name}</span>
                   <span className="font-mono font-bold">{c.pct}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-col rounded-2xl border border-border bg-surface p-[18px_20px] shadow-[var(--shadow-sm)]">
+          <div className="text-[15px] font-bold">Expense breakdown</div>
+          <div className="mb-1.5 text-[12.5px] text-muted">Last 30 days by category</div>
+          <div className="flex flex-1 items-center gap-3.5">
+            <div className="h-[130px] w-[130px] flex-shrink-0">
+              <DonutChart
+                data={expenseBreakdown.map((e) => ({ name: e.label, pct: e.pct }))}
+                totalLabel={formatMoneyCompact(totalExpenseValue, org.currency)}
+              />
+            </div>
+            <div className="flex flex-1 flex-col gap-2.5">
+              {expenseBreakdown.length === 0 && (
+                <EmptyState compact icon="💸" title="No expenses recorded" description="Log an expense to see the breakdown." />
+              )}
+              {expenseBreakdown.slice(0, 5).map((e, i) => (
+                <div key={e.category} className="flex items-center gap-2 text-[12.5px]">
+                  <span
+                    className="h-[9px] w-[9px] flex-shrink-0 rounded-[3px]"
+                    style={{ background: ["#2563eb", "#10b981", "#0891b2", "#f59e0b", "#ef4444", "#8a94a8"][i % 6] }}
+                  />
+                  <span className="flex-1 text-text-2">{e.label}</span>
+                  <span className="font-mono font-bold">{e.pct}%</span>
                 </div>
               ))}
             </div>
@@ -230,7 +363,9 @@ export default async function DashboardPage() {
             </Link>
           </div>
           <div className="flex flex-col gap-[13px]">
-            {topSellers.length === 0 && <p className="text-[12.5px] text-muted">No sales recorded yet.</p>}
+            {topSellers.length === 0 && (
+              <EmptyState compact icon="🧾" title="No sales yet" description="Top sellers will show up here once you record your first sale." />
+            )}
             {topSellers.map((p) => (
               <div key={p.product_id} className="flex items-center gap-[11px]">
                 <div className="flex h-[34px] w-[34px] flex-shrink-0 items-center justify-center rounded-[8px] bg-accent-weak text-[16px]">
@@ -282,7 +417,9 @@ export default async function DashboardPage() {
             <span className="h-[7px] w-[7px] rounded-full bg-green shadow-[0_0_0_3px_var(--green-weak)]" />
           </div>
           <div className="flex flex-col gap-0.5">
-            {activity.length === 0 && <p className="text-[12.5px] text-muted">No activity yet.</p>}
+            {activity.length === 0 && (
+              <EmptyState compact icon="🕒" title="No activity yet" description="Stock movements and edits will show up here as your team works." />
+            )}
             {activity.map((a: ActivityRow, i: number) => {
               const meta = MOVEMENT_META[a.type] ?? MOVEMENT_META.adjustment;
               const who = a.profiles ? `${a.profiles.first_name} ${a.profiles.last_name}` : "System";
@@ -330,41 +467,14 @@ export default async function DashboardPage() {
             </div>
           </div>
         </div>
-        {dailyProfit.length === 0 ? (
-          <p className="text-[12.5px] text-muted">No sales recorded today yet.</p>
-        ) : (
-          <div className="overflow-hidden rounded-[10px] border border-border">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-surface-2">
-                  <th className="px-3.5 py-2 text-left text-[11px] font-bold uppercase tracking-[0.04em] text-muted">Product</th>
-                  <th className="px-3.5 py-2 text-right text-[11px] font-bold uppercase tracking-[0.04em] text-muted">Units sold</th>
-                  <th className="px-3.5 py-2 text-right text-[11px] font-bold uppercase tracking-[0.04em] text-muted">Revenue</th>
-                  <th className="px-3.5 py-2 text-right text-[11px] font-bold uppercase tracking-[0.04em] text-muted">Cost</th>
-                  <th className="px-3.5 py-2 text-right text-[11px] font-bold uppercase tracking-[0.04em] text-muted">Profit</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dailyProfit.map((p) => (
-                  <tr key={p.product_id} className="border-t border-border-2">
-                    <td className="px-3.5 py-2.5 text-[13px] font-semibold">
-                      {p.emoji || "📦"} {p.name}
-                    </td>
-                    <td className="px-3.5 py-2.5 text-right font-mono text-[13px]">{formatNumber(Number(p.units) || 0)}</td>
-                    <td className="px-3.5 py-2.5 text-right font-mono text-[13px]">{formatMoneyCompact(Number(p.revenue) || 0, org.currency)}</td>
-                    <td className="px-3.5 py-2.5 text-right font-mono text-[13px] text-text-2">{formatMoneyCompact(Number(p.cost) || 0, org.currency)}</td>
-                    <td
-                      className="px-3.5 py-2.5 text-right font-mono text-[13px] font-bold"
-                      style={{ color: (Number(p.profit) || 0) >= 0 ? "var(--green)" : "var(--red)" }}
-                    >
-                      {formatMoneyCompact(Number(p.profit) || 0, org.currency)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <Table
+          columns={dailyProfitColumns}
+          rows={dailyProfit}
+          rowKey={(p) => p.product_id}
+          pageSize={8}
+          search={dailyProfit.length > 8 ? { placeholder: "Search products…", filter: (p, q) => p.name.toLowerCase().includes(q) } : undefined}
+          emptyState={<EmptyState compact icon="💰" title="No sales recorded today yet" description="Today's per-product profit will appear here once a sale is made." />}
+        />
       </div>
       )}
     </div>

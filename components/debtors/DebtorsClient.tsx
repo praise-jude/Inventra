@@ -7,6 +7,8 @@ import { useToast } from "@/components/app/ToastProvider";
 import { useWorkspace } from "@/components/app/CurrencyProvider";
 import { deleteDebtor, fetchDebtorDetail, updateDebtorStatus } from "@/lib/actions/debtors";
 import { DebtorDetailSlideOver } from "@/components/debtors/DebtorDetailSlideOver";
+import { Table, type TableColumn } from "@/components/ui/Table";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 const DebtorModal = dynamic(() => import("@/components/debtors/DebtorModal").then((m) => m.DebtorModal));
 import type { DebtorsOverview, DebtorRow, DebtorDetail } from "@/lib/queries/debtors";
@@ -36,6 +38,7 @@ export function DebtorsClient({ overview, canDelete }: { overview: DebtorsOvervi
   const [detail, setDetail] = useState<DebtorDetail | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [statusBusyId, setStatusBusyId] = useState<string | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   async function handleStatusChange(debtor: DebtorRow, status: string) {
     setStatusBusyId(debtor.id);
@@ -85,6 +88,103 @@ export function DebtorsClient({ overview, canDelete }: { overview: DebtorsOvervi
       setBusyId(null);
     }
   }
+
+  async function handleBulkDelete(rows: DebtorRow[], clear: () => void) {
+    if (!window.confirm(`Delete ${rows.length} debtor(s)? This can't be undone.`)) return;
+    setBulkBusy(true);
+    let failed = 0;
+    for (const d of rows) {
+      try {
+        await deleteDebtor(d.id);
+      } catch {
+        failed++;
+      }
+    }
+    setBulkBusy(false);
+    clear();
+    flash(failed ? `Deleted ${rows.length - failed}, ${failed} failed` : `${rows.length} debtor(s) deleted`);
+    router.refresh();
+  }
+
+  const columns: TableColumn<DebtorRow>[] = [
+    {
+      key: "customer",
+      header: "Customer",
+      sortable: true,
+      sortValue: (d) => d.customerName,
+      render: (d) => (
+        <div>
+          <div className="text-[13.5px] font-semibold">{d.customerName}</div>
+          <div className="text-[11.5px] text-muted">{d.phone ?? d.email ?? "—"}</div>
+        </div>
+      ),
+    },
+    {
+      key: "amount",
+      header: "Amount owed",
+      align: "right",
+      sortable: true,
+      sortValue: (d) => d.amountOwed,
+      render: (d) => <span className="font-mono text-[13px] font-bold">{formatMoney(d.amountOwed)}</span>,
+    },
+    {
+      key: "dueDate",
+      header: "Due date",
+      sortable: true,
+      sortValue: (d) => d.dueDate ?? "",
+      render: (d) => <span className="text-[12.5px] text-text-2">{d.dueDate ? formatShortDate(d.dueDate) : "—"}</span>,
+    },
+    {
+      key: "status",
+      header: "Status",
+      sortable: true,
+      sortValue: (d) => d.status,
+      render: (d) => (
+        <select
+          value={d.status}
+          onChange={(e) => handleStatusChange(d, e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          disabled={statusBusyId === d.id}
+          className="h-7 rounded-[20px] border-none px-[9px] py-px text-[11.5px] font-bold outline-none disabled:opacity-60"
+          style={STATUS_STYLE[d.status]}
+        >
+          {Object.entries(STATUS_LABEL).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      ),
+    },
+    {
+      key: "actions",
+      header: "",
+      hideable: false,
+      align: "right",
+      render: (d) => (
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setModalDebtor(d);
+            }}
+            className="h-7 rounded-[7px] border border-border bg-surface px-2.5 text-[12px] font-semibold text-text hover:bg-hover"
+          >
+            Edit
+          </button>
+          {canDelete && (
+            <button
+              onClick={(e) => handleDelete(d, e)}
+              disabled={busyId === d.id}
+              className="h-7 rounded-[7px] border border-border bg-surface px-2.5 text-[12px] font-semibold text-red hover:bg-hover"
+            >
+              Delete
+            </button>
+          )}
+        </div>
+      ),
+    },
+  ];
 
   return (
     <div className="animate-fade-up">
@@ -139,77 +239,28 @@ export function DebtorsClient({ overview, canDelete }: { overview: DebtorsOvervi
         </select>
       </div>
 
-      <div className="overflow-hidden rounded-[14px] border border-border bg-surface shadow-[var(--shadow-sm)]">
-        <div className="scroll overflow-x-auto">
-          <table className="w-full min-w-[720px] border-collapse">
-            <thead>
-              <tr className="bg-surface-2">
-                <th className="px-4 py-[11px] text-left text-[11.5px] font-bold uppercase tracking-[0.04em] text-muted">Customer</th>
-                <th className="px-3.5 py-[11px] text-right text-[11.5px] font-bold uppercase tracking-[0.04em] text-muted">Amount owed</th>
-                <th className="px-3.5 py-[11px] text-left text-[11.5px] font-bold uppercase tracking-[0.04em] text-muted">Due date</th>
-                <th className="px-3.5 py-[11px] text-left text-[11.5px] font-bold uppercase tracking-[0.04em] text-muted">Status</th>
-                <th className="px-4 py-[11px]" />
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((d) => (
-                <tr key={d.id} onClick={() => openDetail(d.id)} className="cursor-pointer border-t border-border-2 hover:bg-hover">
-                  <td className="px-4 py-3">
-                    <div className="text-[13.5px] font-semibold">{d.customerName}</div>
-                    <div className="text-[11.5px] text-muted">{d.phone ?? d.email ?? "—"}</div>
-                  </td>
-                  <td className="px-3.5 py-3 text-right font-mono text-[13px] font-bold">{formatMoney(d.amountOwed)}</td>
-                  <td className="px-3.5 py-3 text-[12.5px] text-text-2">{d.dueDate ? formatShortDate(d.dueDate) : "—"}</td>
-                  <td className="px-3.5 py-3" onClick={(e) => e.stopPropagation()}>
-                    <select
-                      value={d.status}
-                      onChange={(e) => handleStatusChange(d, e.target.value)}
-                      disabled={statusBusyId === d.id}
-                      className="h-7 rounded-[20px] border-none px-[9px] py-px text-[11.5px] font-bold outline-none disabled:opacity-60"
-                      style={STATUS_STYLE[d.status]}
-                    >
-                      {Object.entries(STATUS_LABEL).map(([value, label]) => (
-                        <option key={value} value={value}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex justify-end gap-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setModalDebtor(d);
-                        }}
-                        className="h-7 rounded-[7px] border border-border bg-surface px-2.5 text-[12px] font-semibold text-text hover:bg-hover"
-                      >
-                        Edit
-                      </button>
-                      {canDelete && (
-                        <button
-                          onClick={(e) => handleDelete(d, e)}
-                          disabled={busyId === d.id}
-                          className="h-7 rounded-[7px] border border-border bg-surface px-2.5 text-[12px] font-semibold text-red hover:bg-hover"
-                        >
-                          Delete
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center text-[13px] text-muted">
-                    No debtors match your search.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <Table
+        columns={columns}
+        rows={filtered}
+        rowKey={(d) => d.id}
+        onRowClick={(d) => openDetail(d.id)}
+        pageSize={20}
+        selectable={canDelete}
+        bulkActions={
+          canDelete
+            ? (selected, clear) => (
+                <button
+                  onClick={() => handleBulkDelete(selected, clear)}
+                  disabled={bulkBusy}
+                  className="h-7 rounded-[7px] border border-border bg-surface px-2.5 text-[12px] font-semibold text-red hover:bg-hover disabled:opacity-60"
+                >
+                  {bulkBusy ? "Deleting…" : "Delete selected"}
+                </button>
+              )
+            : undefined
+        }
+        emptyState={<EmptyState compact icon="💵" title="No debtors match your search" description="Try adjusting your search or filters." />}
+      />
 
       {modalDebtor !== undefined && <DebtorModal debtor={modalDebtor ?? undefined} onClose={() => setModalDebtor(undefined)} />}
       {detail && <DebtorDetailSlideOver debtor={detail} onClose={() => setDetail(null)} />}

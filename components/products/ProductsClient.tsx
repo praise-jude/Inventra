@@ -6,6 +6,8 @@ import dynamic from "next/dynamic";
 import Image from "next/image";
 import Papa from "papaparse";
 import { ProductDetailSlideOver } from "@/components/products/ProductDetailSlideOver";
+import { Table, type TableColumn } from "@/components/ui/Table";
+import { EmptyState } from "@/components/ui/EmptyState";
 import {
   fetchProductDetail,
   exportProductsCsv,
@@ -227,6 +229,78 @@ export function ProductsClient({
   const categoryCount = new Set(products.map((p) => p.category).filter(Boolean)).size;
   const warehouseCount = warehouses.length;
 
+  const columns: TableColumn<ProductListRow>[] = [
+    {
+      key: "product",
+      header: "Product",
+      sortable: true,
+      sortValue: (p) => p.name,
+      render: (p) => (
+        <div className="flex items-center gap-[11px]">
+          <div className="relative flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-[9px] bg-accent-weak text-[17px]">
+            {p.imageUrl ? (
+              <Image src={p.imageUrl} alt={p.name} fill sizes="36px" className="object-cover" />
+            ) : (
+              p.emoji || "📦"
+            )}
+          </div>
+          <div>
+            <div className="text-[13.5px] font-semibold">{p.name}</div>
+            <div className="text-[11.5px] text-muted">{p.brand ?? "—"}</div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "sku",
+      header: "SKU",
+      sortable: true,
+      sortValue: (p) => p.sku,
+      render: (p) => <span className="font-mono text-[12.5px] text-text-2">{p.sku}</span>,
+    },
+    {
+      key: "category",
+      header: "Category",
+      sortable: true,
+      sortValue: (p) => p.category ?? "",
+      render: (p) => <span className="text-[13px] text-text-2">{p.category ?? "—"}</span>,
+    },
+    {
+      key: "price",
+      header: "Price",
+      align: "right",
+      sortable: true,
+      sortValue: (p) => p.price,
+      render: (p) => <span className="font-mono text-[13px] font-semibold">{formatMoney(p.price)}</span>,
+    },
+    {
+      key: "stock",
+      header: "Stock",
+      align: "right",
+      sortable: true,
+      sortValue: (p) => p.qty,
+      render: (p) => <span className="font-mono text-[13px] font-bold">{p.qty}</span>,
+    },
+    {
+      key: "status",
+      header: "Status",
+      sortable: true,
+      sortValue: (p) => p.status,
+      render: (p) => (
+        <span className="inline-flex items-center gap-1.5 rounded-[20px] px-[9px] py-px text-[11.5px] font-bold" style={STATUS_STYLE[p.status]}>
+          {STATUS_LABEL[p.status]}
+        </span>
+      ),
+    },
+    {
+      key: "arrow",
+      header: "",
+      hideable: false,
+      align: "right",
+      render: () => <span className="text-faint">→</span>,
+    },
+  ];
+
   return (
     <div className="animate-fade-up">
       <div className="mb-[18px] flex flex-wrap items-end justify-between gap-3.5">
@@ -313,67 +387,15 @@ export function ProductsClient({
         </select>
       </div>
 
-      <div className="overflow-hidden rounded-[14px] border border-border bg-surface shadow-[var(--shadow-sm)]">
-        <div className="scroll overflow-x-auto">
-          <table className="w-full min-w-[820px] border-collapse">
-            <thead>
-              <tr className="sticky top-0 bg-surface-2">
-                <th className="px-4 py-[11px] pl-4 text-left text-[11.5px] font-bold uppercase tracking-[0.04em] text-muted">Product</th>
-                <th className="px-3.5 py-[11px] text-left text-[11.5px] font-bold uppercase tracking-[0.04em] text-muted">SKU</th>
-                <th className="px-3.5 py-[11px] text-left text-[11.5px] font-bold uppercase tracking-[0.04em] text-muted">Category</th>
-                <th className="px-3.5 py-[11px] text-right text-[11.5px] font-bold uppercase tracking-[0.04em] text-muted">Price</th>
-                <th className="px-3.5 py-[11px] text-right text-[11.5px] font-bold uppercase tracking-[0.04em] text-muted">Stock</th>
-                <th className="px-3.5 py-[11px] text-left text-[11.5px] font-bold uppercase tracking-[0.04em] text-muted">Status</th>
-                <th className="px-4 py-[11px]" />
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((p) => (
-                <tr key={p.id} onClick={() => openDetail(p.id)} className="cursor-pointer border-t border-border-2 hover:bg-hover">
-                  <td className="px-4 py-[11px] pl-4">
-                    <div className="flex items-center gap-[11px]">
-                      <div className="relative flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-[9px] bg-accent-weak text-[17px]">
-                        {p.imageUrl ? (
-                          <Image src={p.imageUrl} alt={p.name} fill sizes="36px" className="object-cover" />
-                        ) : (
-                          p.emoji || "📦"
-                        )}
-                      </div>
-                      <div>
-                        <div className="text-[13.5px] font-semibold">{p.name}</div>
-                        <div className="text-[11.5px] text-muted">{p.brand ?? "—"}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-3.5 py-[11px] font-mono text-[12.5px] text-text-2">{p.sku}</td>
-                  <td className="px-3.5 py-[11px] text-[13px] text-text-2">{p.category ?? "—"}</td>
-                  <td className="px-3.5 py-[11px] text-right font-mono text-[13px] font-semibold">{formatMoney(p.price)}</td>
-                  <td className="px-3.5 py-[11px] text-right font-mono text-[13px] font-bold">{p.qty}</td>
-                  <td className="px-3.5 py-[11px]">
-                    <span
-                      className="inline-flex items-center gap-1.5 rounded-[20px] px-[9px] py-px text-[11.5px] font-bold"
-                      style={STATUS_STYLE[p.status]}
-                    >
-                      {STATUS_LABEL[p.status]}
-                    </span>
-                  </td>
-                  <td className="px-4 py-[11px] text-right text-faint">→</td>
-                </tr>
-              ))}
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-[13px] text-muted">
-                    No products match your search.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-        <div className="flex items-center justify-between border-t border-border-2 px-4 py-3 text-[12.5px] text-muted">
-          <span>Showing {filtered.length} of {products.length}</span>
-        </div>
-      </div>
+      <Table
+        columns={columns}
+        rows={filtered}
+        rowKey={(p) => p.id}
+        onRowClick={(p) => openDetail(p.id)}
+        pageSize={20}
+        columnVisibility
+        emptyState={<EmptyState compact icon="📦" title="No products match your search" description="Try adjusting your search or filters." />}
+      />
 
       {showAdd && (
         <AddProductModal categories={categories} warehouses={warehouses} suppliers={suppliers} onClose={closeAdd} />

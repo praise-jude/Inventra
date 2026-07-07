@@ -8,6 +8,8 @@ import { fetchSaleDetail } from "@/lib/actions/sales";
 import { SaleDetailSlideOver } from "@/components/sales/SaleDetailSlideOver";
 import type { SaleListRow, SaleDetail } from "@/lib/queries/sales";
 import type { CustomerOption } from "@/lib/queries/customers";
+import { Table, type TableColumn } from "@/components/ui/Table";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 export function SalesClient({ sales, customers, canDelete }: { sales: SaleListRow[]; customers: CustomerOption[]; canDelete: boolean }) {
   const router = useRouter();
@@ -31,6 +33,44 @@ export function SalesClient({ sales, customers, canDelete }: { sales: SaleListRo
     setDetail(null);
     router.replace("/sales");
   }
+
+  const columns: TableColumn<SaleListRow>[] = [
+    {
+      key: "customer",
+      header: "Customer",
+      sortable: true,
+      sortValue: (s) => s.customerName,
+      render: (s) => <span className="text-[13.5px] font-semibold">{s.customerName}</span>,
+    },
+    {
+      key: "items",
+      header: "Items",
+      align: "right",
+      sortable: true,
+      sortValue: (s) => s.itemCount,
+      render: (s) => <span className="font-mono text-[13px]">{s.itemCount}</span>,
+    },
+    {
+      key: "payment",
+      header: "Payment",
+      render: (s) => <span className="text-[12.5px] text-text-2">{s.paymentSummary}</span>,
+    },
+    {
+      key: "date",
+      header: "Date",
+      sortable: true,
+      sortValue: (s) => s.createdAt,
+      render: (s) => <span className="text-[12.5px] text-text-2">{formatDateTime(s.createdAt)}</span>,
+    },
+    {
+      key: "total",
+      header: "Total",
+      align: "right",
+      sortable: true,
+      sortValue: (s) => s.total,
+      render: (s) => <span className="font-mono text-[13px] font-bold">{formatMoney(s.total)}</span>,
+    },
+  ];
 
   return (
     <div className="animate-fade-up">
@@ -57,43 +97,14 @@ export function SalesClient({ sales, customers, canDelete }: { sales: SaleListRo
         />
       </div>
 
-      <div className="overflow-hidden rounded-[14px] border border-border bg-surface shadow-[var(--shadow-sm)]">
-        <div className="scroll overflow-x-auto">
-          <table className="w-full min-w-[640px] border-collapse">
-            <thead>
-              <tr className="bg-surface-2">
-                <th className="px-4 py-[11px] text-left text-[11.5px] font-bold uppercase tracking-[0.04em] text-muted">Customer</th>
-                <th className="px-3.5 py-[11px] text-right text-[11.5px] font-bold uppercase tracking-[0.04em] text-muted">Items</th>
-                <th className="px-3.5 py-[11px] text-left text-[11.5px] font-bold uppercase tracking-[0.04em] text-muted">Payment</th>
-                <th className="px-3.5 py-[11px] text-left text-[11.5px] font-bold uppercase tracking-[0.04em] text-muted">Date</th>
-                <th className="px-3.5 py-[11px] text-right text-[11.5px] font-bold uppercase tracking-[0.04em] text-muted">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((s) => (
-                <tr
-                  key={s.id}
-                  onClick={() => fetchSaleDetail(s.id).then((d) => d && setDetail(d))}
-                  className="cursor-pointer border-t border-border-2 hover:bg-hover"
-                >
-                  <td className="px-4 py-3 text-[13.5px] font-semibold">{s.customerName}</td>
-                  <td className="px-3.5 py-3 text-right font-mono text-[13px]">{s.itemCount}</td>
-                  <td className="px-3.5 py-3 text-[12.5px] text-text-2">{s.paymentSummary}</td>
-                  <td className="px-3.5 py-3 text-[12.5px] text-text-2">{formatDateTime(s.createdAt)}</td>
-                  <td className="px-3.5 py-3 text-right font-mono text-[13px] font-bold">{formatMoney(s.total)}</td>
-                </tr>
-              ))}
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center text-[13px] text-muted">
-                    No sales match your search.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <Table
+        columns={columns}
+        rows={filtered}
+        rowKey={(s) => s.id}
+        onRowClick={(s) => fetchSaleDetail(s.id).then((d) => d && setDetail(d))}
+        pageSize={20}
+        emptyState={<EmptyState compact icon="🧾" title="No sales match your search" description="Try adjusting your search terms." />}
+      />
 
       {detail && <SaleDetailSlideOver sale={detail} customers={customers} canDelete={canDelete} onClose={closeDetail} />}
     </div>
