@@ -12,26 +12,29 @@ export interface SupplierRow {
   productCount: number;
 }
 
+interface SupplierProductCountRow {
+  supplier_id: string;
+  count: number;
+}
+
 export async function getSuppliersDetailed(): Promise<SupplierRow[]> {
   const supabase = await createClient();
-  const [{ data: suppliers, error: supError }, { data: products, error: prodError }] = await Promise.all([
+  const [{ data: suppliers, error: supError }, { data: counts, error: prodError }] = await Promise.all([
     supabase.from("suppliers").select("id, name, company, contact_person, email, phone, address").order("name"),
-    supabase.from("products").select("supplier_id").is("archived_at", null),
+    supabase.rpc("get_supplier_product_counts"),
   ]);
   if (supError) {
     console.error("[Inventra] getSuppliersDetailed (suppliers) failed:", supError);
     throw new Error("Could not load suppliers.");
   }
   if (prodError) {
-    console.error("[Inventra] getSuppliersDetailed (products) failed:", prodError);
+    console.error("[Inventra] getSuppliersDetailed (product counts) failed:", prodError);
     throw new Error("Could not load suppliers.");
   }
 
-  const counts = new Map<string, number>();
-  for (const p of products ?? []) {
-    if (!p.supplier_id) continue;
-    counts.set(p.supplier_id, (counts.get(p.supplier_id) ?? 0) + 1);
-  }
+  const countsBySupplier = new Map(
+    ((counts ?? []) as SupplierProductCountRow[]).map((c) => [c.supplier_id, c.count]),
+  );
 
   return (suppliers ?? []).map((s) => ({
     id: s.id,
@@ -41,7 +44,7 @@ export async function getSuppliersDetailed(): Promise<SupplierRow[]> {
     email: s.email,
     phone: s.phone,
     address: s.address,
-    productCount: counts.get(s.id) ?? 0,
+    productCount: countsBySupplier.get(s.id) ?? 0,
   }));
 }
 

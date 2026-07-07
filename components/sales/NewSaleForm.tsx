@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { useToast } from "@/components/app/ToastProvider";
 import { useWorkspace } from "@/components/app/CurrencyProvider";
 import { recordSale, createCustomer } from "@/lib/actions/sales";
@@ -10,7 +11,10 @@ import type { CustomerOption } from "@/lib/queries/customers";
 import { Field } from "@/components/ui/Field";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
-import { BarcodeScannerModal } from "@/components/products/BarcodeScannerModal";
+
+const BarcodeScannerModal = dynamic(() =>
+  import("@/components/products/BarcodeScannerModal").then((m) => m.BarcodeScannerModal),
+);
 
 const PAYMENT_OPTIONS = [
   { value: "cash", label: "Cash" },

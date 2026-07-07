@@ -35,9 +35,9 @@ export default async function MovementsPage() {
                   <td className="px-3.5 py-3 text-[13px] font-semibold">{m.product_name}</td>
                   <td
                     className="px-3.5 py-3 text-right font-mono text-[13.5px] font-bold"
-                    style={{ color: m.qty_delta >= 0 ? "var(--green)" : "var(--red)" }}
+                    style={{ color: m.qty_delta === 0 ? "var(--muted)" : m.qty_delta > 0 ? "var(--green)" : "var(--red)" }}
                   >
-                    {m.qty_delta >= 0 ? `+${m.qty_delta}` : m.qty_delta}
+                    {m.qty_delta === 0 ? "—" : m.qty_delta > 0 ? `+${m.qty_delta}` : m.qty_delta}
                   </td>
                   <td className="px-3.5 py-3 text-[12.5px] text-text-2">{m.reason ?? "—"}</td>
                   <td className="px-3.5 py-3 text-[12.5px] text-text-2">{m.who}</td>

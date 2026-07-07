@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
+import { isAdminRole, isManagerRole } from "@/lib/roles";
 
 const NAV = [
   { href: "/dashboard", label: "Overview", icon: "▦" },
@@ -10,8 +12,8 @@ const NAV = [
   { href: "/inventory", label: "Inventory", icon: "🗃️" },
   { href: "/debtors", label: "Debtors", icon: "💵", managerOnly: true },
   { href: "/expenses", label: "Expenses", icon: "💸", managerOnly: true },
-  { href: "/team", label: "Team", icon: "👥", adminOnly: true },
-  { href: "/billing", label: "Billing", icon: "💳" },
+  { href: "/team", label: "Team Management", icon: "👥", adminOnly: true },
+  { href: "/billing", label: "Billing", icon: "💳", adminOnly: true },
   { href: "/settings", label: "Settings", icon: "⚙️", adminOnly: true },
 ];
 
@@ -31,8 +33,8 @@ export function Sidebar({
   onNavigate: () => void;
 }) {
   const pathname = usePathname();
-  const isAdmin = role === "owner" || role === "admin";
-  const isManagerUp = isAdmin || role === "manager";
+  const isAdmin = isAdminRole(role);
+  const isManagerUp = isManagerRole(role);
   const nav = NAV.filter(
     (item) => (!item.adminOnly || isAdmin) && (!item.managerOnly || isManagerUp) && (!item.hideForWarehouse || role !== "warehouse"),
   );
@@ -43,7 +45,7 @@ export function Sidebar({
       style={{ position: "sticky", top: 0 }}
     >
       <div className="flex items-center gap-2.5 px-4 pb-3 pt-4">
-        <img src="/inventra-logo.svg" alt="" className="h-[30px] w-[30px] flex-shrink-0" />
+        <Image src="/inventra-logo.svg" alt="" width={30} height={30} className="h-[30px] w-[30px] flex-shrink-0" />
         <div className="min-w-0 flex-1">
           <div className="text-[15px] font-bold tracking-tight">Inventra</div>
         </div>

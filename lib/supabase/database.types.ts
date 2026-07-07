@@ -51,6 +51,7 @@ export interface Profile {
   terms_accepted_at: string | null;
   terms_accepted_ip: string | null;
   last_active_at: string | null;
+  suspended_at: string | null;
   created_at: string;
 }
 
@@ -244,6 +245,10 @@ export interface DashboardKpis {
   yesterday_revenue: number;
   monthly_profit: number | null;
   prior_monthly_profit: number | null;
+  total_inventory_cost: number;
+  total_inventory_value: number;
+  total_expected_profit: number;
+  total_stock_qty: number;
 }
 
 export interface CategoryMixRow {

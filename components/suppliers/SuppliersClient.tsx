@@ -2,10 +2,12 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { useToast } from "@/components/app/ToastProvider";
 import { deleteSupplier, fetchSupplierDetail } from "@/lib/actions/suppliers";
-import { SupplierModal } from "@/components/suppliers/SupplierModal";
 import { SupplierDetailSlideOver } from "@/components/suppliers/SupplierDetailSlideOver";
+
+const SupplierModal = dynamic(() => import("@/components/suppliers/SupplierModal").then((m) => m.SupplierModal));
 import type { SupplierRow, SupplierDetail } from "@/lib/queries/suppliers";
 
 export function SuppliersClient({ suppliers, canManage }: { suppliers: SupplierRow[]; canManage: boolean }) {

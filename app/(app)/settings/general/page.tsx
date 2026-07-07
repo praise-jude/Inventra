@@ -1,8 +1,8 @@
-import { requireProfile } from "@/lib/queries/session";
+import { requireAdminProfile } from "@/lib/queries/session";
 import { GeneralSettingsForm } from "@/components/settings/GeneralSettingsForm";
 
 export default async function GeneralSettingsPage() {
-  const { profile, org } = await requireProfile();
+  const { profile, org } = await requireAdminProfile();
 
   return (
     <GeneralSettingsForm

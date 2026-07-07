@@ -3,6 +3,7 @@ import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { Organization, Profile } from "@/lib/supabase/database.types";
+import { ADMIN_ROLES, MANAGER_ROLES } from "@/lib/roles";
 
 // The (app) layout calls this for the shell chrome, and most pages call it
 // again for their own data — cache() dedupes to one auth+profile+org round
@@ -20,6 +21,10 @@ export const requireProfile = cache(async (): Promise<{ profile: Profile; org: O
     .eq("id", user.id)
     .single<Profile>();
   if (!profile) redirect("/login");
+  if (profile.suspended_at) {
+    await supabase.auth.signOut();
+    redirect("/login?suspended=1");
+  }
 
   const { data: org } = await supabase
     .from("organizations")
@@ -35,7 +40,7 @@ export const requireProfile = cache(async (): Promise<{ profile: Profile; org: O
 // gate; never rely on hiding the nav link alone.
 export const requireAdminProfile = cache(async (): Promise<{ profile: Profile; org: Organization }> => {
   const result = await requireProfile();
-  if (result.profile.role !== "owner" && result.profile.role !== "admin") redirect("/dashboard");
+  if (!ADMIN_ROLES.includes(result.profile.role)) redirect("/dashboard");
   return result;
 });
 
@@ -43,7 +48,7 @@ export const requireAdminProfile = cache(async (): Promise<{ profile: Profile; o
 // financial data, not a day-to-day Cashier/Warehouse task.
 export const requireManagerProfile = cache(async (): Promise<{ profile: Profile; org: Organization }> => {
   const result = await requireProfile();
-  if (!["owner", "admin", "manager"].includes(result.profile.role)) redirect("/dashboard");
+  if (!MANAGER_ROLES.includes(result.profile.role)) redirect("/dashboard");
   return result;
 });
 

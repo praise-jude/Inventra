@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import dynamic from "next/dynamic";
+import Image from "next/image";
 import Papa from "papaparse";
-import { AddProductModal } from "@/components/products/AddProductModal";
 import { ProductDetailSlideOver } from "@/components/products/ProductDetailSlideOver";
-import { BarcodeScannerModal } from "@/components/products/BarcodeScannerModal";
 import {
   fetchProductDetail,
   exportProductsCsv,
@@ -16,6 +16,11 @@ import {
 import type { ProductDetail, ProductListRow } from "@/lib/queries/products";
 import { useToast } from "@/components/app/ToastProvider";
 import { useWorkspace } from "@/components/app/CurrencyProvider";
+
+const AddProductModal = dynamic(() => import("@/components/products/AddProductModal").then((m) => m.AddProductModal));
+const BarcodeScannerModal = dynamic(() =>
+  import("@/components/products/BarcodeScannerModal").then((m) => m.BarcodeScannerModal),
+);
 
 const STATUS_STYLE: Record<string, { color: string; background: string }> = {
   in_stock: { color: "var(--green)", background: "var(--green-weak)" },
@@ -67,6 +72,9 @@ export function ProductsClient({
   const flash = useToast();
   const { format: formatMoney } = useWorkspace();
   const [query, setQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [warehouseFilter, setWarehouseFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [showAdd, setShowAdd] = useState(() => searchParams.get("new") === "1");
   const [selected, setSelected] = useState<ProductDetail | null>(null);
   const [showScanner, setShowScanner] = useState(false);
@@ -128,15 +136,21 @@ export function ProductsClient({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        p.sku.toLowerCase().includes(q) ||
-        (p.brand ?? "").toLowerCase().includes(q) ||
-        (p.barcode ?? "").toLowerCase().includes(q),
-    );
-  }, [rows, query]);
+    return rows.filter((p) => {
+      if (q) {
+        const matchesQuery =
+          p.name.toLowerCase().includes(q) ||
+          p.sku.toLowerCase().includes(q) ||
+          (p.brand ?? "").toLowerCase().includes(q) ||
+          (p.barcode ?? "").toLowerCase().includes(q);
+        if (!matchesQuery) return false;
+      }
+      if (categoryFilter && p.category !== categoryFilter) return false;
+      if (warehouseFilter && p.warehouseId !== warehouseFilter) return false;
+      if (statusFilter && p.status !== statusFilter) return false;
+      return true;
+    });
+  }, [rows, query, categoryFilter, warehouseFilter, statusFilter]);
 
   function handleSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key !== "Enter") return;
@@ -263,15 +277,40 @@ export function ProductsClient({
             className="flex-1 border-none bg-transparent text-[13px] text-text outline-none"
           />
         </div>
-        <button className="h-[37px] rounded-[9px] border border-border bg-surface px-3.5 text-[13px] font-semibold text-text-2 hover:bg-hover">
-          Category ⌄
-        </button>
-        <button className="h-[37px] rounded-[9px] border border-border bg-surface px-3.5 text-[13px] font-semibold text-text-2 hover:bg-hover">
-          Warehouse ⌄
-        </button>
-        <button className="h-[37px] rounded-[9px] border border-border bg-surface px-3.5 text-[13px] font-semibold text-text-2 hover:bg-hover">
-          Status ⌄
-        </button>
+        <select
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value)}
+          className="h-[37px] rounded-[9px] border border-border bg-surface px-2.5 text-[13px] font-semibold text-text-2 hover:bg-hover"
+        >
+          <option value="">All categories</option>
+          {categories.map((c) => (
+            <option key={c.id} value={c.name}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+        <select
+          value={warehouseFilter}
+          onChange={(e) => setWarehouseFilter(e.target.value)}
+          className="h-[37px] rounded-[9px] border border-border bg-surface px-2.5 text-[13px] font-semibold text-text-2 hover:bg-hover"
+        >
+          <option value="">All warehouses</option>
+          {warehouses.map((w) => (
+            <option key={w.id} value={w.id}>
+              {w.name}
+            </option>
+          ))}
+        </select>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="h-[37px] rounded-[9px] border border-border bg-surface px-2.5 text-[13px] font-semibold text-text-2 hover:bg-hover"
+        >
+          <option value="">All statuses</option>
+          <option value="in_stock">In stock</option>
+          <option value="low_stock">Low stock</option>
+          <option value="out_of_stock">Out of stock</option>
+        </select>
       </div>
 
       <div className="overflow-hidden rounded-[14px] border border-border bg-surface shadow-[var(--shadow-sm)]">
@@ -293,10 +332,9 @@ export function ProductsClient({
                 <tr key={p.id} onClick={() => openDetail(p.id)} className="cursor-pointer border-t border-border-2 hover:bg-hover">
                   <td className="px-4 py-[11px] pl-4">
                     <div className="flex items-center gap-[11px]">
-                      <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-[9px] bg-accent-weak text-[17px]">
+                      <div className="relative flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-[9px] bg-accent-weak text-[17px]">
                         {p.imageUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={p.imageUrl} alt={p.name} className="h-full w-full object-cover" />
+                          <Image src={p.imageUrl} alt={p.name} fill sizes="36px" className="object-cover" />
                         ) : (
                           p.emoji || "📦"
                         )}

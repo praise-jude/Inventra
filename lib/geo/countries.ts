@@ -502,6 +502,10 @@ export function isKnownCountry(code: string): boolean {
   return code in BY_CODE;
 }
 
+export function countryName(code: string): string {
+  return BY_CODE[code]?.name ?? code;
+}
+
 // For the Settings manual-override Select — every zone this dataset can
 // possibly resolve to, deduplicated and sorted.
 export const IANA_TIMEZONES: string[] = Array.from(

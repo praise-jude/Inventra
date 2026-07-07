@@ -2,11 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { useToast } from "@/components/app/ToastProvider";
 import { useWorkspace } from "@/components/app/CurrencyProvider";
 import { deleteDebtor, fetchDebtorDetail, updateDebtorStatus } from "@/lib/actions/debtors";
-import { DebtorModal } from "@/components/debtors/DebtorModal";
 import { DebtorDetailSlideOver } from "@/components/debtors/DebtorDetailSlideOver";
+
+const DebtorModal = dynamic(() => import("@/components/debtors/DebtorModal").then((m) => m.DebtorModal));
 import type { DebtorsOverview, DebtorRow, DebtorDetail } from "@/lib/queries/debtors";
 
 const STATUS_STYLE: Record<string, { color: string; background: string }> = {

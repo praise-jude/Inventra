@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { isManagerRole } from "@/lib/roles";
 import {
   getProductDetail,
   findProductIdByCode,
@@ -19,6 +20,15 @@ async function requireOrgId() {
   const { data: profile } = await supabase.from("profiles").select("org_id, role").eq("id", user.id).single();
   if (!profile) throw new Error("No profile");
   return { supabase, orgId: profile.org_id as string, userId: user.id, role: profile.role as string };
+}
+
+// Products are Manager-tier+ to mutate (owner/admin/manager) — matching the
+// `products_insert/update/delete` RLS from 0012_products_manager_rls.sql.
+// This gives a clear error instead of a silent RLS no-op.
+function requireManagerRole(role: string) {
+  if (!isManagerRole(role)) {
+    throw new Error("Only an owner, admin, or manager can manage products.");
+  }
 }
 
 export async function fetchProductDetail(id: string): Promise<ProductDetail | null> {
@@ -52,7 +62,8 @@ export interface CreateProductInput {
 }
 
 export async function createProduct(input: CreateProductInput) {
-  const { supabase, orgId, userId } = await requireOrgId();
+  const { supabase, orgId, userId, role } = await requireOrgId();
+  requireManagerRole(role);
 
   const { data: product, error } = await supabase
     .from("products")
@@ -115,7 +126,8 @@ export interface UpdateProductInput {
 }
 
 export async function updateProduct(id: string, input: UpdateProductInput): Promise<ProductDetail> {
-  const { supabase, orgId } = await requireOrgId();
+  const { supabase, orgId, role } = await requireOrgId();
+  requireManagerRole(role);
   const name = input.name.trim();
   const sku = input.sku.trim();
   if (!name) throw new Error("Product name is required.");
@@ -218,7 +230,8 @@ export async function deleteProduct(id: string) {
 }
 
 export async function duplicateProduct(id: string) {
-  const supabase = await createClient();
+  const { supabase, role } = await requireOrgId();
+  requireManagerRole(role);
   const { data: original, error } = await supabase.from("products").select("*").eq("id", id).single();
   if (error) throw error;
 
@@ -244,10 +257,16 @@ export async function duplicateProduct(id: string) {
   void _qtyReturned;
   void _barcode;
 
+  const { data: clashes } = await supabase
+    .from("products")
+    .select("sku")
+    .eq("org_id", rest.org_id)
+    .ilike("sku", `${rest.sku}-COPY%`);
+  const takenSkus = new Set((clashes ?? []).map((p) => p.sku));
   let sku = `${rest.sku}-COPY`;
-  for (let i = 1; i < 20; i++) {
-    const { data: clash } = await supabase.from("products").select("id").eq("org_id", rest.org_id).eq("sku", sku).maybeSingle();
-    if (!clash) break;
+  if (takenSkus.has(sku)) {
+    let i = 1;
+    while (takenSkus.has(`${rest.sku}-COPY${i}`)) i++;
     sku = `${rest.sku}-COPY${i}`;
   }
 
@@ -320,17 +339,23 @@ export interface ImportResult {
 }
 
 export async function importProductsCsv(rows: ImportProductRow[]): Promise<ImportResult> {
-  const { supabase, orgId, userId } = await requireOrgId();
+  const { supabase, orgId, userId, role } = await requireOrgId();
+  requireManagerRole(role);
   const result: ImportResult = { created: 0, updated: 0, failed: 0, errors: [] };
 
-  const [{ data: categories }, { data: suppliers }, { data: warehouses }] = await Promise.all([
+  const [{ data: categories }, { data: suppliers }, { data: warehouses }, { data: existingProducts }] = await Promise.all([
     supabase.from("categories").select("id, name").eq("org_id", orgId),
     supabase.from("suppliers").select("id, name").eq("org_id", orgId),
     supabase.from("warehouses").select("id, name").eq("org_id", orgId),
+    supabase.from("products").select("id, sku").eq("org_id", orgId),
   ]);
   const categoryByName = new Map((categories ?? []).map((c) => [c.name.toLowerCase(), c.id]));
   const supplierByName = new Map((suppliers ?? []).map((s) => [s.name.toLowerCase(), s.id]));
   const warehouseByName = new Map((warehouses ?? []).map((w) => [w.name.toLowerCase(), w.id]));
+  // Prefetched once up front instead of one existence-check query per CSV
+  // row — kept updated as rows are inserted so a duplicate SKU later in the
+  // same file still resolves to an update rather than a unique-constraint error.
+  const productIdBySku = new Map((existingProducts ?? []).map((p) => [p.sku, p.id]));
 
   async function resolveCategoryId(name: string | undefined): Promise<string | null> {
     const trimmed = name?.trim();
@@ -374,9 +399,9 @@ export async function importProductsCsv(rows: ImportProductRow[]): Promise<Impor
       const supplierId = await resolveSupplierId(row.supplier);
       const warehouseId = row.warehouse?.trim() ? warehouseByName.get(row.warehouse.trim().toLowerCase()) ?? null : null;
 
-      const { data: existing } = await supabase.from("products").select("id").eq("org_id", orgId).eq("sku", sku).maybeSingle();
+      const existingId = productIdBySku.get(sku);
 
-      if (existing) {
+      if (existingId) {
         const { error } = await supabase
           .from("products")
           .update({
@@ -393,7 +418,7 @@ export async function importProductsCsv(rows: ImportProductRow[]): Promise<Impor
             reorder_level: reorderLevel,
             image_url: row.image_url?.trim() || null,
           })
-          .eq("id", existing.id);
+          .eq("id", existingId);
         if (error) throw new Error(error.message);
         result.updated++;
       } else {
@@ -421,6 +446,7 @@ export async function importProductsCsv(rows: ImportProductRow[]): Promise<Impor
           .select("id")
           .single();
         if (error || !created) throw new Error(error?.message ?? "Insert failed.");
+        productIdBySku.set(sku, created.id);
 
         if (qtyOnHand > 0) {
           await supabase.from("stock_movements").insert({

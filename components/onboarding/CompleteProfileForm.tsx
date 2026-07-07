@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { completeOnboarding } from "@/lib/actions/auth";
+import { validateBusinessEmail } from "@/lib/validation/auth";
 import { COUNTRIES, statesForCountry } from "@/lib/geo/countries";
 import { Field } from "@/components/ui/Field";
 import { Select } from "@/components/ui/Select";
@@ -36,6 +37,13 @@ export function CompleteProfileForm({ canEditBusiness, businessName, businessEma
     if (canEditBusiness && !form.country) {
       setError("Country is required.");
       return;
+    }
+    if (canEditBusiness) {
+      const businessEmailError = validateBusinessEmail(form.businessEmail);
+      if (businessEmailError) {
+        setError(businessEmailError);
+        return;
+      }
     }
     if (!accepted) {
       setError("You must accept the Terms & Conditions and Privacy Policy.");

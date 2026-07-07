@@ -1,9 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
-import { requireProfile } from "@/lib/queries/session";
+import { requireAdminProfile } from "@/lib/queries/session";
 import { NotificationsClient } from "@/components/settings/NotificationsClient";
 
 export default async function NotificationsSettingsPage() {
-  const { org } = await requireProfile();
+  const { org } = await requireAdminProfile();
   const supabase = await createClient();
   const { data } = await supabase.from("notification_settings").select("*").eq("org_id", org.id).single();
 

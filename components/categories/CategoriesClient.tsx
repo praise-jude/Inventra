@@ -2,10 +2,12 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { useToast } from "@/components/app/ToastProvider";
 import { deleteCategory } from "@/lib/actions/categories";
-import { CategoryModal } from "@/components/categories/CategoryModal";
 import type { CategoryRow } from "@/lib/queries/categories";
+
+const CategoryModal = dynamic(() => import("@/components/categories/CategoryModal").then((m) => m.CategoryModal));
 
 export function CategoriesClient({ categories, canManage }: { categories: CategoryRow[]; canManage: boolean }) {
   const router = useRouter();

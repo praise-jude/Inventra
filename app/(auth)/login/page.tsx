@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Field } from "@/components/ui/Field";
@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/Button";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const suspended = searchParams.get("suspended") === "1";
   const [email, setEmail] = useState("ava@freshmart.co");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +42,11 @@ export default function LoginPage() {
     <div>
       <h1 className="mb-1.5 text-2xl font-bold tracking-tight">Welcome back</h1>
       <p className="mb-[26px] text-text-2">Sign in to your workspace to continue.</p>
+      {suspended && (
+        <p className="mb-3.5 rounded-[9px] border border-red bg-red-weak px-3.5 py-2.5 text-[13px] font-medium text-red">
+          Your account has been suspended. Contact your workspace admin for access.
+        </p>
+      )}
       <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
         <Field
           label="Email"

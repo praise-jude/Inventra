@@ -2,14 +2,17 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import dynamic from "next/dynamic";
+import Image from "next/image";
 import { useToast } from "@/components/app/ToastProvider";
 import { archiveProduct, deleteProduct, duplicateProduct, fetchProductDetail } from "@/lib/actions/products";
 import { createAdjustment } from "@/lib/actions/inventory";
 import { notifyDataChanged } from "@/lib/client-events";
 import type { ProductDetail } from "@/lib/queries/products";
 import { useWorkspace } from "@/components/app/CurrencyProvider";
-import { EditProductModal } from "@/components/products/EditProductModal";
 import { BarcodePreview } from "@/components/products/BarcodePreview";
+
+const EditProductModal = dynamic(() => import("@/components/products/EditProductModal").then((m) => m.EditProductModal));
 
 interface Option {
   id: string;
@@ -44,10 +47,14 @@ export function ProductDetailSlideOver({
   const [adjustSaving, setAdjustSaving] = useState(false);
 
   const margin = product.sell_price > 0 ? Math.round((1 - product.cost_price / product.sell_price) * 100) : 0;
+  const profitPerUnit = product.sell_price - product.cost_price;
+  const productValue = product.cost_price * product.qty_on_hand;
   const facts = [
     { k: "Cost price", v: formatMoney(product.cost_price) },
     { k: "Selling price", v: formatMoney(product.sell_price) },
     { k: "Margin", v: `${margin}%` },
+    { k: "Profit per unit", v: formatMoney(profitPerUnit) },
+    { k: "Product value", v: formatMoney(productValue) },
     { k: "Reorder at", v: String(product.reorder_level) },
     { k: "Warehouse", v: product.warehouse ?? "—" },
     { k: "Category", v: product.category ?? "—" },
@@ -128,10 +135,9 @@ export function ProductDetailSlideOver({
       <div onClick={onClose} className="animate-fade-in fixed inset-0 z-[70] bg-[rgba(15,20,32,.4)]" />
       <div className="scroll animate-slide-over fixed inset-y-0 right-0 z-[71] w-[460px] max-w-[92vw] overflow-y-auto border-l border-border bg-surface shadow-[var(--shadow-lg)]">
         <div className="sticky top-0 z-[2] flex items-center gap-3 border-b border-border bg-surface px-[22px] py-[18px]">
-          <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-[11px] bg-accent-weak text-[22px]">
+          <div className="relative flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-[11px] bg-accent-weak text-[22px]">
             {product.imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" />
+              <Image src={product.imageUrl} alt={product.name} fill sizes="44px" className="object-cover" />
             ) : (
               product.emoji || "📦"
             )}

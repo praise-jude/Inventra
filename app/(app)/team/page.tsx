@@ -5,8 +5,8 @@ import { TeamClient } from "@/components/team/TeamClient";
 const PLAN_SEATS: Record<string, number> = { starter: 2, growth: 15, scale: 999 };
 
 export default async function TeamPage() {
-  const [members, { org }] = await Promise.all([getTeamMembers(), requireAdminProfile()]);
+  const [members, { org, profile }] = await Promise.all([getTeamMembers(), requireAdminProfile()]);
   const seatsTotal = PLAN_SEATS[org.plan] ?? 5;
 
-  return <TeamClient members={members} seatsUsed={members.length} seatsTotal={seatsTotal} />;
+  return <TeamClient members={members} seatsUsed={members.length} seatsTotal={seatsTotal} currentUserId={profile.id} />;
 }

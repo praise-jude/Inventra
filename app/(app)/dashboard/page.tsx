@@ -15,10 +15,10 @@ import { AreaChart } from "@/components/charts/AreaChart";
 import { DonutChart } from "@/components/charts/DonutChart";
 import { TeamPresenceCard } from "@/components/team/TeamPresenceCard";
 import { formatMoneyCompact, formatNumber, formatPct, pctDelta } from "@/lib/format";
-import { formatTodayHeader } from "@/lib/datetime";
+import { formatTodayHeader, formatCurrentTime, greetingFor } from "@/lib/datetime";
+import { countryName } from "@/lib/geo/countries";
 import { MOVEMENT_META } from "@/lib/movement-meta";
-
-const ADMIN_TIER = ["owner", "admin", "manager"];
+import { isManagerRole } from "@/lib/roles";
 
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -41,15 +41,15 @@ function timeAgo(iso: string): string {
 
 export default async function DashboardPage() {
   const { profile, org } = await requireProfile();
-  const isAdminTier = ADMIN_TIER.includes(profile.role);
+  const isAdminTier = isManagerRole(profile.role);
   const [kpis, categoryMix, topSellers, stockHealth, monthlyStats, activity, dailyProfit, teamMembers] = await Promise.all([
     getKpis(),
-    getCategoryMix(),
+    isAdminTier ? getCategoryMix() : Promise.resolve([]),
     getTopSellers(5),
     getStockHealth(),
-    getMonthlyStats(),
+    isAdminTier ? getMonthlyStats() : Promise.resolve([]),
     getRecentActivity(5),
-    getDailyProductProfit(),
+    isAdminTier ? getDailyProductProfit() : Promise.resolve([]),
     isAdminTier ? getTeamMembers() : Promise.resolve([]),
   ]);
   const todaysProfit = dailyProfit.reduce((sum, p) => sum + (Number(p.profit) || 0), 0);
@@ -66,7 +66,7 @@ export default async function DashboardPage() {
   });
 
   const kpiCards = [
-    { label: "Total products", value: formatNumber(kpis.total_products), icon: "📦", iconBg: "var(--accent-weak)", sub: "active SKUs", delta: null as string | null, deltaColor: "" },
+    { label: "Total products", value: formatNumber(kpis.total_products), icon: "📦", iconBg: "var(--accent-weak)", sub: "active SKUs", delta: null as string | null, deltaColor: "", adminOnly: false },
     {
       label: "Today's revenue",
       value: formatMoneyCompact(kpis.today_revenue, org.currency),
@@ -75,6 +75,7 @@ export default async function DashboardPage() {
       sub: "vs yesterday",
       delta: formatPct(pctDelta(kpis.today_revenue, kpis.yesterday_revenue)),
       deltaColor: kpis.today_revenue >= kpis.yesterday_revenue ? "var(--green)" : "var(--red)",
+      adminOnly: true,
     },
     {
       label: "Monthly profit",
@@ -85,20 +86,60 @@ export default async function DashboardPage() {
       delta: formatPct(pctDelta(kpis.monthly_profit ?? 0, kpis.prior_monthly_profit)),
       deltaColor:
         (kpis.monthly_profit ?? 0) >= (kpis.prior_monthly_profit ?? 0) ? "var(--green)" : "var(--red)",
+      adminOnly: true,
     },
-    { label: "Low stock", value: formatNumber(kpis.low_stock_count), icon: "⚠️", iconBg: "var(--amber-weak)", sub: "need reorder", delta: null, deltaColor: "" },
-    { label: "Out of stock", value: formatNumber(kpis.out_of_stock_count), icon: "⛔", iconBg: "var(--red-weak)", sub: "SKUs", delta: null, deltaColor: "" },
-    { label: "Active suppliers", value: formatNumber(kpis.active_suppliers), icon: "🚚", iconBg: "var(--accent-weak)", sub: "onboarded", delta: null, deltaColor: "" },
-  ];
+    {
+      label: "Total inventory cost",
+      value: formatMoneyCompact(kpis.total_inventory_cost ?? 0, org.currency),
+      icon: "🧾",
+      iconBg: "var(--sky-weak)",
+      sub: "purchase price × stock",
+      delta: null,
+      deltaColor: "",
+      adminOnly: true,
+    },
+    {
+      label: "Total inventory value",
+      value: formatMoneyCompact(kpis.total_inventory_value ?? 0, org.currency),
+      icon: "💎",
+      iconBg: "var(--green-weak)",
+      sub: "selling price × stock",
+      delta: null,
+      deltaColor: "",
+      adminOnly: true,
+    },
+    {
+      label: "Total expected profit",
+      value: formatMoneyCompact(kpis.total_expected_profit ?? 0, org.currency),
+      icon: "📊",
+      iconBg: "var(--accent-weak)",
+      sub: "if all stock sold",
+      delta: null,
+      deltaColor: "",
+      adminOnly: true,
+    },
+    { label: "Total stock quantity", value: formatNumber(kpis.total_stock_qty ?? 0), icon: "🔢", iconBg: "var(--accent-weak)", sub: "units on hand", delta: null, deltaColor: "", adminOnly: false },
+    { label: "Low stock", value: formatNumber(kpis.low_stock_count), icon: "⚠️", iconBg: "var(--amber-weak)", sub: "need reorder", delta: null, deltaColor: "", adminOnly: false },
+    { label: "Out of stock", value: formatNumber(kpis.out_of_stock_count), icon: "⛔", iconBg: "var(--red-weak)", sub: "SKUs", delta: null, deltaColor: "", adminOnly: false },
+    { label: "Active suppliers", value: formatNumber(kpis.active_suppliers), icon: "🚚", iconBg: "var(--accent-weak)", sub: "onboarded", delta: null, deltaColor: "", adminOnly: false },
+  ].filter((card) => isAdminTier || !card.adminOnly);
 
   const today = formatTodayHeader(org.timezone);
+  const currentTime = formatCurrentTime(org.timezone);
+  const greeting = greetingFor(org.timezone);
+  const location = [org.state, org.country ? countryName(org.country) : null].filter(Boolean).join(", ");
 
   return (
     <div className="animate-fade-up">
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3.5">
         <div>
-          <div className="text-[22px] font-bold tracking-tight">Good morning, {profile.first_name} 👋</div>
-          <div className="mt-[3px] text-text-2">Here&apos;s how your business is doing today — {today}.</div>
+          <div className="text-[22px] font-bold tracking-tight">
+            {greeting.emoji} {greeting.label}, {profile.first_name}
+          </div>
+          <div className="mt-[3px] text-text-2">
+            {today} · {currentTime}
+            {location ? ` · ${location}` : ""}
+          </div>
         </div>
         <Link
           href="/products?new=1"
@@ -132,6 +173,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* CHART ROW */}
+      {isAdminTier && (
       <div className="chart-row mb-4 grid gap-4" style={{ gridTemplateColumns: "1.6fr 1fr" }}>
         <div className="rounded-2xl border border-border bg-surface p-[18px_20px] shadow-[var(--shadow-sm)]">
           <div className="mb-1 flex items-center justify-between">
@@ -176,6 +218,7 @@ export default async function DashboardPage() {
           </div>
         </div>
       </div>
+      )}
 
       {/* LOWER ROW */}
       <div className="lower-row grid gap-4" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
@@ -198,7 +241,7 @@ export default async function DashboardPage() {
                   <div className="text-[11.5px] text-muted">{formatNumber(p.units)} sold</div>
                 </div>
                 <div className="text-right">
-                  <div className="font-mono text-[13px] font-bold">{formatMoneyCompact(p.revenue, org.currency)}</div>
+                  {isAdminTier && <div className="font-mono text-[13px] font-bold">{formatMoneyCompact(p.revenue, org.currency)}</div>}
                   {p.trend_pct !== null && (
                     <div className="text-[11px] font-semibold" style={{ color: p.trend_pct >= 0 ? "var(--green)" : "var(--red)" }}>
                       {formatPct(p.trend_pct, 0)}
@@ -254,7 +297,8 @@ export default async function DashboardPage() {
                   </div>
                   <div className="flex-1 pb-2">
                     <div className="text-[12.5px] leading-snug">
-                      <b className="font-bold">{who}</b> {meta.verb} {Math.abs(a.qty_delta)}× {productName}
+                      <b className="font-bold">{who}</b> {meta.verb}{" "}
+                      {a.type === "transfer" ? productName : `${Math.abs(a.qty_delta)}× ${productName}`}
                     </div>
                     <div className="mt-0.5 text-[11px] text-muted">{timeAgo(a.created_at)}</div>
                   </div>
@@ -272,6 +316,7 @@ export default async function DashboardPage() {
       )}
 
       {/* DAILY PROFIT */}
+      {isAdminTier && (
       <div className="mt-4 rounded-2xl border border-border bg-surface p-[18px_20px] shadow-[var(--shadow-sm)]">
         <div className="mb-3.5 flex items-center justify-between">
           <div>
@@ -321,6 +366,7 @@ export default async function DashboardPage() {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

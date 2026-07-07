@@ -13,13 +13,14 @@ export interface ProductListRow {
   qty: number;
   status: "in_stock" | "low_stock" | "out_of_stock";
   category: string | null;
+  warehouseId: string | null;
 }
 
 export async function getProducts(): Promise<ProductListRow[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("products")
-    .select("id, sku, barcode, name, brand, emoji, image_url, sell_price, qty_on_hand, status, categories(name)")
+    .select("id, sku, barcode, name, brand, emoji, image_url, sell_price, qty_on_hand, status, warehouse_id, categories(name)")
     .is("archived_at", null)
     .order("created_at", { ascending: false });
   if (error) throw error;
@@ -35,6 +36,7 @@ export async function getProducts(): Promise<ProductListRow[]> {
     qty: p.qty_on_hand,
     status: p.status,
     category: (p.categories as unknown as { name: string } | null)?.name ?? null,
+    warehouseId: p.warehouse_id,
   }));
 }
 

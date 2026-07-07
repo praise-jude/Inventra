@@ -32,12 +32,12 @@ export interface DebtorsOverview {
 
 export async function getDebtorsOverview(): Promise<DebtorsOverview> {
   const supabase = await createClient();
-  const [{ data: debtors, error: debError }, { data: payments, error: payError }] = await Promise.all([
+  const [{ data: debtors, error: debError }, { data: totalPaidRaw, error: payError }] = await Promise.all([
     supabase
       .from("debtors")
       .select("id, customer_name, phone, email, notes, amount_owed, due_date, status")
       .order("created_at", { ascending: false }),
-    supabase.from("debtor_payments").select("amount"),
+    supabase.rpc("get_debtor_payments_total"),
   ]);
   if (debError) {
     console.error("[Inventra] getDebtorsOverview (debtors) failed:", debError);
@@ -51,7 +51,7 @@ export async function getDebtorsOverview(): Promise<DebtorsOverview> {
   const rows = (debtors ?? []).map((d) => ({ ...d, status: effectiveStatus(d.status, d.due_date) }));
   const totalOutstanding = rows.filter((d) => d.status !== "cancelled").reduce((s, d) => s + Number(d.amount_owed), 0);
   const overdueAmount = rows.filter((d) => d.status === "overdue").reduce((s, d) => s + Number(d.amount_owed), 0);
-  const totalPaid = (payments ?? []).reduce((s, p) => s + Number(p.amount), 0);
+  const totalPaid = Number(totalPaidRaw ?? 0);
 
   return {
     totalOutstanding,

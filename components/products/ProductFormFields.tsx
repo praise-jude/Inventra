@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { createCategory } from "@/lib/actions/categories";
 import { createSupplier } from "@/lib/actions/suppliers";
 import { uploadProductImage } from "@/lib/actions/products";
@@ -140,8 +141,7 @@ export function ProductFormFields({
       <div className="flex items-start gap-3.5">
         <label className="relative flex h-[88px] w-[88px] flex-shrink-0 cursor-pointer flex-col items-center justify-center gap-1 overflow-hidden rounded-xl border-2 border-dashed border-border bg-surface-2 text-center text-[11px] text-muted">
           {form.imageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={form.imageUrl} alt="Product" className="h-full w-full object-cover" />
+            <Image src={form.imageUrl} alt="Product" fill sizes="88px" className="object-cover" />
           ) : uploadingImage ? (
             <span className="text-[11px]">Uploading…</span>
           ) : (

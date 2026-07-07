@@ -2,11 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { useToast } from "@/components/app/ToastProvider";
 import { useWorkspace } from "@/components/app/CurrencyProvider";
 import { deleteExpense } from "@/lib/actions/expenses";
-import { ExpenseModal } from "@/components/expenses/ExpenseModal";
 import { ExpenseTrendChart } from "@/components/expenses/ExpenseTrendChart";
+
+const ExpenseModal = dynamic(() => import("@/components/expenses/ExpenseModal").then((m) => m.ExpenseModal));
 import type { ExpensesOverview, ExpenseRow } from "@/lib/queries/expenses";
 
 const CATEGORY_LABEL: Record<string, string> = {

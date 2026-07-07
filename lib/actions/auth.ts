@@ -46,8 +46,19 @@ async function checkAndRecordRateLimit(ip: string): Promise<boolean> {
   if ((count ?? 0) >= RATE_LIMIT_MAX_ATTEMPTS) return false;
 
   await admin.from("signup_attempts").insert({ ip });
+
+  // Pure housekeeping with no bearing on this signup's outcome — fire without
+  // awaiting so it can't add latency to every signup request.
   const pruneCutoff = new Date(Date.now() - 24 * 60 * 60_000).toISOString();
-  await admin.from("signup_attempts").delete().eq("ip", ip).lt("created_at", pruneCutoff);
+  admin
+    .from("signup_attempts")
+    .delete()
+    .eq("ip", ip)
+    .lt("created_at", pruneCutoff)
+    .then(({ error }) => {
+      if (error) console.error("[Inventra] signup_attempts prune failed:", error);
+    });
+
   return true;
 }
 

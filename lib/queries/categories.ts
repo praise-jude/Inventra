@@ -8,31 +8,34 @@ export interface CategoryRow {
   productCount: number;
 }
 
+interface CategoryProductCountRow {
+  category_id: string;
+  count: number;
+}
+
 export async function getCategoriesDetailed(): Promise<CategoryRow[]> {
   const supabase = await createClient();
-  const [{ data: categories, error: catError }, { data: products, error: prodError }] = await Promise.all([
+  const [{ data: categories, error: catError }, { data: counts, error: prodError }] = await Promise.all([
     supabase.from("categories").select("id, name, emoji").order("name"),
-    supabase.from("products").select("category_id").is("archived_at", null),
+    supabase.rpc("get_category_product_counts"),
   ]);
   if (catError) {
     console.error("[Inventra] getCategoriesDetailed (categories) failed:", catError);
     throw new Error("Could not load categories.");
   }
   if (prodError) {
-    console.error("[Inventra] getCategoriesDetailed (products) failed:", prodError);
+    console.error("[Inventra] getCategoriesDetailed (product counts) failed:", prodError);
     throw new Error("Could not load categories.");
   }
 
-  const counts = new Map<string, number>();
-  for (const p of products ?? []) {
-    if (!p.category_id) continue;
-    counts.set(p.category_id, (counts.get(p.category_id) ?? 0) + 1);
-  }
+  const countsByCategory = new Map(
+    ((counts ?? []) as CategoryProductCountRow[]).map((c) => [c.category_id, c.count]),
+  );
 
   return (categories ?? []).map((c) => ({
     id: c.id,
     name: c.name,
     emoji: c.emoji,
-    productCount: counts.get(c.id) ?? 0,
+    productCount: countsByCategory.get(c.id) ?? 0,
   }));
 }

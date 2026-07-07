@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen">
@@ -8,7 +10,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       >
         <div className="relative z-[2] flex items-center gap-[11px]">
           <div className="flex h-[70px] w-[70px] items-center justify-center rounded-[9px] bg-white p-1">
-            <img src="/inventra-logo.svg" alt="" className="h-full w-full" />
+            <Image src="/inventra-logo.svg" alt="" width={70} height={70} className="h-full w-full" />
           </div>
           <span className="text-[17px] font-bold tracking-tight">Inventra</span>
         </div>
@@ -46,7 +48,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       <div className="flex min-w-0 flex-1 items-center justify-center p-8">
         <div className="w-full max-w-[388px] animate-fade-up">
           <div className="mb-[34px] flex items-center gap-2.5">
-            <img src="/inventra-logo.svg" alt="Inventra" className="h-[60px] w-[60px]" />
+            <Image src="/inventra-logo.svg" alt="Inventra" width={60} height={60} />
             <span className="text-[16px] font-bold tracking-tight">Inventra</span>
           </div>
           {children}

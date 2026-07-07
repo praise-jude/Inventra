@@ -28,6 +28,24 @@ export function formatTodayHeader(timezone: string): string {
   });
 }
 
+export function formatCurrentTime(timezone: string): string {
+  return new Date().toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: timezone,
+  });
+}
+
+export function greetingFor(timezone: string): { emoji: string; label: string } {
+  const rawHour = Number(
+    new Intl.DateTimeFormat("en-US", { hour: "numeric", hour12: false, timeZone: timezone }).format(new Date()),
+  );
+  const hour = rawHour % 24;
+  if (hour < 12) return { emoji: "🌅", label: "Good Morning" };
+  if (hour < 17) return { emoji: "☀️", label: "Good Afternoon" };
+  return { emoji: "🌙", label: "Good Evening" };
+}
+
 function dateKey(date: Date, timezone: string): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(
     date,

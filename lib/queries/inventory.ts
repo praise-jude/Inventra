@@ -93,37 +93,69 @@ export interface WarehouseOverview {
   id: string;
   name: string;
   address: string | null;
+  managerProfileId: string | null;
   managerName: string | null;
+  capacity: number | null;
   skuCount: number;
   stockValue: number;
   utilizationPct: number;
 }
 
-export async function getWarehousesOverview(): Promise<WarehouseOverview[]> {
+export interface WarehouseProductOption {
+  id: string;
+  name: string;
+  sku: string;
+  qtyOnHand: number;
+}
+
+export async function getProductsInWarehouse(warehouseId: string): Promise<WarehouseProductOption[]> {
   const supabase = await createClient();
-  const { data: warehouses, error } = await supabase
-    .from("warehouses")
-    .select("id, name, address, capacity, profiles(first_name, last_name)")
+  const { data, error } = await supabase
+    .from("products")
+    .select("id, name, sku, qty_on_hand")
+    .eq("warehouse_id", warehouseId)
+    .is("archived_at", null)
     .order("name");
   if (error) throw error;
+  return (data ?? []).map((p) => ({ id: p.id, name: p.name, sku: p.sku, qtyOnHand: p.qty_on_hand }));
+}
 
-  const { data: products } = await supabase
-    .from("products")
-    .select("warehouse_id, qty_on_hand, sell_price")
-    .is("archived_at", null);
+interface WarehouseStockSummaryRow {
+  warehouse_id: string;
+  sku_count: number;
+  stock_value: number;
+  total_units: number;
+}
+
+export async function getWarehousesOverview(): Promise<WarehouseOverview[]> {
+  const supabase = await createClient();
+  const [{ data: warehouses, error }, { data: summary }] = await Promise.all([
+    supabase
+      .from("warehouses")
+      .select("id, name, address, capacity, manager_profile_id, profiles(first_name, last_name)")
+      .order("name"),
+    supabase.rpc("get_warehouse_stock_summary"),
+  ]);
+  if (error) throw error;
+
+  const summaryById = new Map(
+    ((summary ?? []) as WarehouseStockSummaryRow[]).map((s) => [s.warehouse_id, s]),
+  );
 
   return (warehouses ?? []).map((w) => {
-    const inWarehouse = (products ?? []).filter((p) => p.warehouse_id === w.id);
-    const skuCount = inWarehouse.length;
-    const stockValue = inWarehouse.reduce((s, p) => s + p.qty_on_hand * Number(p.sell_price), 0);
-    const totalUnits = inWarehouse.reduce((s, p) => s + p.qty_on_hand, 0);
+    const s = summaryById.get(w.id);
+    const skuCount = s?.sku_count ?? 0;
+    const stockValue = Number(s?.stock_value ?? 0);
+    const totalUnits = s?.total_units ?? 0;
     const utilizationPct = w.capacity ? Math.min(100, Math.round((totalUnits / w.capacity) * 100)) : 0;
     const manager = w.profiles as unknown as { first_name: string; last_name: string } | null;
     return {
       id: w.id,
       name: w.name,
       address: w.address,
+      managerProfileId: w.manager_profile_id,
       managerName: manager ? `${manager.first_name} ${manager.last_name}` : null,
+      capacity: w.capacity,
       skuCount,
       stockValue,
       utilizationPct,
