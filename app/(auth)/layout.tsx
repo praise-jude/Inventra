@@ -6,7 +6,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       {/* brand panel */}
       <div
         className="authbrand relative hidden flex-1 flex-col justify-between overflow-hidden p-14 text-white"
-        style={{ background: "linear-gradient(160deg,#4b45d1,#635bff 55%,#8a86ff)" }}
+        style={{ background: "linear-gradient(160deg,#1d4ed8,#2563eb 55%,#6366f1)" }}
       >
         <div className="relative z-[2] flex items-center gap-[11px]">
           <div className="flex h-[70px] w-[70px] items-center justify-center rounded-[9px] bg-white p-1">

@@ -9,17 +9,27 @@ import { onDataChanged } from "@/lib/client-events";
 import { usePresence } from "@/components/app/PresenceProvider";
 
 const TITLES: Record<string, string> = {
-  "/dashboard": "Overview",
+  "/dashboard": "Dashboard",
   "/products": "Products",
+  "/inventory/warehouses": "Warehouses",
+  "/inventory/suppliers": "Suppliers",
   "/inventory": "Inventory",
+  "/sales": "Sales",
+  "/purchases": "Purchases",
+  "/debtors": "Customers",
+  "/reports": "Reports",
+  "/expenses": "Expenses",
   "/team": "Team",
+  "/notifications": "Notifications",
   "/billing": "Billing",
   "/settings": "Settings",
 };
 
 function routeTitle(pathname: string) {
-  const match = Object.keys(TITLES).find((k) => pathname.startsWith(k));
-  return match ? TITLES[match] : "Overview";
+  const match = Object.keys(TITLES)
+    .sort((a, b) => b.length - a.length)
+    .find((k) => pathname.startsWith(k));
+  return match ? TITLES[match] : "Dashboard";
 }
 
 export function Topbar({

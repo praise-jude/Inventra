@@ -75,7 +75,7 @@ export function BillingClient({ planKey, seatsUsed, skuCount, warehouseCount, re
 
       <div
         className="mb-[18px] flex flex-wrap items-center justify-between gap-4.5 rounded-2xl p-[20px_22px] text-white shadow-[var(--shadow)]"
-        style={{ background: "linear-gradient(135deg,var(--accent),#8a86ff)" }}
+        style={{ background: "linear-gradient(135deg,var(--accent),#6366f1)" }}
       >
         <div>
           <div className="text-[12.5px] font-bold uppercase tracking-[0.05em] opacity-85">{current.name} plan</div>

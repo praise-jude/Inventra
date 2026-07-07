@@ -4,7 +4,7 @@ import {
   getCategoryMix,
   getTopSellers,
   getStockHealth,
-  getMonthlyStats,
+  getMonthlyRevenueProfit,
   getMonthlySalesVolume,
   getRecentActivity,
   getDailyProductProfit,
@@ -47,13 +47,13 @@ function timeAgo(iso: string): string {
 export default async function DashboardPage() {
   const { profile, org } = await requireProfile();
   const isAdminTier = isManagerRole(profile.role);
-  const [kpis, categoryMix, topSellers, stockHealth, monthlyStats, salesVolume, expenseBreakdown, activity, dailyProfit, teamMembers] =
+  const [kpis, categoryMix, topSellers, stockHealth, revenueProfit, salesVolume, expenseBreakdown, activity, dailyProfit, teamMembers] =
     await Promise.all([
       getKpis(),
       isAdminTier ? getCategoryMix() : Promise.resolve([]),
       getTopSellers(5),
       getStockHealth(),
-      isAdminTier ? getMonthlyStats() : Promise.resolve([]),
+      isAdminTier ? getMonthlyRevenueProfit() : Promise.resolve([]),
       isAdminTier ? getMonthlySalesVolume() : Promise.resolve([]),
       isAdminTier ? getExpenseCategoryBreakdown(org.timezone) : Promise.resolve([]),
       getRecentActivity(5),
@@ -69,10 +69,29 @@ export default async function DashboardPage() {
     0,
   );
 
-  const chartMonths = monthlyStats.map((m) => MONTH_NAMES[new Date(m.month).getUTCMonth()]);
-  const revenueValues = monthlyStats.map((m) => Number(m.revenue));
-  const profitValues = monthlyStats.map((m) => Number(m.profit));
-  const salesVolumeValues = salesVolume.map((m) => m.count);
+  // Revenue/profit and sales-volume are each sparse (only months with real
+  // activity come back from the DB) and fetched independently, so they can't
+  // just be zipped together positionally — build one canonical last-12-months
+  // axis and look every series up against it, defaulting missing months to 0.
+  // This also means new orgs with little or no history get a real 12-month
+  // chart instead of a blank one.
+  const monthCursor = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() - 11, 1));
+  const canonicalMonths: { key: string; label: string }[] = [];
+  for (let i = 0; i < 12; i++) {
+    canonicalMonths.push({
+      key: `${monthCursor.getUTCFullYear()}-${String(monthCursor.getUTCMonth() + 1).padStart(2, "0")}`,
+      label: MONTH_NAMES[monthCursor.getUTCMonth()],
+    });
+    monthCursor.setUTCMonth(monthCursor.getUTCMonth() + 1);
+  }
+  const revenueByMonth = new Map(revenueProfit.map((m) => [m.month.slice(0, 7), m.revenue]));
+  const profitByMonth = new Map(revenueProfit.map((m) => [m.month.slice(0, 7), m.profit]));
+  const salesByMonth = new Map(salesVolume.map((m) => [m.month.slice(0, 7), m.count]));
+
+  const chartMonths = canonicalMonths.map((m) => m.label);
+  const revenueValues = canonicalMonths.map((m) => revenueByMonth.get(m.key) ?? 0);
+  const profitValues = canonicalMonths.map((m) => profitByMonth.get(m.key) ?? 0);
+  const salesVolumeValues = canonicalMonths.map((m) => salesByMonth.get(m.key) ?? 0);
 
   const kpiCards = [
     { label: "Total products", value: formatNumber(kpis.total_products), icon: "📦", iconBg: "var(--accent-weak)", sub: "active SKUs", delta: null as string | null, deltaColor: "", adminOnly: false, tier: "primary" as const },

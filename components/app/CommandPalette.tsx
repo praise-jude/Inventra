@@ -38,12 +38,22 @@ export function CommandPalette({
 
   const pages: PaletteItem[] = useMemo(
     () => [
-      { title: "Overview", sub: "Dashboard", kind: "Page", icon: "▦", bg: "var(--accent-weak)", go: () => router.push("/dashboard") },
+      { title: "Dashboard", sub: "Overview", kind: "Page", icon: "▦", bg: "var(--accent-weak)", go: () => router.push("/dashboard") },
       { title: "Products", sub: "Catalog", kind: "Page", icon: "📦", bg: "var(--accent-weak)", go: () => router.push("/products") },
       { title: "Inventory", sub: "Stock & movements", kind: "Page", icon: "🗃️", bg: "var(--accent-weak)", go: () => router.push("/inventory") },
+      { title: "Sales", sub: "Transactions", kind: "Page", icon: "🧾", bg: "var(--accent-weak)", go: () => router.push("/sales") },
+      { title: "Purchases", sub: "Purchase orders", kind: "Page", icon: "🛒", bg: "var(--accent-weak)", go: () => router.push("/purchases") },
+      { title: "Customers", sub: "Balances & payments", kind: "Page", icon: "💵", bg: "var(--accent-weak)", go: () => router.push("/debtors") },
+      { title: "Suppliers", sub: "Vendors", kind: "Page", icon: "🚚", bg: "var(--accent-weak)", go: () => router.push("/inventory/suppliers") },
+      { title: "Warehouses", sub: "Locations & transfers", kind: "Page", icon: "🏬", bg: "var(--accent-weak)", go: () => router.push("/inventory/warehouses") },
+      { title: "Reports", sub: "Sales, inventory, P&L", kind: "Page", icon: "📈", bg: "var(--accent-weak)", go: () => router.push("/reports") },
+      { title: "Expenses", sub: "Spending & trends", kind: "Page", icon: "💸", bg: "var(--accent-weak)", go: () => router.push("/expenses") },
       { title: "Team", sub: "Members & roles", kind: "Page", icon: "👥", bg: "var(--accent-weak)", go: () => router.push("/team") },
+      { title: "Notifications", sub: "Alerts & activity", kind: "Page", icon: "🔔", bg: "var(--accent-weak)", go: () => router.push("/notifications") },
       { title: "Billing", sub: "Plan & invoices", kind: "Page", icon: "💳", bg: "var(--accent-weak)", go: () => router.push("/billing") },
+      { title: "Settings", sub: "General, printing, integrations", kind: "Page", icon: "⚙️", bg: "var(--accent-weak)", go: () => router.push("/settings") },
       { title: "New product", sub: "Add to catalog", kind: "Action", icon: "＋", bg: "var(--green-weak)", go: () => router.push("/products?new=1") },
+      { title: "New sale", sub: "Record a transaction", kind: "Action", icon: "＋", bg: "var(--green-weak)", go: () => router.push("/sales/new") },
       { title: "Toggle dark mode", sub: "Appearance", kind: "Action", icon: "◐", bg: "var(--sky-weak)", go: onToggleTheme },
     ],
     [router, onToggleTheme],

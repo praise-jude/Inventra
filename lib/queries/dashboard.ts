@@ -41,6 +41,10 @@ export async function getStockHealth(): Promise<StockHealthRow[]> {
   return (data ?? []) as StockHealthRow[];
 }
 
+// Kept for scripts/seed.ts's demo data — the live dashboard no longer reads
+// from this table (see getMonthlyRevenueProfit below): monthly_stats is only
+// ever populated with hardcoded numbers by the seed script, so for every real
+// org it has zero rows and left the Monthly profit KPI and trend chart blank.
 export async function getMonthlyStats(): Promise<MonthlyStat[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -51,9 +55,24 @@ export async function getMonthlyStats(): Promise<MonthlyStat[]> {
   return data ?? [];
 }
 
-// Sales *volume* (transaction count) is a distinct signal from monthly_stats'
-// revenue/profit — it lets the dashboard show a real "sales trend" chart
-// instead of duplicating the revenue line under a different label.
+// Live-computed revenue/profit per month from the stock_movements ledger —
+// only returns rows for months that actually had a sale (sparse); the caller
+// is responsible for filling gap months with 0 against a canonical month list.
+export async function getMonthlyRevenueProfit(): Promise<{ month: string; revenue: number; profit: number }[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_monthly_revenue_profit");
+  if (error) throw error;
+  return ((data ?? []) as { month: string; revenue: number; profit: number }[]).map((r) => ({
+    month: r.month,
+    revenue: Number(r.revenue),
+    profit: Number(r.profit),
+  }));
+}
+
+// Sales *volume* (transaction count) is a distinct signal from revenue/profit
+// — it lets the dashboard show a real "sales trend" chart instead of
+// duplicating the revenue line under a different label. Sparse, same as
+// getMonthlyRevenueProfit above — caller fills gap months with 0.
 export async function getMonthlySalesVolume(): Promise<{ month: string; count: number }[]> {
   const supabase = await createClient();
   const since = new Date();
@@ -69,14 +88,7 @@ export async function getMonthlySalesVolume(): Promise<{ month: string; count: n
     const key = row.created_at.slice(0, 7); // YYYY-MM
     byMonth.set(key, (byMonth.get(key) ?? 0) + 1);
   }
-  const months: { month: string; count: number }[] = [];
-  const cursor = new Date(since);
-  for (let i = 0; i < 12; i++) {
-    const key = `${cursor.getUTCFullYear()}-${String(cursor.getUTCMonth() + 1).padStart(2, "0")}`;
-    months.push({ month: `${key}-01`, count: byMonth.get(key) ?? 0 });
-    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
-  }
-  return months;
+  return Array.from(byMonth.entries()).map(([key, count]) => ({ month: `${key}-01`, count }));
 }
 
 // The deployed RPC always computes for the current date server-side and
