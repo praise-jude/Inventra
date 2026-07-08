@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useToast } from "@/components/app/ToastProvider";
@@ -25,19 +25,22 @@ export function CategoriesClient({ categories, canManage }: { categories: Catego
     return categories.filter((c) => c.name.toLowerCase().includes(q));
   }, [categories, query]);
 
-  async function handleDelete(category: CategoryRow) {
-    if (!window.confirm(`Delete "${category.name}"? This can't be undone.`)) return;
-    setBusyId(category.id);
-    try {
-      await deleteCategory(category.id);
-      flash("Category deleted");
-      router.refresh();
-    } catch (err) {
-      flash(err instanceof Error ? err.message : "Could not delete the category.");
-    } finally {
-      setBusyId(null);
-    }
-  }
+  const handleDelete = useCallback(
+    async (category: CategoryRow) => {
+      if (!window.confirm(`Delete "${category.name}"? This can't be undone.`)) return;
+      setBusyId(category.id);
+      try {
+        await deleteCategory(category.id);
+        flash("Category deleted");
+        router.refresh();
+      } catch (err) {
+        flash(err instanceof Error ? err.message : "Could not delete the category.");
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [flash, router],
+  );
 
   async function handleBulkDelete(rows: CategoryRow[], clear: () => void) {
     if (!window.confirm(`Delete ${rows.length} categor${rows.length === 1 ? "y" : "ies"}? This can't be undone.`)) return;
@@ -56,7 +59,7 @@ export function CategoriesClient({ categories, canManage }: { categories: Catego
     router.refresh();
   }
 
-  const columns: TableColumn<CategoryRow>[] = [
+  const columns: TableColumn<CategoryRow>[] = useMemo(() => [
     {
       key: "category",
       header: "Category",
@@ -106,7 +109,7 @@ export function CategoriesClient({ categories, canManage }: { categories: Catego
           },
         ]
       : []),
-  ];
+  ], [canManage, busyId, handleDelete]);
 
   return (
     <div>

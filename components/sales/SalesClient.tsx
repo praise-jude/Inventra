@@ -11,11 +11,22 @@ import type { CustomerOption } from "@/lib/queries/customers";
 import { Table, type TableColumn } from "@/components/ui/Table";
 import { EmptyState } from "@/components/ui/EmptyState";
 
-export function SalesClient({ sales, customers, canDelete }: { sales: SaleListRow[]; customers: CustomerOption[]; canDelete: boolean }) {
+export function SalesClient({
+  sales,
+  customers,
+  warehouses,
+  canDelete,
+}: {
+  sales: SaleListRow[];
+  customers: CustomerOption[];
+  warehouses: { id: string; name: string }[];
+  canDelete: boolean;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { format: formatMoney, formatDateTime } = useWorkspace();
   const [query, setQuery] = useState("");
+  const [warehouseFilter, setWarehouseFilter] = useState("");
   const [detail, setDetail] = useState<SaleDetail | null>(null);
 
   useEffect(() => {
@@ -25,16 +36,19 @@ export function SalesClient({ sales, customers, canDelete }: { sales: SaleListRo
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return sales;
-    return sales.filter((s) => s.customerName.toLowerCase().includes(q));
-  }, [sales, query]);
+    return sales.filter((s) => {
+      if (warehouseFilter && s.warehouseId !== warehouseFilter) return false;
+      if (!q) return true;
+      return s.customerName.toLowerCase().includes(q);
+    });
+  }, [sales, query, warehouseFilter]);
 
   function closeDetail() {
     setDetail(null);
     router.replace("/sales");
   }
 
-  const columns: TableColumn<SaleListRow>[] = [
+  const columns: TableColumn<SaleListRow>[] = useMemo(() => [
     {
       key: "customer",
       header: "Customer",
@@ -56,6 +70,13 @@ export function SalesClient({ sales, customers, canDelete }: { sales: SaleListRo
       render: (s) => <span className="text-[12.5px] text-text-2">{s.paymentSummary}</span>,
     },
     {
+      key: "branch",
+      header: "Branch",
+      sortable: true,
+      sortValue: (s) => s.warehouseName ?? "",
+      render: (s) => <span className="text-[12.5px] text-text-2">{s.warehouseName ?? "—"}</span>,
+    },
+    {
       key: "date",
       header: "Date",
       sortable: true,
@@ -70,7 +91,9 @@ export function SalesClient({ sales, customers, canDelete }: { sales: SaleListRo
       sortValue: (s) => s.total,
       render: (s) => <span className="font-mono text-[13px] font-bold">{formatMoney(s.total)}</span>,
     },
-  ];
+  ], [formatMoney, formatDateTime]);
+
+  const showWarehouseFilter = warehouses.length > 0;
 
   return (
     <div className="animate-fade-up">
@@ -87,14 +110,30 @@ export function SalesClient({ sales, customers, canDelete }: { sales: SaleListRo
         </Link>
       </div>
 
-      <div className="mb-3.5 flex h-[37px] items-center gap-2 rounded-[9px] border border-border bg-surface px-3 text-muted">
-        <span>⌕</span>
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by customer…"
-          className="flex-1 border-none bg-transparent text-[13px] text-text outline-none"
-        />
+      <div className="mb-3.5 flex flex-wrap items-center gap-2.5">
+        <div className="flex h-[37px] min-w-[200px] flex-1 items-center gap-2 rounded-[9px] border border-border bg-surface px-3 text-muted">
+          <span>⌕</span>
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search by customer…"
+            className="flex-1 border-none bg-transparent text-[13px] text-text outline-none"
+          />
+        </div>
+        {showWarehouseFilter && (
+          <select
+            value={warehouseFilter}
+            onChange={(e) => setWarehouseFilter(e.target.value)}
+            className="h-[37px] rounded-[9px] border border-border bg-surface px-2.5 text-[13px] font-semibold text-text-2 hover:bg-hover"
+          >
+            <option value="">All branches</option>
+            {warehouses.map((w) => (
+              <option key={w.id} value={w.id}>
+                {w.name}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
       <Table

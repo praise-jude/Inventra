@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { usePathname } from "next/navigation";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { getStockAlerts, type StockAlert } from "@/lib/actions/alerts";
@@ -23,6 +24,7 @@ const TITLES: Record<string, string> = {
   "/notifications": "Notifications",
   "/billing": "Billing",
   "/settings": "Settings",
+  "/support": "Contact support",
 };
 
 function routeTitle(pathname: string) {
@@ -131,12 +133,13 @@ export function Topbar({
               <span>Command palette</span>
               <span className="rounded-[5px] border border-border px-1.5 py-px font-mono text-[11px] text-faint">⌘K</span>
             </button>
-            <a
-              href="mailto:support@inventra.app"
+            <Link
+              href="/support"
+              onClick={() => setHelpOpen(false)}
               className="block rounded-[8px] px-2.5 py-2 text-left text-[13px] font-medium text-text hover:bg-hover"
             >
               Contact support
-            </a>
+            </Link>
           </div>
         )}
       </div>

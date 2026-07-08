@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/app/ToastProvider";
 import { createWarehouse, updateWarehouse } from "@/lib/actions/warehouses";
 import type { WarehouseOverview } from "@/lib/queries/inventory";
+import { COUNTRIES, statesForCountry } from "@/lib/geo/countries";
 import { Field } from "@/components/ui/Field";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
@@ -28,11 +29,15 @@ export function WarehouseModal({
   const [form, setForm] = useState({
     name: warehouse?.name ?? "",
     address: warehouse?.address ?? "",
+    country: warehouse?.country ?? "",
+    state: warehouse?.state ?? "",
+    phone: warehouse?.phone ?? "",
     managerProfileId: warehouse?.managerProfileId ?? "",
     capacity: warehouse?.capacity ? String(warehouse.capacity) : "",
   });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const states = useMemo(() => statesForCountry(form.country), [form.country]);
 
   function set<K extends keyof typeof form>(key: K, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -46,6 +51,9 @@ export function WarehouseModal({
       const input = {
         name: form.name,
         address: form.address,
+        country: form.country,
+        state: form.state,
+        phone: form.phone,
         managerProfileId: form.managerProfileId,
         capacity: form.capacity ? Number(form.capacity) : undefined,
       };
@@ -76,23 +84,42 @@ export function WarehouseModal({
         className="animate-scale-in w-full max-w-[500px] rounded-2xl border border-border bg-surface shadow-[var(--shadow-lg)]"
       >
         <div className="flex items-center justify-between border-b border-border px-[22px] py-[18px]">
-          <div className="text-[16px] font-bold">{warehouse ? "Edit warehouse" : "New warehouse"}</div>
+          <div className="text-[16px] font-bold">{warehouse ? "Edit branch" : "New branch"}</div>
           <button type="button" onClick={onClose} className="h-8 w-8 rounded-[8px] border border-border bg-surface text-text">
             ✕
           </button>
         </div>
         <div className="flex flex-col gap-3.5 px-[22px] py-5">
-          <Field label="Warehouse name" value={form.name} onChange={(e) => set("name", e.target.value)} required />
+          <Field label="Branch name" value={form.name} onChange={(e) => set("name", e.target.value)} required />
           <Field label="Address" value={form.address} onChange={(e) => set("address", e.target.value)} />
           <div className="grid grid-cols-2 gap-3">
-            <Select label="Manager" value={form.managerProfileId} onChange={(e) => set("managerProfileId", e.target.value)}>
-              <option value="">Unassigned</option>
-              {managers.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
+            <Select
+              label="Country"
+              value={form.country}
+              onChange={(e) => setForm((f) => ({ ...f, country: e.target.value, state: "" }))}
+            >
+              <option value="">Select country…</option>
+              {COUNTRIES.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.name}
                 </option>
               ))}
             </Select>
+            {states.length > 0 ? (
+              <Select label="State" value={form.state} onChange={(e) => set("state", e.target.value)}>
+                <option value="">Select state…</option>
+                {states.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </Select>
+            ) : (
+              <Field label="State" value={form.state} onChange={(e) => set("state", e.target.value)} />
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Phone (optional)" value={form.phone} onChange={(e) => set("phone", e.target.value)} />
             <Field
               label="Capacity (units)"
               type="number"
@@ -102,6 +129,14 @@ export function WarehouseModal({
               onChange={(e) => set("capacity", e.target.value)}
             />
           </div>
+          <Select label="Manager" value={form.managerProfileId} onChange={(e) => set("managerProfileId", e.target.value)}>
+            <option value="">Unassigned</option>
+            {managers.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </Select>
           {error && <p className="text-[13px] font-medium text-red">{error}</p>}
         </div>
         <div className="flex justify-end gap-2.5 border-t border-border px-[22px] py-4">
@@ -109,7 +144,7 @@ export function WarehouseModal({
             Cancel
           </Button>
           <Button type="submit" disabled={saving}>
-            {saving ? "Saving…" : warehouse ? "Save changes" : "Create warehouse"}
+            {saving ? "Saving…" : warehouse ? "Save changes" : "Create branch"}
           </Button>
         </div>
       </form>

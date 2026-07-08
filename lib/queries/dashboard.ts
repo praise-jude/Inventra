@@ -75,20 +75,9 @@ export async function getMonthlyRevenueProfit(): Promise<{ month: string; revenu
 // getMonthlyRevenueProfit above — caller fills gap months with 0.
 export async function getMonthlySalesVolume(): Promise<{ month: string; count: number }[]> {
   const supabase = await createClient();
-  const since = new Date();
-  since.setUTCMonth(since.getUTCMonth() - 11, 1);
-  const { data, error } = await supabase
-    .from("sales")
-    .select("created_at")
-    .gte("created_at", since.toISOString());
+  const { data, error } = await supabase.rpc("get_monthly_sales_volume");
   if (error) throw error;
-
-  const byMonth = new Map<string, number>();
-  for (const row of data ?? []) {
-    const key = row.created_at.slice(0, 7); // YYYY-MM
-    byMonth.set(key, (byMonth.get(key) ?? 0) + 1);
-  }
-  return Array.from(byMonth.entries()).map(([key, count]) => ({ month: `${key}-01`, count }));
+  return ((data ?? []) as { month: string; count: number }[]).map((row) => ({ month: row.month, count: Number(row.count) }));
 }
 
 // The deployed RPC always computes for the current date server-side and

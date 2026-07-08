@@ -23,13 +23,17 @@ import { formatTodayHeader, formatCurrentTime, greetingFor } from "@/lib/datetim
 import { countryName } from "@/lib/geo/countries";
 import { MOVEMENT_META } from "@/lib/movement-meta";
 import { isManagerRole } from "@/lib/roles";
+import { STOCK_STATUS_COLORS } from "@/lib/stock-status";
 
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
+// "expiring" is a synthetic 4th bucket from get_stock_health() (expiry_date
+// based), not a real products.status value, so it isn't part of the shared
+// stock-status colors — only its own local entry here.
 const STOCK_HEALTH_META: Record<string, { label: string; color: string }> = {
-  in_stock: { label: "Healthy stock", color: "var(--green)" },
-  low_stock: { label: "Low stock", color: "var(--amber)" },
-  out_of_stock: { label: "Out of stock", color: "var(--red)" },
+  in_stock: { label: "Healthy stock", color: STOCK_STATUS_COLORS.in_stock.color },
+  low_stock: { label: "Low stock", color: STOCK_STATUS_COLORS.low_stock.color },
+  out_of_stock: { label: "Out of stock", color: STOCK_STATUS_COLORS.out_of_stock.color },
   expiring: { label: "Expiring < 7 days", color: "var(--sky)" },
 };
 

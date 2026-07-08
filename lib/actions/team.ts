@@ -53,7 +53,7 @@ export async function inviteMember(email: string, role: string, firstName: strin
   const admin = createAdminClient();
   const { error } = await admin.auth.admin.inviteUserByEmail(email, {
     data: { org_id: orgId, role, first_name: firstName, last_name: lastName },
-    redirectTo: `${await siteUrl()}/accept-invite`,
+    redirectTo: `${await siteUrl()}/auth/callback?next=/accept-invite`,
   });
   if (error) {
     console.error("[Inventra] inviteMember failed:", { email, orgId, error });
@@ -81,7 +81,7 @@ export async function resendInvite(memberId: string) {
   const admin = createAdminClient();
   const { error } = await admin.auth.admin.inviteUserByEmail(member.email, {
     data: { org_id: orgId, role: member.role, first_name: member.first_name, last_name: member.last_name },
-    redirectTo: `${await siteUrl()}/accept-invite`,
+    redirectTo: `${await siteUrl()}/auth/callback?next=/accept-invite`,
   });
   if (error) {
     console.error("[Inventra] resendInvite failed:", { memberId, orgId, error });

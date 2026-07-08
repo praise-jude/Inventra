@@ -109,7 +109,7 @@ export async function getCategories() {
 
 export async function getWarehouseOptions() {
   const supabase = await createClient();
-  const { data } = await supabase.from("warehouses").select("id, name").order("name");
+  const { data } = await supabase.from("warehouses").select("id, name").eq("status", "active").order("name");
   return data ?? [];
 }
 

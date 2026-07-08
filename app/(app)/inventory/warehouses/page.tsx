@@ -1,6 +1,7 @@
 import { getWarehousesOverview } from "@/lib/queries/inventory";
 import { getTeamMembers } from "@/lib/queries/team";
 import { requireProfile } from "@/lib/queries/session";
+import { isAdminRole, isManagerRole } from "@/lib/roles";
 import { WarehousesClient } from "@/components/inventory/WarehousesClient";
 
 export default async function WarehousesPage() {
@@ -9,8 +10,9 @@ export default async function WarehousesPage() {
     getTeamMembers(),
     requireProfile(),
   ]);
-  const canManage = ["owner", "admin", "manager"].includes(profile.role);
-  const canDelete = ["owner", "admin"].includes(profile.role);
+  const canManage = isAdminRole(profile.role);
+  const canDelete = isAdminRole(profile.role);
+  const canTransfer = isManagerRole(profile.role);
   const managers = teamMembers.map((m) => ({ id: m.id, name: m.name }));
 
   return (
@@ -20,6 +22,7 @@ export default async function WarehousesPage() {
       currency={org.currency}
       canManage={canManage}
       canDelete={canDelete}
+      canTransfer={canTransfer}
     />
   );
 }

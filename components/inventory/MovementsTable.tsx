@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { Table, type TableColumn } from "@/components/ui/Table";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { relativeDayLabel } from "@/lib/datetime";
@@ -7,7 +8,7 @@ import { MOVEMENT_META } from "@/lib/movement-meta";
 import type { MovementRow } from "@/lib/queries/inventory";
 
 export function MovementsTable({ movements, timezone }: { movements: MovementRow[]; timezone: string }) {
-  const columns: TableColumn<MovementRow>[] = [
+  const columns: TableColumn<MovementRow>[] = useMemo(() => [
     {
       key: "type",
       header: "Type",
@@ -64,7 +65,7 @@ export function MovementsTable({ movements, timezone }: { movements: MovementRow
       sortValue: (m) => m.created_at,
       render: (m) => <span className="font-mono text-[12px] text-muted">{relativeDayLabel(m.created_at, timezone)}</span>,
     },
-  ];
+  ], [timezone]);
 
   return (
     <Table

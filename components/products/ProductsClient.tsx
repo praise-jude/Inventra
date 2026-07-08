@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import Papa from "papaparse";
 import { ProductDetailSlideOver } from "@/components/products/ProductDetailSlideOver";
 import { Table, type TableColumn } from "@/components/ui/Table";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -18,22 +17,12 @@ import {
 import type { ProductDetail, ProductListRow } from "@/lib/queries/products";
 import { useToast } from "@/components/app/ToastProvider";
 import { useWorkspace } from "@/components/app/CurrencyProvider";
+import { STOCK_STATUS_COLORS as STATUS_STYLE, STOCK_STATUS_LABELS as STATUS_LABEL } from "@/lib/stock-status";
 
 const AddProductModal = dynamic(() => import("@/components/products/AddProductModal").then((m) => m.AddProductModal));
 const BarcodeScannerModal = dynamic(() =>
   import("@/components/products/BarcodeScannerModal").then((m) => m.BarcodeScannerModal),
 );
-
-const STATUS_STYLE: Record<string, { color: string; background: string }> = {
-  in_stock: { color: "var(--green)", background: "var(--green-weak)" },
-  low_stock: { color: "var(--amber)", background: "var(--amber-weak)" },
-  out_of_stock: { color: "var(--red)", background: "var(--red-weak)" },
-};
-const STATUS_LABEL: Record<string, string> = {
-  in_stock: "In stock",
-  low_stock: "Low stock",
-  out_of_stock: "Out of stock",
-};
 
 const EXPORT_COLUMNS = [
   "name",
@@ -182,6 +171,7 @@ export function ProductsClient({
   async function handleExport() {
     try {
       const rows = await exportProductsCsv();
+      const Papa = (await import("papaparse")).default;
       const csv = Papa.unparse({
         fields: [...EXPORT_COLUMNS],
         data: rows.map((r) => EXPORT_COLUMNS.map((col) => r[col] ?? "")),
@@ -210,6 +200,7 @@ export function ProductsClient({
     setImporting(true);
     try {
       const text = await file.text();
+      const Papa = (await import("papaparse")).default;
       const parsed = Papa.parse<ImportProductRow>(text, { header: true, skipEmptyLines: true });
       const result = await importProductsCsv(parsed.data);
       flash(
@@ -229,7 +220,7 @@ export function ProductsClient({
   const categoryCount = new Set(products.map((p) => p.category).filter(Boolean)).size;
   const warehouseCount = warehouses.length;
 
-  const columns: TableColumn<ProductListRow>[] = [
+  const columns: TableColumn<ProductListRow>[] = useMemo(() => [
     {
       key: "product",
       header: "Product",
@@ -299,7 +290,7 @@ export function ProductsClient({
       align: "right",
       render: () => <span className="text-faint">→</span>,
     },
-  ];
+  ], [formatMoney]);
 
   return (
     <div className="animate-fade-up">

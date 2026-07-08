@@ -18,9 +18,9 @@ export async function getStockAlerts(): Promise<StockAlert[]> {
   const in7 = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const { data } = await supabase
     .from("products")
-    .select("id, name, emoji, qty_on_hand, reorder_level, status, expiry_date")
+    .select("id, name, emoji, qty_on_hand, reorder_level, status, needs_reorder, expiry_date")
     .is("archived_at", null)
-    .or(`status.neq.in_stock,expiry_date.lte.${in7}`)
+    .or(`status.neq.in_stock,needs_reorder.eq.true,expiry_date.lte.${in7}`)
     .order("qty_on_hand", { ascending: true })
     .limit(12);
 
@@ -30,6 +30,8 @@ export async function getStockAlerts(): Promise<StockAlert[]> {
       alerts.push({ id: `${p.id}-out`, productId: p.id, emoji: p.emoji, title: `${p.name} is out of stock`, detail: "0 units on hand", severity: "red" });
     } else if (p.status === "low_stock") {
       alerts.push({ id: `${p.id}-low`, productId: p.id, emoji: p.emoji, title: `${p.name} is low on stock`, detail: `${p.qty_on_hand} left · reorder at ${p.reorder_level}`, severity: "amber" });
+    } else if (p.needs_reorder) {
+      alerts.push({ id: `${p.id}-reorder`, productId: p.id, emoji: p.emoji, title: `${p.name} needs reordering`, detail: `${p.qty_on_hand} left · reorder at ${p.reorder_level}`, severity: "amber" });
     }
     if (p.expiry_date && p.expiry_date <= in7) {
       const days = Math.max(0, Math.ceil((new Date(p.expiry_date).getTime() - Date.now()) / (24 * 60 * 60 * 1000)));

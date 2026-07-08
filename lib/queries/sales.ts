@@ -5,6 +5,8 @@ import type { PaymentMethod } from "@/lib/supabase/database.types";
 export interface SaleListRow {
   id: string;
   customerName: string;
+  warehouseId: string | null;
+  warehouseName: string | null;
   total: number;
   paymentSummary: string;
   itemCount: number;
@@ -18,13 +20,15 @@ const PAYMENT_LABEL: Record<PaymentMethod, string> = {
   mobile_money: "Mobile Money",
 };
 
-export async function getSalesList(): Promise<SaleListRow[]> {
+export async function getSalesList(warehouseId?: string): Promise<SaleListRow[]> {
   const supabase = await createClient();
-  const { data: sales, error } = await supabase
+  let query = supabase
     .from("sales")
-    .select("id, walk_in_name, total, created_at, customers(name)")
+    .select("id, walk_in_name, total, created_at, warehouse_id, customers(name), warehouses(name)")
     .order("created_at", { ascending: false })
     .limit(100);
+  if (warehouseId) query = query.eq("warehouse_id", warehouseId);
+  const { data: sales, error } = await query;
   if (error) {
     console.error("[Inventra] getSalesList (sales) failed:", error.message, error.details, error.hint, error.code);
     throw new Error("Could not load sales.");
@@ -63,6 +67,8 @@ export async function getSalesList(): Promise<SaleListRow[]> {
     return {
       id: s.id,
       customerName: (s.customers as unknown as { name: string } | null)?.name ?? s.walk_in_name ?? "Walk-in customer",
+      warehouseId: s.warehouse_id,
+      warehouseName: (s.warehouses as unknown as { name: string } | null)?.name ?? null,
       total: Number(s.total),
       paymentSummary,
       itemCount: itemCountBySale.get(s.id) ?? 0,

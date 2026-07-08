@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useToast } from "@/components/app/ToastProvider";
 import { createAdjustment } from "@/lib/actions/inventory";
@@ -179,7 +179,7 @@ export function AdjustmentsClient({ adjustments, products }: { adjustments: Move
   const searchParams = useSearchParams();
   const [showCreate, setShowCreate] = useState(() => searchParams.get("new") === "1");
 
-  const columns: TableColumn<MovementRow>[] = [
+  const columns: TableColumn<MovementRow>[] = useMemo(() => [
     {
       key: "type",
       header: "Type",
@@ -233,7 +233,7 @@ export function AdjustmentsClient({ adjustments, products }: { adjustments: Move
       sortValue: (m) => m.created_at,
       render: (m) => <span className="font-mono text-[12px] text-muted">{timeLabel(m.created_at)}</span>,
     },
-  ];
+  ], []);
 
   return (
     <div>

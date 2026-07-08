@@ -1,13 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Field } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const linkExpired = searchParams.get("error") === "expired";
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -29,6 +32,20 @@ export default function ResetPasswordPage() {
       return;
     }
     router.push("/dashboard");
+  }
+
+  if (linkExpired) {
+    return (
+      <div>
+        <h1 className="mb-1.5 text-2xl font-bold tracking-tight">This reset link has expired</h1>
+        <p className="text-text-2">Request a new one and use the link from that email.</p>
+        <p className="mt-6 text-center text-[13.5px] text-text-2">
+          <Link href="/forgot-password" className="font-semibold text-accent-text">
+            ← Request a new link
+          </Link>
+        </p>
+      </div>
+    );
   }
 
   return (

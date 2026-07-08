@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useWorkspace } from "@/components/app/CurrencyProvider";
@@ -68,45 +68,48 @@ export function TeamClient({
   const { online } = usePresence();
   const presenceById = useMemo(() => new Map(online.map((u) => [u.userId, u])), [online]);
 
-  async function run(id: string, action: () => Promise<void>, successMessage: string) {
-    setBusyId(id);
-    setMenuOpenId(null);
-    try {
-      await action();
-      flash(successMessage);
-      router.refresh();
-    } catch (err) {
-      flash(err instanceof Error ? err.message : "Something went wrong.");
-    } finally {
-      setBusyId(null);
-    }
-  }
+  const run = useCallback(
+    async (id: string, action: () => Promise<void>, successMessage: string) => {
+      setBusyId(id);
+      setMenuOpenId(null);
+      try {
+        await action();
+        flash(successMessage);
+        router.refresh();
+      } catch (err) {
+        flash(err instanceof Error ? err.message : "Something went wrong.");
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [flash, router],
+  );
 
-  function handleRoleChange(id: string, role: string) {
-    run(id, () => updateMemberRole(id, role), "Role updated");
-  }
+  const handleRoleChange = useCallback((id: string, role: string) => run(id, () => updateMemberRole(id, role), "Role updated"), [run]);
 
-  function handleSuspend(m: TeamMemberRow) {
-    if (!window.confirm(`Suspend ${m.name}? They won't be able to sign in until reactivated.`)) return;
-    run(m.id, () => suspendMember(m.id), "Member suspended");
-  }
+  const handleSuspend = useCallback(
+    (m: TeamMemberRow) => {
+      if (!window.confirm(`Suspend ${m.name}? They won't be able to sign in until reactivated.`)) return;
+      run(m.id, () => suspendMember(m.id), "Member suspended");
+    },
+    [run],
+  );
 
-  function handleReactivate(m: TeamMemberRow) {
-    run(m.id, () => reactivateMember(m.id), "Member reactivated");
-  }
+  const handleReactivate = useCallback((m: TeamMemberRow) => run(m.id, () => reactivateMember(m.id), "Member reactivated"), [run]);
 
-  function handleResendInvite(m: TeamMemberRow) {
-    run(m.id, () => resendInvite(m.id), "Invite resent");
-  }
+  const handleResendInvite = useCallback((m: TeamMemberRow) => run(m.id, () => resendInvite(m.id), "Invite resent"), [run]);
 
-  function handleRemove(m: TeamMemberRow) {
-    if (!window.confirm(`Remove ${m.name} from the team? This can't be undone.`)) return;
-    run(m.id, () => removeMember(m.id), "Member removed");
-  }
+  const handleRemove = useCallback(
+    (m: TeamMemberRow) => {
+      if (!window.confirm(`Remove ${m.name} from the team? This can't be undone.`)) return;
+      run(m.id, () => removeMember(m.id), "Member removed");
+    },
+    [run],
+  );
 
-  const gradientIndex = new Map(members.map((m, i) => [m.id, i]));
+  const gradientIndex = useMemo(() => new Map(members.map((m, i) => [m.id, i])), [members]);
 
-  const columns: TableColumn<TeamMemberRow>[] = [
+  const columns: TableColumn<TeamMemberRow>[] = useMemo(() => [
     {
       key: "member",
       header: "Member",
@@ -271,7 +274,7 @@ export function TeamClient({
         );
       },
     },
-  ];
+  ], [presenceById, currentUserId, busyId, menuOpenId, formatDateTime, gradientIndex, handleRoleChange, handleSuspend, handleReactivate, handleResendInvite, handleRemove]);
 
   return (
     <div className="animate-fade-up">

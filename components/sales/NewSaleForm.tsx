@@ -35,10 +35,12 @@ interface CartLine {
 export function NewSaleForm({
   products,
   customers,
+  warehouses,
   taxRate,
 }: {
   products: ProductListRow[];
   customers: CustomerOption[];
+  warehouses: { id: string; name: string }[];
   taxRate: number;
 }) {
   const router = useRouter();
@@ -47,8 +49,8 @@ export function NewSaleForm({
 
   const [customerMode, setCustomerMode] = useState<"walkin" | "existing">("walkin");
   const [customerId, setCustomerId] = useState(customers[0]?.id ?? "");
-  const [walkInName, setWalkInName] = useState("");
   const [customerList, setCustomerList] = useState(customers);
+  const [warehouseId, setWarehouseId] = useState("");
   const [showNewCustomer, setShowNewCustomer] = useState(false);
   const [newCustomerName, setNewCustomerName] = useState("");
   const [newCustomerPhone, setNewCustomerPhone] = useState("");
@@ -154,7 +156,7 @@ export function NewSaleForm({
     try {
       const saleId = await recordSale({
         customerId: customerMode === "existing" ? customerId : undefined,
-        walkInName: customerMode === "walkin" ? walkInName : undefined,
+        warehouseId: warehouseId || undefined,
         items: cart.map((l) => ({ productId: l.productId, qty: l.qty, discountPct: l.discountPct })),
         paymentMethod,
         notes,
@@ -195,7 +197,7 @@ export function NewSaleForm({
           </div>
         </div>
         {customerMode === "walkin" ? (
-          <Field label="Walk-in customer name (optional)" value={walkInName} onChange={(e) => setWalkInName(e.target.value)} />
+          <p className="text-[13px] text-muted">Walk-in sales don&apos;t require any customer details.</p>
         ) : (
           <div className="flex items-end gap-2">
             <div className="flex-1">
@@ -337,6 +339,16 @@ export function NewSaleForm({
 
       <div className="rounded-2xl border border-border bg-surface p-5 shadow-[var(--shadow-sm)]">
         <div className="mb-3.5 grid grid-cols-2 gap-3">
+          {warehouses.length > 0 && (
+            <Select label="Branch (optional)" value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
+              <option value="">Unassigned</option>
+              {warehouses.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.name}
+                </option>
+              ))}
+            </Select>
+          )}
           <Select label="Payment method" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
             {PAYMENT_OPTIONS.map((p) => (
               <option key={p.value} value={p.value}>

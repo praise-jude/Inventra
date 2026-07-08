@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { acceptInviteTerms } from "@/lib/actions/auth";
@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/Button";
 
 export default function AcceptInvitePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const linkExpired = searchParams.get("error") === "expired";
   const [password, setPassword] = useState("");
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,13 +34,33 @@ export default function AcceptInvitePage() {
       return;
     }
 
-    if (userData.user) {
-      await supabase.from("profiles").update({ status: "active" }).eq("id", userData.user.id);
-      await acceptInviteTerms();
+    try {
+      if (userData.user) {
+        await supabase.from("profiles").update({ status: "active" }).eq("id", userData.user.id);
+        await acceptInviteTerms();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not finish activating your account. Please try signing in — if that fails, ask an admin to resend your invite.");
+      setLoading(false);
+      return;
     }
 
     setLoading(false);
     router.push("/dashboard");
+  }
+
+  if (linkExpired) {
+    return (
+      <div>
+        <h1 className="mb-1.5 text-2xl font-bold tracking-tight">This invite link has expired</h1>
+        <p className="text-text-2">Ask an admin to resend your invitation from Team settings, then use the new link from that email.</p>
+        <p className="mt-6 text-center text-[13.5px] text-text-2">
+          <Link href="/login" className="font-semibold text-accent-text">
+            ← Back to sign in
+          </Link>
+        </p>
+      </div>
+    );
   }
 
   return (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useToast } from "@/components/app/ToastProvider";
@@ -40,18 +40,21 @@ export function DebtorsClient({ overview, canDelete }: { overview: DebtorsOvervi
   const [statusBusyId, setStatusBusyId] = useState<string | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
 
-  async function handleStatusChange(debtor: DebtorRow, status: string) {
-    setStatusBusyId(debtor.id);
-    try {
-      await updateDebtorStatus(debtor.id, status);
-      flash("Status updated");
-      router.refresh();
-    } catch (err) {
-      flash(err instanceof Error ? err.message : "Could not update the status.");
-    } finally {
-      setStatusBusyId(null);
-    }
-  }
+  const handleStatusChange = useCallback(
+    async (debtor: DebtorRow, status: string) => {
+      setStatusBusyId(debtor.id);
+      try {
+        await updateDebtorStatus(debtor.id, status);
+        flash("Status updated");
+        router.refresh();
+      } catch (err) {
+        flash(err instanceof Error ? err.message : "Could not update the status.");
+      } finally {
+        setStatusBusyId(null);
+      }
+    },
+    [flash, router],
+  );
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -74,20 +77,23 @@ export function DebtorsClient({ overview, canDelete }: { overview: DebtorsOvervi
     if (d) setDetail(d);
   }
 
-  async function handleDelete(debtor: DebtorRow, e: React.MouseEvent) {
-    e.stopPropagation();
-    if (!window.confirm(`Delete "${debtor.customerName}"? This can't be undone.`)) return;
-    setBusyId(debtor.id);
-    try {
-      await deleteDebtor(debtor.id);
-      flash("Debtor deleted");
-      router.refresh();
-    } catch (err) {
-      flash(err instanceof Error ? err.message : "Could not delete the debtor.");
-    } finally {
-      setBusyId(null);
-    }
-  }
+  const handleDelete = useCallback(
+    async (debtor: DebtorRow, e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (!window.confirm(`Delete "${debtor.customerName}"? This can't be undone.`)) return;
+      setBusyId(debtor.id);
+      try {
+        await deleteDebtor(debtor.id);
+        flash("Debtor deleted");
+        router.refresh();
+      } catch (err) {
+        flash(err instanceof Error ? err.message : "Could not delete the debtor.");
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [flash, router],
+  );
 
   async function handleBulkDelete(rows: DebtorRow[], clear: () => void) {
     if (!window.confirm(`Delete ${rows.length} debtor(s)? This can't be undone.`)) return;
@@ -106,7 +112,7 @@ export function DebtorsClient({ overview, canDelete }: { overview: DebtorsOvervi
     router.refresh();
   }
 
-  const columns: TableColumn<DebtorRow>[] = [
+  const columns: TableColumn<DebtorRow>[] = useMemo(() => [
     {
       key: "customer",
       header: "Customer",
@@ -184,7 +190,7 @@ export function DebtorsClient({ overview, canDelete }: { overview: DebtorsOvervi
         </div>
       ),
     },
-  ];
+  ], [formatMoney, formatShortDate, statusBusyId, handleStatusChange, busyId, canDelete, handleDelete]);
 
   return (
     <div className="animate-fade-up">

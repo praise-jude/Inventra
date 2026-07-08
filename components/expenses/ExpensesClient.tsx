@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useToast } from "@/components/app/ToastProvider";
@@ -48,19 +48,22 @@ export function ExpensesClient({ overview }: { overview: ExpensesOverview }) {
     { label: "Monthly Expenses", value: formatMoney(overview.monthlyTotal), icon: "📊", bg: "var(--accent-weak)" },
   ];
 
-  async function handleDelete(expense: ExpenseRow) {
-    if (!window.confirm("Delete this expense? This can't be undone.")) return;
-    setBusyId(expense.id);
-    try {
-      await deleteExpense(expense.id);
-      flash("Expense deleted");
-      router.refresh();
-    } catch (err) {
-      flash(err instanceof Error ? err.message : "Could not delete the expense.");
-    } finally {
-      setBusyId(null);
-    }
-  }
+  const handleDelete = useCallback(
+    async (expense: ExpenseRow) => {
+      if (!window.confirm("Delete this expense? This can't be undone.")) return;
+      setBusyId(expense.id);
+      try {
+        await deleteExpense(expense.id);
+        flash("Expense deleted");
+        router.refresh();
+      } catch (err) {
+        flash(err instanceof Error ? err.message : "Could not delete the expense.");
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [flash, router],
+  );
 
   async function handleBulkDelete(rows: ExpenseRow[], clear: () => void) {
     if (!window.confirm(`Delete ${rows.length} expense(s)? This can't be undone.`)) return;
@@ -79,7 +82,7 @@ export function ExpensesClient({ overview }: { overview: ExpensesOverview }) {
     router.refresh();
   }
 
-  const columns: TableColumn<ExpenseRow>[] = [
+  const columns: TableColumn<ExpenseRow>[] = useMemo(() => [
     {
       key: "category",
       header: "Category",
@@ -130,7 +133,7 @@ export function ExpensesClient({ overview }: { overview: ExpensesOverview }) {
         </div>
       ),
     },
-  ];
+  ], [formatMoney, formatShortDate, busyId, handleDelete]);
 
   return (
     <div className="animate-fade-up">

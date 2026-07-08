@@ -9,22 +9,25 @@ export interface InventoryCard {
   bg: string;
 }
 
+interface InventoryCardsTotals {
+  current_stock: number;
+  reserved: number;
+  damaged: number;
+  returned: number;
+  expiring: number;
+}
+
 export async function getInventoryCards(): Promise<InventoryCard[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("products")
-    .select("qty_on_hand, qty_reserved, qty_damaged, qty_returned, expiry_date")
-    .is("archived_at", null);
+  const { data, error } = await supabase.rpc("get_inventory_cards").single();
   if (error) throw error;
+  const totals = data as InventoryCardsTotals | null;
 
-  const rows = data ?? [];
-  const current = rows.reduce((s, r) => s + r.qty_on_hand, 0);
-  const reserved = rows.reduce((s, r) => s + r.qty_reserved, 0);
-  const damaged = rows.reduce((s, r) => s + r.qty_damaged, 0);
-  const returned = rows.reduce((s, r) => s + r.qty_returned, 0);
-  const in7 = new Date();
-  in7.setDate(in7.getDate() + 7);
-  const expiring = rows.filter((r) => r.expiry_date && new Date(r.expiry_date) <= in7).length;
+  const current = totals?.current_stock ?? 0;
+  const reserved = totals?.reserved ?? 0;
+  const damaged = totals?.damaged ?? 0;
+  const returned = totals?.returned ?? 0;
+  const expiring = totals?.expiring ?? 0;
 
   return [
     { label: "Current stock", value: current, sub: "total units", icon: "📦", bg: "var(--accent-weak)" },
@@ -93,6 +96,10 @@ export interface WarehouseOverview {
   id: string;
   name: string;
   address: string | null;
+  country: string | null;
+  state: string | null;
+  phone: string | null;
+  status: "active" | "inactive";
   managerProfileId: string | null;
   managerName: string | null;
   capacity: number | null;
@@ -132,7 +139,7 @@ export async function getWarehousesOverview(): Promise<WarehouseOverview[]> {
   const [{ data: warehouses, error }, { data: summary }] = await Promise.all([
     supabase
       .from("warehouses")
-      .select("id, name, address, capacity, manager_profile_id, profiles(first_name, last_name)")
+      .select("id, name, address, country, state, phone, status, capacity, manager_profile_id, profiles(first_name, last_name)")
       .order("name"),
     supabase.rpc("get_warehouse_stock_summary"),
   ]);
@@ -153,6 +160,10 @@ export async function getWarehousesOverview(): Promise<WarehouseOverview[]> {
       id: w.id,
       name: w.name,
       address: w.address,
+      country: w.country,
+      state: w.state,
+      phone: w.phone,
+      status: w.status as "active" | "inactive",
       managerProfileId: w.manager_profile_id,
       managerName: manager ? `${manager.first_name} ${manager.last_name}` : null,
       capacity: w.capacity,

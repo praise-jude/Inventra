@@ -1,12 +1,13 @@
 "use client";
 
+import { useMemo } from "react";
 import { Table, type TableColumn } from "@/components/ui/Table";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { formatMoneyCompact, formatNumber } from "@/lib/format";
 import type { DailyProductProfitRow } from "@/lib/supabase/database.types";
 
 export function DailyProfitTable({ rows, currency }: { rows: DailyProductProfitRow[]; currency: string }) {
-  const columns: TableColumn<DailyProductProfitRow>[] = [
+  const columns: TableColumn<DailyProductProfitRow>[] = useMemo(() => [
     {
       key: "name",
       header: "Product",
@@ -54,7 +55,7 @@ export function DailyProfitTable({ rows, currency }: { rows: DailyProductProfitR
         </span>
       ),
     },
-  ];
+  ], [currency]);
 
   return (
     <Table

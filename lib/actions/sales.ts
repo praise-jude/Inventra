@@ -46,7 +46,7 @@ export interface SaleLineInput {
 
 export interface RecordSaleInput {
   customerId?: string;
-  walkInName?: string;
+  warehouseId?: string;
   items: SaleLineInput[];
   paymentMethod: string;
   notes?: string;
@@ -104,7 +104,7 @@ export async function recordSale(input: RecordSaleInput) {
     .insert({
       org_id: orgId,
       customer_id: input.customerId || null,
-      walk_in_name: input.customerId ? null : input.walkInName?.trim() || null,
+      warehouse_id: input.warehouseId || null,
       subtotal,
       discount_amount: discountAmount,
       tax_amount: taxAmount,
@@ -153,7 +153,6 @@ export async function recordSale(input: RecordSaleInput) {
 
 export interface UpdateSaleInput {
   customerId?: string;
-  walkInName?: string;
   notes?: string;
   paymentMethod?: string;
 }
@@ -161,13 +160,19 @@ export interface UpdateSaleInput {
 export async function updateSale(id: string, input: UpdateSaleInput) {
   const { supabase } = await requireSalesOrgId();
 
+  // Only clear walk_in_name when switching to a registered customer — leave it
+  // untouched otherwise so existing walk-in sales keep their historical name.
+  const updatePayload: Record<string, unknown> = {
+    customer_id: input.customerId || null,
+    notes: input.notes?.trim() || null,
+  };
+  if (input.customerId) {
+    updatePayload.walk_in_name = null;
+  }
+
   const { data: updated, error: saleError } = await supabase
     .from("sales")
-    .update({
-      customer_id: input.customerId || null,
-      walk_in_name: input.customerId ? null : input.walkInName?.trim() || null,
-      notes: input.notes?.trim() || null,
-    })
+    .update(updatePayload)
     .eq("id", id)
     .select("id")
     .maybeSingle();

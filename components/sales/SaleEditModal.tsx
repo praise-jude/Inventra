@@ -32,7 +32,6 @@ export function SaleEditModal({
   const flash = useToast();
   const [customerMode, setCustomerMode] = useState<"walkin" | "existing">(sale.customerId ? "existing" : "walkin");
   const [customerId, setCustomerId] = useState(sale.customerId ?? customers[0]?.id ?? "");
-  const [walkInName, setWalkInName] = useState(sale.walkInName ?? "");
   const [notes, setNotes] = useState(sale.notes ?? "");
   const [method, setMethod] = useState(paymentMethod ?? "cash");
   const [saving, setSaving] = useState(false);
@@ -45,7 +44,6 @@ export function SaleEditModal({
     try {
       await updateSale(sale.id, {
         customerId: customerMode === "existing" ? customerId : undefined,
-        walkInName: customerMode === "walkin" ? walkInName : undefined,
         notes,
         paymentMethod: method,
       });
@@ -98,7 +96,7 @@ export function SaleEditModal({
             </div>
           </div>
           {customerMode === "walkin" ? (
-            <Field label="Walk-in customer name (optional)" value={walkInName} onChange={(e) => setWalkInName(e.target.value)} />
+            <p className="text-[13px] text-muted">Walk-in sales don&apos;t require any customer details.</p>
           ) : (
             <Select label="Customer" value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
               {customers.length === 0 && <option value="">No customers yet</option>}

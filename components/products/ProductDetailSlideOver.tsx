@@ -10,9 +10,9 @@ import { createAdjustment } from "@/lib/actions/inventory";
 import { notifyDataChanged } from "@/lib/client-events";
 import type { ProductDetail } from "@/lib/queries/products";
 import { useWorkspace } from "@/components/app/CurrencyProvider";
-import { BarcodePreview } from "@/components/products/BarcodePreview";
 
 const EditProductModal = dynamic(() => import("@/components/products/EditProductModal").then((m) => m.EditProductModal));
+const BarcodePreview = dynamic(() => import("@/components/products/BarcodePreview").then((m) => m.BarcodePreview));
 
 interface Option {
   id: string;
