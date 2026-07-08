@@ -3,7 +3,8 @@
 import { Table, type TableColumn } from "@/components/ui/Table";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { relativeDayLabel } from "@/lib/datetime";
-import { MOVEMENT_META, type MovementRow } from "@/lib/queries/inventory";
+import { MOVEMENT_META } from "@/lib/movement-meta";
+import type { MovementRow } from "@/lib/queries/inventory";
 
 export function MovementsTable({ movements, timezone }: { movements: MovementRow[]; timezone: string }) {
   const columns: TableColumn<MovementRow>[] = [
