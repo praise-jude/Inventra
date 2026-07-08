@@ -23,3 +23,8 @@ next-env.d.ts
 
 # supabase CLI local cache
 /supabase/.temp/
+
+/lib/generated/prisma
+
+.vercel
+.env*
