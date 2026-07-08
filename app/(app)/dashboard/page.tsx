@@ -16,9 +16,8 @@ import { getTeamMembers } from "@/lib/queries/team";
 import { AreaChart } from "@/components/charts/AreaChart";
 import { DonutChart } from "@/components/charts/DonutChart";
 import { TeamPresenceCard } from "@/components/team/TeamPresenceCard";
-import { Table, type TableColumn } from "@/components/ui/Table";
+import { DailyProfitTable } from "@/components/dashboard/DailyProfitTable";
 import { EmptyState } from "@/components/ui/EmptyState";
-import type { DailyProductProfitRow } from "@/lib/supabase/database.types";
 import { formatMoneyCompact, formatNumber, formatPct, pctDelta } from "@/lib/format";
 import { formatTodayHeader, formatCurrentTime, greetingFor } from "@/lib/datetime";
 import { countryName } from "@/lib/geo/countries";
@@ -158,56 +157,6 @@ export default async function DashboardPage() {
   ].filter((card) => isAdminTier || !card.adminOnly);
   const primaryKpis = kpiCards.filter((c) => c.tier === "primary");
   const secondaryKpis = kpiCards.filter((c) => c.tier === "secondary");
-
-  const dailyProfitColumns: TableColumn<DailyProductProfitRow>[] = [
-    {
-      key: "name",
-      header: "Product",
-      sortable: true,
-      sortValue: (p) => p.name,
-      render: (p) => (
-        <span className="font-semibold">
-          {p.emoji || "📦"} {p.name}
-        </span>
-      ),
-    },
-    {
-      key: "units",
-      header: "Units sold",
-      align: "right",
-      sortable: true,
-      sortValue: (p) => Number(p.units) || 0,
-      render: (p) => <span className="font-mono">{formatNumber(Number(p.units) || 0)}</span>,
-    },
-    {
-      key: "revenue",
-      header: "Revenue",
-      align: "right",
-      sortable: true,
-      sortValue: (p) => Number(p.revenue) || 0,
-      render: (p) => <span className="font-mono">{formatMoneyCompact(Number(p.revenue) || 0, org.currency)}</span>,
-    },
-    {
-      key: "cost",
-      header: "Cost",
-      align: "right",
-      sortable: true,
-      sortValue: (p) => Number(p.cost) || 0,
-      render: (p) => <span className="font-mono text-text-2">{formatMoneyCompact(Number(p.cost) || 0, org.currency)}</span>,
-    },
-    {
-      key: "profit",
-      header: "Profit",
-      align: "right",
-      sortable: true,
-      sortValue: (p) => Number(p.profit) || 0,
-      render: (p) => (
-        <span className="font-mono font-bold" style={{ color: (Number(p.profit) || 0) >= 0 ? "var(--green)" : "var(--red)" }}>
-          {formatMoneyCompact(Number(p.profit) || 0, org.currency)}
-        </span>
-      ),
-    },
-  ];
 
   const today = formatTodayHeader(org.timezone);
   const currentTime = formatCurrentTime(org.timezone);
@@ -486,14 +435,7 @@ export default async function DashboardPage() {
             </div>
           </div>
         </div>
-        <Table
-          columns={dailyProfitColumns}
-          rows={dailyProfit}
-          rowKey={(p) => p.product_id}
-          pageSize={8}
-          search={dailyProfit.length > 8 ? { placeholder: "Search products…", filter: (p, q) => p.name.toLowerCase().includes(q) } : undefined}
-          emptyState={<EmptyState compact icon="💰" title="No sales recorded today yet" description="Today's per-product profit will appear here once a sale is made." />}
-        />
+        <DailyProfitTable rows={dailyProfit} currency={org.currency} />
       </div>
       )}
     </div>
