@@ -70,13 +70,21 @@ export async function getStockMovements(limit = 50): Promise<MovementRow[]> {
   }));
 }
 
+export interface AdjustmentRow extends MovementRow {
+  adjustment_type: string | null;
+  notes: string | null;
+  branch_name: string | null;
+}
+
 // The adjustment log shows manual corrections only — adjustments and expiry
 // write-offs — not the full ledger (sales, receipts, transfers, returns).
-export async function getAdjustments(limit = 50): Promise<MovementRow[]> {
+export async function getAdjustments(limit = 50): Promise<AdjustmentRow[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("stock_movements")
-    .select("id, type, qty_delta, reason, created_at, products(name), profiles(first_name, last_name)")
+    .select(
+      "id, type, qty_delta, reason, adjustment_type, notes, created_at, products(name), profiles(first_name, last_name), warehouses(name)",
+    )
     .in("type", ["adjustment", "expired"])
     .order("created_at", { ascending: false })
     .limit(limit);
@@ -86,9 +94,12 @@ export async function getAdjustments(limit = 50): Promise<MovementRow[]> {
     type: m.type,
     qty_delta: m.qty_delta,
     reason: m.reason,
+    adjustment_type: m.adjustment_type,
+    notes: m.notes,
     created_at: m.created_at,
     product_name: (m.products as unknown as { name: string } | null)?.name ?? "—",
     who: m.profiles ? `${(m.profiles as unknown as { first_name: string; last_name: string }).first_name} ${(m.profiles as unknown as { first_name: string; last_name: string }).last_name}` : "System",
+    branch_name: (m.warehouses as unknown as { name: string } | null)?.name ?? null,
   }));
 }
 
