@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { recordLogin } from "@/lib/actions/audit";
 import { Field } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 
@@ -27,6 +28,7 @@ export default function LoginPage() {
       setLoading(false);
       return;
     }
+    void recordLogin();
     router.push("/dashboard");
   }
 

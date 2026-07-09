@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { searchProductsForOrg } from "@/lib/queries/search";
 
 export interface PaletteProductResult {
   id: string;
@@ -10,13 +10,6 @@ export interface PaletteProductResult {
 }
 
 export async function searchProducts(query: string): Promise<PaletteProductResult[]> {
-  if (!query.trim()) return [];
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("products")
-    .select("id, name, sku, emoji")
-    .is("archived_at", null)
-    .or(`name.ilike.%${query}%,sku.ilike.%${query}%`)
-    .limit(5);
-  return data ?? [];
+  const results = await searchProductsForOrg(query, { activeOnly: true, limit: 5 });
+  return results.map((r) => ({ id: r.id, name: r.name, sku: r.sku, emoji: r.emoji }));
 }

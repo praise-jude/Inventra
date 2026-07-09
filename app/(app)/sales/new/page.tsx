@@ -18,7 +18,7 @@ export default async function NewSalePage() {
         <div className="mt-[3px] text-text-2">Record a transaction and update stock automatically.</div>
       </div>
       <NewSaleForm
-        products={products.filter((p) => p.qty > 0)}
+        products={products.filter((p) => p.qty > 0 && p.isActive)}
         customers={customers}
         warehouses={warehouses}
         taxRate={Number(org.tax_rate)}

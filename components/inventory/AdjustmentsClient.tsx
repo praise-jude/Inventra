@@ -5,12 +5,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useToast } from "@/components/app/ToastProvider";
 import { createAdjustment } from "@/lib/actions/inventory";
 import { notifyDataChanged } from "@/lib/client-events";
-import type { MovementRow } from "@/lib/queries/inventory";
+import type { AdjustmentRow } from "@/lib/queries/inventory";
 import { MOVEMENT_META } from "@/lib/movement-meta";
+import type { AdjustmentType } from "@/lib/supabase/database.types";
 import { Field } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Table, type TableColumn } from "@/components/ui/Table";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { ExportMenu } from "@/components/ui/ExportMenu";
 
 interface ProductOption {
   id: string;
@@ -20,6 +22,25 @@ interface ProductOption {
 }
 
 const REASONS = ["Damaged in transit", "Stock recount", "Theft / loss", "Past expiry date", "Other"];
+
+// Maps the canned reason to a queryable adjustment category — "Other" falls
+// back to the increase/decrease direction since it has no inherent category.
+const REASON_TYPE: Partial<Record<string, AdjustmentType>> = {
+  "Damaged in transit": "damaged",
+  "Stock recount": "count_correction",
+  "Theft / loss": "loss",
+  "Past expiry date": "expired",
+};
+
+const ADJUSTMENT_TYPE_LABEL: Record<string, string> = {
+  increase: "Increase",
+  decrease: "Decrease",
+  damaged: "Damaged",
+  expired: "Expired",
+  count_correction: "Stock Count Correction",
+  loss: "Stock Loss",
+  other: "Other",
+};
 
 function timeLabel(iso: string): string {
   const d = new Date(iso);
@@ -42,6 +63,7 @@ function CreateAdjustmentModal({ products, onClose }: { products: ProductOption[
   const [qty, setQty] = useState("");
   const [reason, setReason] = useState(REASONS[0]);
   const [customReason, setCustomReason] = useState("");
+  const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -66,6 +88,8 @@ function CreateAdjustmentModal({ products, onClose }: { products: ProductOption[
         productId,
         qtyDelta: direction === "decrease" ? -qtyNum : qtyNum,
         reason: finalReason,
+        notes: notes.trim() || undefined,
+        adjustmentType: REASON_TYPE[reason] ?? (direction === "increase" ? "increase" : "decrease"),
         kind: reason === "Past expiry date" ? "expired" : "adjustment",
       });
       flash("Adjustment recorded");
@@ -139,7 +163,7 @@ function CreateAdjustmentModal({ products, onClose }: { products: ProductOption[
             </div>
           </div>
           <div>
-            <label className="mb-1.5 block text-[12.5px] font-semibold text-text-2">Reason</label>
+            <label className="mb-1.5 block text-[12.5px] font-semibold text-text-2">Adjustment Type / Reason</label>
             <select
               value={reason}
               onChange={(e) => setReason(e.target.value)}
@@ -155,6 +179,16 @@ function CreateAdjustmentModal({ products, onClose }: { products: ProductOption[
           {reason === "Other" && (
             <Field label="Custom reason" placeholder="e.g. Sample given to customer" value={customReason} onChange={(e) => setCustomReason(e.target.value)} required />
           )}
+          <div>
+            <label className="mb-1.5 block text-[12.5px] font-semibold text-text-2">Notes (optional)</label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Any extra detail for this adjustment…"
+              rows={2}
+              className="w-full rounded-[9px] border border-border bg-surface px-3 py-2 text-[13.5px] text-text outline-none"
+            />
+          </div>
           {product && direction === "decrease" && (
             <p className="text-[12px] text-muted">
               {product.qty} on hand — stock can&apos;t go below zero.
@@ -175,11 +209,11 @@ function CreateAdjustmentModal({ products, onClose }: { products: ProductOption[
   );
 }
 
-export function AdjustmentsClient({ adjustments, products }: { adjustments: MovementRow[]; products: ProductOption[] }) {
+export function AdjustmentsClient({ adjustments, products }: { adjustments: AdjustmentRow[]; products: ProductOption[] }) {
   const searchParams = useSearchParams();
   const [showCreate, setShowCreate] = useState(() => searchParams.get("new") === "1");
 
-  const columns: TableColumn<MovementRow>[] = useMemo(() => [
+  const columns: TableColumn<AdjustmentRow>[] = useMemo(() => [
     {
       key: "type",
       header: "Type",
@@ -217,27 +251,54 @@ export function AdjustmentsClient({ adjustments, products }: { adjustments: Move
       ),
     },
     {
+      key: "adjustment_type",
+      header: "Adjustment Type",
+      render: (m) => <span className="text-[12.5px] text-text-2">{m.adjustment_type ? ADJUSTMENT_TYPE_LABEL[m.adjustment_type] ?? m.adjustment_type : "—"}</span>,
+    },
+    {
       key: "reason",
       header: "Reason",
       render: (m) => <span className="text-[12.5px] text-text-2">{m.reason ?? "—"}</span>,
     },
     {
+      key: "notes",
+      header: "Notes",
+      render: (m) => <span className="text-[12.5px] text-muted">{m.notes ?? "—"}</span>,
+    },
+    {
+      key: "branch",
+      header: "Branch",
+      render: (m) => <span className="text-[12.5px] text-text-2">{m.branch_name ?? "—"}</span>,
+    },
+    {
       key: "by",
-      header: "By",
+      header: "User",
       render: (m) => <span className="text-[12.5px] text-text-2">{m.who}</span>,
     },
     {
       key: "when",
-      header: "When",
+      header: "Date",
       sortable: true,
       sortValue: (m) => m.created_at,
       render: (m) => <span className="font-mono text-[12px] text-muted">{timeLabel(m.created_at)}</span>,
     },
   ], []);
 
+  const exportColumns = [
+    { key: "product_name", header: "Product", value: (m: AdjustmentRow) => m.product_name },
+    { key: "qty_delta", header: "Quantity", value: (m: AdjustmentRow) => m.qty_delta },
+    { key: "adjustment_type", header: "Adjustment Type", value: (m: AdjustmentRow) => (m.adjustment_type ? ADJUSTMENT_TYPE_LABEL[m.adjustment_type] ?? m.adjustment_type : "") },
+    { key: "reason", header: "Reason", value: (m: AdjustmentRow) => m.reason ?? "" },
+    { key: "notes", header: "Notes", value: (m: AdjustmentRow) => m.notes ?? "" },
+    { key: "branch_name", header: "Branch", value: (m: AdjustmentRow) => m.branch_name ?? "" },
+    { key: "who", header: "User", value: (m: AdjustmentRow) => m.who },
+    { key: "created_at", header: "Date", value: (m: AdjustmentRow) => new Date(m.created_at).toLocaleString() },
+  ];
+
   return (
     <div>
-      <div className="mb-3.5 flex justify-end">
+      <div className="mb-3.5 flex justify-end gap-2.5">
+        <ExportMenu rows={adjustments} columns={exportColumns} filenameBase="stock-adjustments" pdfTitle="Stock Adjustments" />
         <button
           onClick={() => setShowCreate(true)}
           className="h-[37px] rounded-[9px] bg-accent px-4 text-[13px] font-semibold text-white shadow-[var(--shadow-sm)]"

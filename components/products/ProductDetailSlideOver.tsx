@@ -5,7 +5,7 @@ import { useState } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import { useToast } from "@/components/app/ToastProvider";
-import { archiveProduct, deleteProduct, duplicateProduct, fetchProductDetail } from "@/lib/actions/products";
+import { archiveProduct, deleteProduct, duplicateProduct, fetchProductDetail, setProductActive } from "@/lib/actions/products";
 import { createAdjustment } from "@/lib/actions/inventory";
 import { notifyDataChanged } from "@/lib/client-events";
 import type { ProductDetail } from "@/lib/queries/products";
@@ -89,6 +89,21 @@ export function ProductDetailSlideOver({
     }
   }
 
+  async function handleToggleActive() {
+    setBusy(true);
+    try {
+      await setProductActive(product.id, !product.isActive);
+      const fresh = await fetchProductDetail(product.id);
+      if (fresh) onProductUpdated(fresh);
+      flash(product.isActive ? "Product deactivated" : "Product activated");
+      router.refresh();
+    } catch (err) {
+      flash(err instanceof Error ? err.message : "Could not update the product's status.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleDuplicate() {
     setBusy(true);
     await duplicateProduct(product.id);
@@ -111,7 +126,13 @@ export function ProductDetailSlideOver({
     }
     setAdjustSaving(true);
     try {
-      await createAdjustment({ productId: product.id, qtyDelta, reason: adjustReason.trim(), kind: adjustKind });
+      await createAdjustment({
+        productId: product.id,
+        qtyDelta,
+        reason: adjustReason.trim(),
+        kind: adjustKind,
+        adjustmentType: adjustKind === "expired" ? "expired" : qtyDelta > 0 ? "increase" : "decrease",
+      });
       // Stock only ever changes through the stock_movements ledger (a DB
       // trigger applies qty_delta to products.qty_on_hand), so the fresh
       // read here is the single source of truth for what's now on hand.
@@ -143,7 +164,12 @@ export function ProductDetailSlideOver({
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="truncate text-[16px] font-bold tracking-tight">{product.name}</div>
+            <div className="flex items-center gap-2">
+              <div className="truncate text-[16px] font-bold tracking-tight">{product.name}</div>
+              {!product.isActive && (
+                <span className="rounded-[20px] bg-red-weak px-[9px] py-px text-[10.5px] font-bold text-red">Inactive</span>
+              )}
+            </div>
             <div className="font-mono text-[12px] text-muted">
               {product.sku} · {product.brand ?? "—"}
             </div>
@@ -159,6 +185,13 @@ export function ProductDetailSlideOver({
               className="h-[38px] flex-1 rounded-[9px] bg-accent text-[13px] font-semibold text-white"
             >
               Edit
+            </button>
+            <button
+              onClick={handleToggleActive}
+              disabled={busy}
+              className="h-[38px] rounded-[9px] border border-border bg-surface px-3.5 text-[13px] font-semibold text-text"
+            >
+              {product.isActive ? "Deactivate" : "Activate"}
             </button>
             <button
               onClick={handleDuplicate}

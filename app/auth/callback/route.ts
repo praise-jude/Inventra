@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { recordLogin } from "@/lib/actions/audit";
 
 // Shared exchange endpoint for every auth flow that hands back a `code`:
 // Google OAuth, team invites, and password-reset emails all redirect here
@@ -13,7 +14,13 @@ export async function GET(request: NextRequest) {
   if (code) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) return NextResponse.redirect(`${origin}${next}`);
+    if (!error) {
+      // Only the default /dashboard path is a genuine sign-in — invite-accept
+      // and password-reset reuse this same callback route for a different
+      // purpose and shouldn't be logged as a login.
+      if (next === "/dashboard") await recordLogin();
+      return NextResponse.redirect(`${origin}${next}`);
+    }
   }
 
   // Code missing, expired, or already used — send the user back to the
