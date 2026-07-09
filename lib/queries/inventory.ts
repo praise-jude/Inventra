@@ -150,7 +150,10 @@ export async function getWarehousesOverview(): Promise<WarehouseOverview[]> {
   const [{ data: warehouses, error }, { data: summary }] = await Promise.all([
     supabase
       .from("warehouses")
-      .select("id, name, address, country, state, phone, status, capacity, manager_profile_id, profiles(first_name, last_name)")
+      // profiles!warehouses_manager_profile_id_fkey disambiguates against the
+      // other profiles<->warehouses relationship (profiles.branch_id) — see
+      // lib/queries/team.ts for the same PGRST201 fix.
+      .select("id, name, address, country, state, phone, status, capacity, manager_profile_id, profiles!warehouses_manager_profile_id_fkey(first_name, last_name)")
       .order("name"),
     supabase.rpc("get_warehouse_stock_summary"),
   ]);

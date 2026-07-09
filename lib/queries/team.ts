@@ -17,7 +17,10 @@ export async function getTeamMembers(): Promise<TeamMemberRow[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, first_name, last_name, email, role, status, suspended_at, last_active_at, warehouses(name)")
+    // profiles has two FKs to warehouses (warehouses.manager_profile_id and
+    // this table's own branch_id) — PostgREST can't infer which one to embed
+    // without the explicit !constraint hint, and errors with PGRST201.
+    .select("id, first_name, last_name, email, role, status, suspended_at, last_active_at, warehouses!profiles_branch_id_fkey(name)")
     .order("created_at", { ascending: true });
   if (error) {
     console.error("[Inventra] getTeamMembers failed:", error);
