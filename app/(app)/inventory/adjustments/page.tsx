@@ -8,7 +8,7 @@ export default async function AdjustmentsPage() {
   return (
     <AdjustmentsClient
       adjustments={adjustments}
-      products={products.map((p) => ({ id: p.id, name: p.name, sku: p.sku, qty: p.qty }))}
+      products={products.filter((p) => p.isActive).map((p) => ({ id: p.id, name: p.name, sku: p.sku, qty: p.qty }))}
     />
   );
 }

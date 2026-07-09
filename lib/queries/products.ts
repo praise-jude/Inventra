@@ -12,19 +12,27 @@ export interface ProductListRow {
   price: number;
   qty: number;
   status: "in_stock" | "low_stock" | "out_of_stock";
+  isActive: boolean;
   category: string | null;
   warehouseId: string | null;
 }
 
-export async function getProducts(): Promise<ProductListRow[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("products")
-    .select("id, sku, barcode, name, brand, emoji, image_url, sell_price, qty_on_hand, status, warehouse_id, categories(name)")
-    .is("archived_at", null)
-    .order("created_at", { ascending: false });
-  if (error) throw error;
-  return (data ?? []).map((p) => ({
+function mapProductRow(p: {
+  id: string;
+  sku: string;
+  barcode: string | null;
+  name: string;
+  brand: string | null;
+  emoji: string | null;
+  image_url: string | null;
+  sell_price: number;
+  qty_on_hand: number;
+  status: "in_stock" | "low_stock" | "out_of_stock";
+  is_active: boolean;
+  warehouse_id: string | null;
+  categories: unknown;
+}): ProductListRow {
+  return {
     id: p.id,
     sku: p.sku,
     barcode: p.barcode,
@@ -35,9 +43,78 @@ export async function getProducts(): Promise<ProductListRow[]> {
     price: Number(p.sell_price),
     qty: p.qty_on_hand,
     status: p.status,
+    isActive: p.is_active,
     category: (p.categories as unknown as { name: string } | null)?.name ?? null,
     warehouseId: p.warehouse_id,
-  }));
+  };
+}
+
+const PRODUCT_LIST_SELECT =
+  "id, sku, barcode, name, brand, emoji, image_url, sell_price, qty_on_hand, status, is_active, warehouse_id, categories(name)";
+
+export async function getProducts(): Promise<ProductListRow[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("products")
+    .select(PRODUCT_LIST_SELECT)
+    .is("archived_at", null)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(mapProductRow);
+}
+
+// Escapes a raw search term for safe use inside a quoted PostgREST `.or()`
+// value — see lib/queries/search.ts for the full explanation of why this is
+// necessary (unescaped commas/parens used to corrupt the filter grammar).
+function escapeIlikeTerm(raw: string): string {
+  return raw.trim().replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+export interface ProductsPageFilters {
+  search?: string;
+  categoryId?: string;
+  warehouseId?: string;
+  status?: "in_stock" | "low_stock" | "out_of_stock";
+  active?: "active" | "inactive";
+}
+
+// Server-side searched + paginated product listing for the Products admin
+// page — unlike getProducts() above (used by pickers that need the whole
+// catalog in memory), this never loads more than one page of rows, and the
+// search is index-backed (pg_trgm) rather than an in-browser full-catalog scan.
+export async function getProductsPage(
+  filters: ProductsPageFilters,
+  page = 1,
+  pageSize = 25,
+): Promise<{ rows: ProductListRow[]; total: number }> {
+  const supabase = await createClient();
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  let query = supabase
+    .from("products")
+    .select(PRODUCT_LIST_SELECT, { count: "exact" })
+    .is("archived_at", null)
+    .order("created_at", { ascending: false });
+
+  if (filters.search?.trim()) {
+    const term = escapeIlikeTerm(filters.search);
+    query = query.or(
+      ["name", "sku", "barcode", "brand"].map((col) => `${col}.ilike."%${term}%"`).join(","),
+    );
+  }
+  if (filters.categoryId) query = query.eq("category_id", filters.categoryId);
+  if (filters.warehouseId) query = query.eq("warehouse_id", filters.warehouseId);
+  if (filters.status) query = query.eq("status", filters.status);
+  if (filters.active === "active") query = query.eq("is_active", true);
+  if (filters.active === "inactive") query = query.eq("is_active", false);
+
+  const { data, error, count } = await query.range(from, to);
+  if (error) {
+    console.error("[Inventra] getProductsPage failed:", error);
+    throw new Error("Could not load products.");
+  }
+  return { rows: (data ?? []).map(mapProductRow), total: count ?? 0 };
 }
 
 export interface ProductDetail {
@@ -61,6 +138,7 @@ export interface ProductDetail {
   supplier: string | null;
   warehouseId: string | null;
   warehouse: string | null;
+  isActive: boolean;
   variants: { id: string; name: string; sku_suffix: string | null; qty_on_hand: number }[];
 }
 
@@ -69,7 +147,7 @@ export async function getProductDetail(id: string): Promise<ProductDetail | null
   const { data, error } = await supabase
     .from("products")
     .select(
-      "id, sku, barcode, name, description, brand, emoji, image_url, unit, cost_price, sell_price, qty_on_hand, reorder_level, expiry_date, category_id, supplier_id, warehouse_id, categories(name), suppliers(name), warehouses(name), product_variants(id, name, sku_suffix, qty_on_hand)",
+      "id, sku, barcode, name, description, brand, emoji, image_url, unit, cost_price, sell_price, qty_on_hand, reorder_level, expiry_date, category_id, supplier_id, warehouse_id, is_active, categories(name), suppliers(name), warehouses(name), product_variants(id, name, sku_suffix, qty_on_hand)",
     )
     .eq("id", id)
     .is("archived_at", null)
@@ -97,6 +175,7 @@ export async function getProductDetail(id: string): Promise<ProductDetail | null
     supplier: (data.suppliers as unknown as { name: string } | null)?.name ?? null,
     warehouseId: data.warehouse_id,
     warehouse: (data.warehouses as unknown as { name: string } | null)?.name ?? null,
+    isActive: data.is_active,
     variants: (data.product_variants as unknown as ProductDetail["variants"]) ?? [],
   };
 }
@@ -110,6 +189,12 @@ export async function getCategories() {
 export async function getWarehouseOptions() {
   const supabase = await createClient();
   const { data } = await supabase.from("warehouses").select("id, name").eq("status", "active").order("name");
+  return data ?? [];
+}
+
+export async function getProductOptions() {
+  const supabase = await createClient();
+  const { data } = await supabase.from("products").select("id, name, sku").is("archived_at", null).order("name");
   return data ?? [];
 }
 

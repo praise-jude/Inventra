@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import { ProductDetailSlideOver } from "@/components/products/ProductDetailSlideOver";
@@ -47,25 +47,40 @@ interface Option {
   name: string;
 }
 
+interface ProductsFiltersState {
+  q: string;
+  category: string;
+  warehouse: string;
+  status: string;
+  active: string;
+}
+
 export function ProductsClient({
-  products,
+  rows: products,
+  total,
+  page,
+  pageSize,
   categories,
   warehouses,
   suppliers,
+  filters,
 }: {
-  products: ProductListRow[];
+  rows: ProductListRow[];
+  total: number;
+  page: number;
+  pageSize: number;
   categories: Option[];
   warehouses: Option[];
   suppliers: Option[];
+  filters: ProductsFiltersState;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const flash = useToast();
   const { format: formatMoney } = useWorkspace();
-  const [query, setQuery] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("");
-  const [warehouseFilter, setWarehouseFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [search, setSearch] = useState(filters.q);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showAdd, setShowAdd] = useState(() => searchParams.get("new") === "1");
   const [selected, setSelected] = useState<ProductDetail | null>(null);
   const [showScanner, setShowScanner] = useState(false);
@@ -83,6 +98,28 @@ export function ProductsClient({
   }
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  function pushParams(next: Partial<ProductsFiltersState & { page: number }>) {
+    const merged = { ...filters, page: 1, ...next };
+    const params = new URLSearchParams();
+    if (merged.q) params.set("q", merged.q);
+    if (merged.category) params.set("category", merged.category);
+    if (merged.warehouse) params.set("warehouse", merged.warehouse);
+    if (merged.status) params.set("status", merged.status);
+    if (merged.active) params.set("active", merged.active);
+    if (merged.page && merged.page > 1) params.set("page", String(merged.page));
+    router.push(`${pathname}?${params.toString()}`);
+  }
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (search === filters.q) return;
+    debounceRef.current = setTimeout(() => pushParams({ q: search }), 300);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
+
   function handleProductUpdated(updated: ProductDetail) {
     setSelected(updated);
     setRowOverrides((prev) => ({
@@ -96,6 +133,7 @@ export function ProductsClient({
         price: updated.sell_price,
         qty: updated.qty_on_hand,
         category: updated.category,
+        isActive: updated.isActive,
       },
     }));
   }
@@ -105,15 +143,16 @@ export function ProductsClient({
     if (openId) {
       fetchProductDetail(openId).then((d) => d && setSelected(d));
     }
-  }, [searchParams]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function closeAdd() {
     setShowAdd(false);
-    router.replace("/products");
+    router.replace(pathname);
   }
   function closeDetail() {
     setSelected(null);
-    router.replace("/products");
+    router.replace(pathname);
   }
   async function openDetail(id: string) {
     const detail = await fetchProductDetail(id);
@@ -125,32 +164,14 @@ export function ProductsClient({
     return products.map((p) => (rowOverrides[p.id] ? { ...p, ...rowOverrides[p.id] } : p));
   }, [products, rowOverrides]);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return rows.filter((p) => {
-      if (q) {
-        const matchesQuery =
-          p.name.toLowerCase().includes(q) ||
-          p.sku.toLowerCase().includes(q) ||
-          (p.brand ?? "").toLowerCase().includes(q) ||
-          (p.barcode ?? "").toLowerCase().includes(q);
-        if (!matchesQuery) return false;
-      }
-      if (categoryFilter && p.category !== categoryFilter) return false;
-      if (warehouseFilter && p.warehouseId !== warehouseFilter) return false;
-      if (statusFilter && p.status !== statusFilter) return false;
-      return true;
-    });
-  }, [rows, query, categoryFilter, warehouseFilter, statusFilter]);
-
-  function handleSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+  async function handleSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key !== "Enter") return;
-    const code = query.trim();
+    const code = search.trim();
     if (!code) return;
-    const matches = products.filter((p) => p.sku === code || p.barcode === code);
-    if (matches.length === 1) {
-      setQuery("");
-      openDetail(matches[0].id);
+    const detail = await lookupProductByCode(code);
+    if (detail) {
+      setSearch("");
+      setSelected(detail);
     }
   }
 
@@ -170,11 +191,11 @@ export function ProductsClient({
 
   async function handleExport() {
     try {
-      const rows = await exportProductsCsv();
+      const exportRows = await exportProductsCsv();
       const Papa = (await import("papaparse")).default;
       const csv = Papa.unparse({
         fields: [...EXPORT_COLUMNS],
-        data: rows.map((r) => EXPORT_COLUMNS.map((col) => r[col] ?? "")),
+        data: exportRows.map((r) => EXPORT_COLUMNS.map((col) => r[col] ?? "")),
       });
       const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
@@ -217,8 +238,7 @@ export function ProductsClient({
     }
   }
 
-  const categoryCount = new Set(products.map((p) => p.category).filter(Boolean)).size;
-  const warehouseCount = warehouses.length;
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
 
   const columns: TableColumn<ProductListRow>[] = useMemo(() => [
     {
@@ -227,7 +247,7 @@ export function ProductsClient({
       sortable: true,
       sortValue: (p) => p.name,
       render: (p) => (
-        <div className="flex items-center gap-[11px]">
+        <div className={`flex items-center gap-[11px] ${p.isActive ? "" : "opacity-60"}`}>
           <div className="relative flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-[9px] bg-accent-weak text-[17px]">
             {p.imageUrl ? (
               <Image src={p.imageUrl} alt={p.name} fill sizes="36px" className="object-cover" />
@@ -236,7 +256,10 @@ export function ProductsClient({
             )}
           </div>
           <div>
-            <div className="text-[13.5px] font-semibold">{p.name}</div>
+            <div className="flex items-center gap-1.5 text-[13.5px] font-semibold">
+              {p.name}
+              {!p.isActive && <span className="rounded-[20px] bg-red-weak px-[7px] py-px text-[10px] font-bold text-red">Inactive</span>}
+            </div>
             <div className="text-[11.5px] text-muted">{p.brand ?? "—"}</div>
           </div>
         </div>
@@ -298,7 +321,7 @@ export function ProductsClient({
         <div>
           <div className="text-[22px] font-bold tracking-tight">Products</div>
           <div className="mt-[3px] text-text-2">
-            {products.length} SKUs across {categoryCount} categories · {warehouseCount} warehouses
+            {total} SKUs across {categories.length} categories · {warehouses.length} warehouses
           </div>
         </div>
         <div className="flex gap-2.5">
@@ -335,28 +358,28 @@ export function ProductsClient({
         <div className="flex h-[37px] min-w-[200px] flex-1 items-center gap-2 rounded-[9px] border border-border bg-surface px-3 text-muted">
           <span>⌕</span>
           <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
             onKeyDown={handleSearchKeyDown}
             placeholder="Search by name, SKU, brand, or scan a barcode…"
             className="flex-1 border-none bg-transparent text-[13px] text-text outline-none"
           />
         </div>
         <select
-          value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value)}
+          value={filters.category}
+          onChange={(e) => pushParams({ category: e.target.value })}
           className="h-[37px] rounded-[9px] border border-border bg-surface px-2.5 text-[13px] font-semibold text-text-2 hover:bg-hover"
         >
           <option value="">All categories</option>
           {categories.map((c) => (
-            <option key={c.id} value={c.name}>
+            <option key={c.id} value={c.id}>
               {c.name}
             </option>
           ))}
         </select>
         <select
-          value={warehouseFilter}
-          onChange={(e) => setWarehouseFilter(e.target.value)}
+          value={filters.warehouse}
+          onChange={(e) => pushParams({ warehouse: e.target.value })}
           className="h-[37px] rounded-[9px] border border-border bg-surface px-2.5 text-[13px] font-semibold text-text-2 hover:bg-hover"
         >
           <option value="">All warehouses</option>
@@ -367,8 +390,8 @@ export function ProductsClient({
           ))}
         </select>
         <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          value={filters.status}
+          onChange={(e) => pushParams({ status: e.target.value })}
           className="h-[37px] rounded-[9px] border border-border bg-surface px-2.5 text-[13px] font-semibold text-text-2 hover:bg-hover"
         >
           <option value="">All statuses</option>
@@ -376,17 +399,50 @@ export function ProductsClient({
           <option value="low_stock">Low stock</option>
           <option value="out_of_stock">Out of stock</option>
         </select>
+        <select
+          value={filters.active}
+          onChange={(e) => pushParams({ active: e.target.value })}
+          className="h-[37px] rounded-[9px] border border-border bg-surface px-2.5 text-[13px] font-semibold text-text-2 hover:bg-hover"
+        >
+          <option value="">Active & Inactive</option>
+          <option value="active">Active only</option>
+          <option value="inactive">Inactive only</option>
+        </select>
       </div>
 
       <Table
         columns={columns}
-        rows={filtered}
+        rows={rows}
         rowKey={(p) => p.id}
         onRowClick={(p) => openDetail(p.id)}
-        pageSize={20}
+        pageSize={Math.max(pageSize, rows.length)}
         columnVisibility
         emptyState={<EmptyState compact icon="📦" title="No products match your search" description="Try adjusting your search or filters." />}
       />
+
+      {pageCount > 1 && (
+        <div className="mt-3 flex items-center justify-between text-[12.5px] text-muted">
+          <span>
+            Page {page} of {pageCount} · {total} total
+          </span>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => pushParams({ page: page - 1 })}
+              disabled={page <= 1}
+              className="flex h-8 items-center justify-center rounded-[7px] border border-border bg-surface px-3 disabled:cursor-not-allowed disabled:opacity-40 hover:bg-hover"
+            >
+              ‹ Prev
+            </button>
+            <button
+              onClick={() => pushParams({ page: page + 1 })}
+              disabled={page >= pageCount}
+              className="flex h-8 items-center justify-center rounded-[7px] border border-border bg-surface px-3 disabled:cursor-not-allowed disabled:opacity-40 hover:bg-hover"
+            >
+              Next ›
+            </button>
+          </div>
+        </div>
+      )}
 
       {showAdd && (
         <AddProductModal categories={categories} warehouses={warehouses} suppliers={suppliers} onClose={closeAdd} />
