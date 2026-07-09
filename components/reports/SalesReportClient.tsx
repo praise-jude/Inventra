@@ -15,11 +15,16 @@ export interface SalesReportData {
 
 const GRANULARITY_LABEL: Record<Granularity, string> = { day: "Daily", week: "Weekly", month: "Monthly", year: "Yearly" };
 
+// `iso` is a plain date ("2024-02-01") from a Postgres `date` column with no
+// time/zone component. `new Date(iso)` parses it as UTC midnight, so
+// formatting with locale getters (which read the *local* timezone) shifted
+// the label back a day for any viewer west of UTC — passing `timeZone: "UTC"`
+// keeps the formatting anchored to the same UTC date the string represents.
 function periodLabel(iso: string, granularity: Granularity): string {
   const d = new Date(iso);
-  if (granularity === "year") return d.getFullYear().toString();
-  if (granularity === "month") return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
-  return d.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" });
+  if (granularity === "year") return String(d.getUTCFullYear());
+  if (granularity === "month") return d.toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
+  return d.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric", timeZone: "UTC" });
 }
 
 export function SalesReportClient({ data, granularity }: { data: SalesReportData; granularity: Granularity }) {

@@ -14,10 +14,11 @@ import {
   lookupProductByCode,
   type ImportProductRow,
 } from "@/lib/actions/products";
-import type { ProductDetail, ProductListRow } from "@/lib/queries/products";
+import type { ProductDetail, ProductExportRow, ProductListRow } from "@/lib/queries/products";
 import { useToast } from "@/components/app/ToastProvider";
 import { useWorkspace } from "@/components/app/CurrencyProvider";
 import { STOCK_STATUS_COLORS as STATUS_STYLE, STOCK_STATUS_LABELS as STATUS_LABEL } from "@/lib/stock-status";
+import { exportToCsv } from "@/lib/export";
 
 const AddProductModal = dynamic(() => import("@/components/products/AddProductModal").then((m) => m.AddProductModal));
 const BarcodeScannerModal = dynamic(() =>
@@ -143,16 +144,36 @@ export function ProductsClient({
     if (openId) {
       fetchProductDetail(openId).then((d) => d && setSelected(d));
     }
+    // Deliberately re-runs whenever the `open` param changes (e.g. a
+    // Command Palette or notification link to /products?open=<id> while
+    // already on this route, which doesn't remount the component) — only
+    // the `open` value itself matters, not the other filter params.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [searchParams.get("open")]);
+
+  // Preserves the current search/filter/page params when closing a modal —
+  // clearing the whole query string here would silently drop the user's
+  // filters and bounce them back to an unfiltered page 1.
+  function currentParamsString() {
+    const params = new URLSearchParams();
+    if (filters.q) params.set("q", filters.q);
+    if (filters.category) params.set("category", filters.category);
+    if (filters.warehouse) params.set("warehouse", filters.warehouse);
+    if (filters.status) params.set("status", filters.status);
+    if (filters.active) params.set("active", filters.active);
+    const page = searchParams.get("page");
+    if (page && page !== "1") params.set("page", page);
+    const qs = params.toString();
+    return qs ? `${pathname}?${qs}` : pathname;
+  }
 
   function closeAdd() {
     setShowAdd(false);
-    router.replace(pathname);
+    router.replace(currentParamsString());
   }
   function closeDetail() {
     setSelected(null);
-    router.replace(pathname);
+    router.replace(currentParamsString());
   }
   async function openDetail(id: string) {
     const detail = await fetchProductDetail(id);
@@ -192,18 +213,12 @@ export function ProductsClient({
   async function handleExport() {
     try {
       const exportRows = await exportProductsCsv();
-      const Papa = (await import("papaparse")).default;
-      const csv = Papa.unparse({
-        fields: [...EXPORT_COLUMNS],
-        data: exportRows.map((r) => EXPORT_COLUMNS.map((col) => r[col] ?? "")),
-      });
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `products-${new Date().toISOString().slice(0, 10)}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
+      const columns = EXPORT_COLUMNS.map((col) => ({
+        key: col,
+        header: col,
+        value: (r: ProductExportRow) => r[col] ?? "",
+      }));
+      await exportToCsv(exportRows, columns, `products-${new Date().toISOString().slice(0, 10)}.csv`);
       flash("Export ready");
     } catch {
       flash("Could not export products.");

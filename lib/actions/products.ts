@@ -259,7 +259,7 @@ export async function archiveProduct(id: string) {
   });
 }
 
-export async function setProductActive(id: string, isActive: boolean) {
+export async function setProductActive(id: string, isActive: boolean): Promise<ProductDetail> {
   const { supabase, orgId, userId, role, actorName } = await requireOrgId();
   requireManagerRole(role);
   const { data: updated, error } = await supabase
@@ -291,6 +291,10 @@ export async function setProductActive(id: string, isActive: boolean) {
     previousValue: { isActive: !isActive },
     newValue: { isActive },
   });
+
+  const fresh = await getProductDetail(id);
+  if (!fresh) throw new Error("Product updated, but could not reload its details.");
+  return fresh;
 }
 
 export async function deleteProduct(id: string) {

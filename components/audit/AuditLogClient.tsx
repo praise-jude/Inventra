@@ -6,6 +6,7 @@ import { Table, type TableColumn } from "@/components/ui/Table";
 import { DateRangeFilter } from "@/components/ui/DateRangeFilter";
 import { ExportMenu } from "@/components/ui/ExportMenu";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { useWorkspace } from "@/components/app/CurrencyProvider";
 import type { AuditLogRow } from "@/lib/queries/audit";
 import { fetchAuditLogExportRows } from "@/lib/actions/audit";
 
@@ -22,16 +23,6 @@ function formatValue(v: Record<string, unknown> | null): string {
   return Object.entries(v)
     .map(([k, val]) => `${k}: ${val === null || val === undefined ? "—" : String(val)}`)
     .join(", ");
-}
-
-function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString("en-US", {
-    month: "short",
-    day: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 interface AuditLogFiltersState {
@@ -61,6 +52,7 @@ export function AuditLogClient({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { formatDateTime } = useWorkspace();
   const [search, setSearch] = useState(filters.q);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -165,6 +157,15 @@ export function AuditLogClient({
   }
 
   const [exportRows, setExportRows] = useState<AuditLogRow[] | null>(null);
+  // The "load all filtered rows" export set is only valid for the filters it
+  // was fetched under — reset it whenever the filters change so a stale,
+  // differently-filtered dataset never gets exported under new filters.
+  const filtersKey = JSON.stringify(filters);
+  const [prevFiltersKey, setPrevFiltersKey] = useState(filtersKey);
+  if (filtersKey !== prevFiltersKey) {
+    setPrevFiltersKey(filtersKey);
+    setExportRows(null);
+  }
 
   return (
     <div>

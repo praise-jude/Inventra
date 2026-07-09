@@ -92,9 +92,8 @@ export function ProductDetailSlideOver({
   async function handleToggleActive() {
     setBusy(true);
     try {
-      await setProductActive(product.id, !product.isActive);
-      const fresh = await fetchProductDetail(product.id);
-      if (fresh) onProductUpdated(fresh);
+      const fresh = await setProductActive(product.id, !product.isActive);
+      onProductUpdated(fresh);
       flash(product.isActive ? "Product deactivated" : "Product activated");
       router.refresh();
     } catch (err) {
