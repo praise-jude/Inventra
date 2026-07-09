@@ -1,5 +1,6 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import { orIlike } from "@/lib/postgrest-filter";
 
 export interface ProductListRow {
   id: string;
@@ -63,13 +64,6 @@ export async function getProducts(): Promise<ProductListRow[]> {
   return (data ?? []).map(mapProductRow);
 }
 
-// Escapes a raw search term for safe use inside a quoted PostgREST `.or()`
-// value — see lib/queries/search.ts for the full explanation of why this is
-// necessary (unescaped commas/parens used to corrupt the filter grammar).
-function escapeIlikeTerm(raw: string): string {
-  return raw.trim().replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-}
-
 export interface ProductsPageFilters {
   search?: string;
   categoryId?: string;
@@ -98,10 +92,7 @@ export async function getProductsPage(
     .order("created_at", { ascending: false });
 
   if (filters.search?.trim()) {
-    const term = escapeIlikeTerm(filters.search);
-    query = query.or(
-      ["name", "sku", "barcode", "brand"].map((col) => `${col}.ilike."%${term}%"`).join(","),
-    );
+    query = query.or(orIlike(["name", "sku", "barcode", "brand"], filters.search));
   }
   if (filters.categoryId) query = query.eq("category_id", filters.categoryId);
   if (filters.warehouseId) query = query.eq("warehouse_id", filters.warehouseId);

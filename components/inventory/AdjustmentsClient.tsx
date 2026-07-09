@@ -82,14 +82,18 @@ function CreateAdjustmentModal({ products, onClose }: { products: ProductOption[
       setError("A reason is required for the audit trail.");
       return;
     }
+    // Expiry write-offs only ever remove stock — enforced here too (not just
+    // via the disabled Increase button) so a stale `direction` value can
+    // never produce a positive-qty "expired" movement.
+    const effectiveDirection = reason === "Past expiry date" ? "decrease" : direction;
     setSaving(true);
     try {
       await createAdjustment({
         productId,
-        qtyDelta: direction === "decrease" ? -qtyNum : qtyNum,
+        qtyDelta: effectiveDirection === "decrease" ? -qtyNum : qtyNum,
         reason: finalReason,
         notes: notes.trim() || undefined,
-        adjustmentType: REASON_TYPE[reason] ?? (direction === "increase" ? "increase" : "decrease"),
+        adjustmentType: REASON_TYPE[reason] ?? (effectiveDirection === "increase" ? "increase" : "decrease"),
         kind: reason === "Past expiry date" ? "expired" : "adjustment",
       });
       flash("Adjustment recorded");
@@ -141,21 +145,24 @@ function CreateAdjustmentModal({ products, onClose }: { products: ProductOption[
             <div className="flex-1">
               <label className="mb-1.5 block text-[12.5px] font-semibold text-text-2">Direction</label>
               <div className="flex h-[42px] overflow-hidden rounded-[9px] border border-border">
-                {(["decrease", "increase"] as const).map((d) => (
-                  <button
-                    key={d}
-                    type="button"
-                    onClick={() => setDirection(d)}
-                    className="flex-1 text-[13px] font-semibold capitalize"
-                    style={
-                      direction === d
-                        ? { background: "var(--accent)", color: "#fff" }
-                        : { background: "var(--surface-2)", color: "var(--text-2)" }
-                    }
-                  >
-                    {d === "decrease" ? "− Decrease" : "+ Increase"}
-                  </button>
-                ))}
+                {(["decrease", "increase"] as const).map((d) => {
+                  const isExpiry = reason === "Past expiry date";
+                  const disabled = isExpiry && d === "increase";
+                  const active = isExpiry ? d === "decrease" : direction === d;
+                  return (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setDirection(d)}
+                      disabled={disabled}
+                      title={disabled ? "Expiry write-offs can only decrease stock." : undefined}
+                      className="flex-1 text-[13px] font-semibold capitalize disabled:cursor-not-allowed disabled:opacity-40"
+                      style={active ? { background: "var(--accent)", color: "#fff" } : { background: "var(--surface-2)", color: "var(--text-2)" }}
+                    >
+                      {d === "decrease" ? "− Decrease" : "+ Increase"}
+                    </button>
+                  );
+                })}
               </div>
             </div>
             <div className="w-[120px]">

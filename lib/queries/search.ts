@@ -1,20 +1,6 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
-
-// PostgREST's `.or()` filter string uses `,` to separate conditions and `()`
-// to group them — a raw user search term containing those characters used to
-// corrupt the filter grammar (this was the root cause of "search returns
-// nothing" for queries like "Widget (Blue)"). Wrapping each value in double
-// quotes is PostgREST's own escape hatch for values containing filter
-// metacharacters; only `\` and `"` need escaping once quoted.
-function escapeIlikeTerm(raw: string): string {
-  return raw.trim().replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-}
-
-function orIlike(columns: string[], term: string): string {
-  const escaped = escapeIlikeTerm(term);
-  return columns.map((col) => `${col}.ilike."%${escaped}%"`).join(",");
-}
+import { orIlike } from "@/lib/postgrest-filter";
 
 export interface ProductSearchResult {
   id: string;

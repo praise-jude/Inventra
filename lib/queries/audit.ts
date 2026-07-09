@@ -1,5 +1,6 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import { orIlike } from "@/lib/postgrest-filter";
 
 export interface AuditLogRow {
   id: string;
@@ -53,8 +54,7 @@ export async function getAuditLogs(
 
   let query = supabase.from("audit_logs").select(SELECT, { count: "exact" }).order("created_at", { ascending: false });
   if (filters.search?.trim()) {
-    const term = filters.search.trim().replace(/[%,()]/g, "");
-    query = query.or(`actor_name.ilike.%${term}%,action.ilike.%${term}%,entity_label.ilike.%${term}%`);
+    query = query.or(orIlike(["actor_name", "action", "entity_label"], filters.search));
   }
   if (filters.module) query = query.eq("module", filters.module);
   if (filters.dateFrom) query = query.gte("created_at", `${filters.dateFrom}T00:00:00.000Z`);
@@ -75,8 +75,7 @@ export async function getAuditLogExportRows(filters: AuditLogFilters): Promise<A
   const supabase = await createClient();
   let query = supabase.from("audit_logs").select(SELECT).order("created_at", { ascending: false }).limit(5000);
   if (filters.search?.trim()) {
-    const term = filters.search.trim().replace(/[%,()]/g, "");
-    query = query.or(`actor_name.ilike.%${term}%,action.ilike.%${term}%,entity_label.ilike.%${term}%`);
+    query = query.or(orIlike(["actor_name", "action", "entity_label"], filters.search));
   }
   if (filters.module) query = query.eq("module", filters.module);
   if (filters.dateFrom) query = query.gte("created_at", `${filters.dateFrom}T00:00:00.000Z`);
