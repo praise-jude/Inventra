@@ -73,6 +73,14 @@ export function MovementsTable({ movements, timezone }: { movements: MovementRow
       rows={movements}
       rowKey={(m) => m.id}
       pageSize={20}
+      search={{
+        placeholder: "Search movements…",
+        filter: (m, q) =>
+          m.product_name.toLowerCase().includes(q) ||
+          MOVEMENT_META[m.type].label.toLowerCase().includes(q) ||
+          (m.reason ?? "").toLowerCase().includes(q) ||
+          m.who.toLowerCase().includes(q),
+      }}
       emptyState={<EmptyState compact icon="🗃️" title="No stock movements yet" description="Sales, adjustments, and transfers will show up here." />}
     />
   );

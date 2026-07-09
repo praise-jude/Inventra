@@ -9,30 +9,38 @@ import { Button } from "@/components/ui/Button";
 
 const ROLES = ["admin", "manager", "cashier", "warehouse"];
 
-export function InviteMemberModal({ onClose }: { onClose: () => void }) {
+export function InviteMemberModal({
+  warehouses,
+  onClose,
+}: {
+  warehouses: { id: string; name: string }[];
+  onClose: () => void;
+}) {
   const router = useRouter();
   const flash = useToast();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("manager");
+  const [branchId, setBranchId] = useState(warehouses[0]?.id ?? "");
   const [error, setError] = useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<{ firstName?: string; lastName?: string; email?: string }>({});
+  const [fieldErrors, setFieldErrors] = useState<{ firstName?: string; lastName?: string; email?: string; branchId?: string }>({});
   const [saving, setSaving] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    const errs: { firstName?: string; lastName?: string; email?: string } = {};
+    const errs: { firstName?: string; lastName?: string; email?: string; branchId?: string } = {};
     if (!firstName.trim()) errs.firstName = "First name is required.";
     if (!lastName.trim()) errs.lastName = "Last name is required.";
     if (!email.trim()) errs.email = "Email is required.";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) errs.email = "Enter a valid email address.";
+    if (!branchId) errs.branchId = "Pick a branch.";
     setFieldErrors(errs);
     if (Object.keys(errs).length > 0) return;
     setSaving(true);
     try {
-      await inviteMember(email, role, firstName, lastName);
+      await inviteMember(email, role, firstName, lastName, branchId);
       flash("Invite sent");
       onClose();
       router.refresh();
@@ -110,6 +118,25 @@ export function InviteMemberModal({ onClose }: { onClose: () => void }) {
                 </option>
               ))}
             </select>
+          </div>
+          <div>
+            <label className="mb-1.5 block text-[12.5px] font-semibold text-text-2">Branch</label>
+            <select
+              value={branchId}
+              onChange={(e) => {
+                setBranchId(e.target.value);
+                setFieldErrors((fe) => ({ ...fe, branchId: undefined }));
+              }}
+              className="h-[42px] w-full rounded-[9px] border border-border bg-surface px-3 text-[14px] text-text"
+            >
+              {warehouses.length === 0 && <option value="">No branches yet</option>}
+              {warehouses.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.name}
+                </option>
+              ))}
+            </select>
+            {fieldErrors.branchId && <p className="mt-1.5 text-[12px] font-medium text-red">{fieldErrors.branchId}</p>}
           </div>
           {error && <p className="text-[13px] font-medium text-red">{error}</p>}
         </div>

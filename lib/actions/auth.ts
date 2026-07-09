@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { currencyForCountry, isKnownCountry, timezoneFor } from "@/lib/geo/countries";
 import { CURRENT_TERMS_VERSION } from "@/lib/terms";
+import { siteUrl } from "@/lib/site-url";
 import {
   validateFullName,
   validateEmail,
@@ -22,14 +23,6 @@ async function clientIp(): Promise<string> {
   const forwarded = h.get("x-forwarded-for");
   if (forwarded) return forwarded.split(",")[0].trim();
   return h.get("x-real-ip") ?? "unknown";
-}
-
-async function siteUrl(): Promise<string> {
-  if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL;
-  const h = await headers();
-  const host = h.get("host");
-  const proto = h.get("x-forwarded-proto") ?? "https";
-  return `${proto}://${host}`;
 }
 
 // Only the service-role admin client can read/write signup_attempts (RLS has

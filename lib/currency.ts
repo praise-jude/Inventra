@@ -16,10 +16,3 @@ export function formatMoney(n: number, currency: string = "USD"): string {
   return `${symbol}${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-export function formatMoneyCompact(n: number, currency: string = "USD"): string {
-  const symbol = currencySymbol(currency);
-  const abs = Math.abs(n);
-  if (abs >= 1_000_000) return `${symbol}${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
-  if (abs >= 1_000) return `${symbol}${(n / 1_000).toFixed(1).replace(/\.0$/, "")}k`;
-  return `${symbol}${n.toFixed(0)}`;
-}

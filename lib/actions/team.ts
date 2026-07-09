@@ -1,19 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ADMIN_ROLES } from "@/lib/roles";
 import { logAudit } from "@/lib/actions/audit";
-
-async function siteUrl(): Promise<string> {
-  if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL;
-  const h = await headers();
-  const host = h.get("host");
-  const proto = h.get("x-forwarded-proto") ?? "https";
-  return `${proto}://${host}`;
-}
+import { siteUrl } from "@/lib/site-url";
 
 // Mirrors the check inviteMember already did — Team Management is Admin-tier
 // only (owner/admin). Returns the acting profile so callers can guard
@@ -53,8 +45,10 @@ async function assertNotLastOwner(supabase: Awaited<ReturnType<typeof createClie
   if ((count ?? 0) <= 1) throw new Error("This is the only owner — promote another member to owner first.");
 }
 
-export async function inviteMember(email: string, role: string, firstName: string, lastName: string) {
+export async function inviteMember(email: string, role: string, firstName: string, lastName: string, branchId: string) {
   const { orgId, userId, role: actorRole, actorName } = await requireAdminOrgId();
+
+  if (!branchId) throw new Error("Pick a branch for this member.");
 
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
     throw new Error(
@@ -63,7 +57,7 @@ export async function inviteMember(email: string, role: string, firstName: strin
   }
   const admin = createAdminClient();
   const { error } = await admin.auth.admin.inviteUserByEmail(email, {
-    data: { org_id: orgId, role, first_name: firstName, last_name: lastName },
+    data: { org_id: orgId, role, first_name: firstName, last_name: lastName, branch_id: branchId },
     redirectTo: `${await siteUrl()}/auth/callback?next=/accept-invite`,
   });
   if (error) {
@@ -82,7 +76,7 @@ export async function inviteMember(email: string, role: string, firstName: strin
     module: "Team",
     entityType: "profile",
     entityLabel: `${firstName} ${lastName} (${email})`,
-    newValue: { email, role },
+    newValue: { email, role, branchId },
   });
 }
 
@@ -91,7 +85,7 @@ export async function resendInvite(memberId: string) {
   const supabase = await createClient();
   const { data: member } = await supabase
     .from("profiles")
-    .select("email, role, first_name, last_name, status")
+    .select("email, role, first_name, last_name, status, branch_id")
     .eq("id", memberId)
     .eq("org_id", orgId)
     .single();
@@ -103,7 +97,7 @@ export async function resendInvite(memberId: string) {
   }
   const admin = createAdminClient();
   const { error } = await admin.auth.admin.inviteUserByEmail(member.email, {
-    data: { org_id: orgId, role: member.role, first_name: member.first_name, last_name: member.last_name },
+    data: { org_id: orgId, role: member.role, first_name: member.first_name, last_name: member.last_name, branch_id: member.branch_id },
     redirectTo: `${await siteUrl()}/auth/callback?next=/accept-invite`,
   });
   if (error) {

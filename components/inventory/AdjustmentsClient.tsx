@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useToast } from "@/components/app/ToastProvider";
-import { createAdjustment } from "@/lib/actions/inventory";
+import { createAdjustment, type ProductPickerRow } from "@/lib/actions/inventory";
 import { notifyDataChanged } from "@/lib/client-events";
 import type { AdjustmentRow } from "@/lib/queries/inventory";
 import { MOVEMENT_META } from "@/lib/movement-meta";
@@ -13,13 +13,7 @@ import { Button } from "@/components/ui/Button";
 import { Table, type TableColumn } from "@/components/ui/Table";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ExportMenu } from "@/components/ui/ExportMenu";
-
-interface ProductOption {
-  id: string;
-  name: string;
-  sku: string;
-  qty: number;
-}
+import { ProductSearchSelect } from "@/components/ui/ProductSearchSelect";
 
 const REASONS = ["Damaged in transit", "Stock recount", "Theft / loss", "Past expiry date", "Other"];
 
@@ -55,10 +49,10 @@ function timeLabel(iso: string): string {
   return `${d.toLocaleDateString("en-US", { month: "short", day: "2-digit" })} · ${time}`;
 }
 
-function CreateAdjustmentModal({ products, onClose }: { products: ProductOption[]; onClose: () => void }) {
+function CreateAdjustmentModal({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const flash = useToast();
-  const [productId, setProductId] = useState(products[0]?.id ?? "");
+  const [product, setProduct] = useState<ProductPickerRow | null>(null);
   const [direction, setDirection] = useState<"decrease" | "increase">("decrease");
   const [qty, setQty] = useState("");
   const [reason, setReason] = useState(REASONS[0]);
@@ -67,11 +61,13 @@ function CreateAdjustmentModal({ products, onClose }: { products: ProductOption[
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const product = products.find((p) => p.id === productId);
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!product) {
+      setError("Search for and select a product.");
+      return;
+    }
     const qtyNum = parseInt(qty, 10);
     if (!qtyNum || qtyNum <= 0) {
       setError("Enter a quantity greater than zero.");
@@ -89,7 +85,7 @@ function CreateAdjustmentModal({ products, onClose }: { products: ProductOption[
     setSaving(true);
     try {
       await createAdjustment({
-        productId,
+        productId: product.id,
         qtyDelta: effectiveDirection === "decrease" ? -qtyNum : qtyNum,
         reason: finalReason,
         notes: notes.trim() || undefined,
@@ -129,17 +125,7 @@ function CreateAdjustmentModal({ products, onClose }: { products: ProductOption[
         <div className="flex flex-col gap-3.5 px-[22px] py-5">
           <div>
             <label className="mb-1.5 block text-[12.5px] font-semibold text-text-2">Product</label>
-            <select
-              value={productId}
-              onChange={(e) => setProductId(e.target.value)}
-              className="h-[42px] w-full rounded-[9px] border border-border bg-surface px-3 text-[14px] text-text"
-            >
-              {products.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} · {p.sku} ({p.qty} on hand)
-                </option>
-              ))}
-            </select>
+            <ProductSearchSelect value={product} onChange={setProduct} autoFocus />
           </div>
           <div className="flex gap-3">
             <div className="flex-1">
@@ -216,7 +202,7 @@ function CreateAdjustmentModal({ products, onClose }: { products: ProductOption[
   );
 }
 
-export function AdjustmentsClient({ adjustments, products }: { adjustments: AdjustmentRow[]; products: ProductOption[] }) {
+export function AdjustmentsClient({ adjustments }: { adjustments: AdjustmentRow[] }) {
   const searchParams = useSearchParams();
   const [showCreate, setShowCreate] = useState(() => searchParams.get("new") === "1");
 
@@ -319,6 +305,16 @@ export function AdjustmentsClient({ adjustments, products }: { adjustments: Adju
         rows={adjustments}
         rowKey={(m) => m.id}
         pageSize={20}
+        search={{
+          placeholder: "Search adjustments…",
+          filter: (m, q) =>
+            m.product_name.toLowerCase().includes(q) ||
+            (m.reason ?? "").toLowerCase().includes(q) ||
+            (m.notes ?? "").toLowerCase().includes(q) ||
+            (m.adjustment_type ? (ADJUSTMENT_TYPE_LABEL[m.adjustment_type] ?? m.adjustment_type) : "").toLowerCase().includes(q) ||
+            (m.branch_name ?? "").toLowerCase().includes(q) ||
+            m.who.toLowerCase().includes(q),
+        }}
         emptyState={
           <EmptyState
             icon="🧾"
@@ -329,7 +325,7 @@ export function AdjustmentsClient({ adjustments, products }: { adjustments: Adju
         }
       />
 
-      {showCreate && <CreateAdjustmentModal products={products} onClose={() => setShowCreate(false)} />}
+      {showCreate && <CreateAdjustmentModal onClose={() => setShowCreate(false)} />}
     </div>
   );
 }

@@ -53,11 +53,13 @@ export function TeamClient({
   seatsUsed,
   seatsTotal,
   currentUserId,
+  warehouses,
 }: {
   members: TeamMemberRow[];
   seatsUsed: number;
   seatsTotal: number;
   currentUserId: string;
+  warehouses: { id: string; name: string }[];
 }) {
   const router = useRouter();
   const flash = useToast();
@@ -174,6 +176,13 @@ export function TeamClient({
           </select>
         );
       },
+    },
+    {
+      key: "branch",
+      header: "Branch",
+      sortable: true,
+      sortValue: (m) => m.branchName ?? "",
+      render: (m) => <span className="text-[12.5px] text-text-2">{m.branchName ?? "—"}</span>,
     },
     {
       key: "status",
@@ -304,7 +313,7 @@ export function TeamClient({
         ))}
       </div>
 
-      {showInvite && <InviteMemberModal onClose={() => setShowInvite(false)} />}
+      {showInvite && <InviteMemberModal warehouses={warehouses} onClose={() => setShowInvite(false)} />}
     </div>
   );
 }

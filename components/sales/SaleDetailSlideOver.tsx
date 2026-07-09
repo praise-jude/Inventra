@@ -7,8 +7,8 @@ import { useToast } from "@/components/app/ToastProvider";
 import { useWorkspace } from "@/components/app/CurrencyProvider";
 import { deleteSale } from "@/lib/actions/sales";
 import type { SaleDetail } from "@/lib/queries/sales";
-import type { CustomerOption } from "@/lib/queries/customers";
 import type { PaymentMethod } from "@/lib/supabase/database.types";
+import { ReceiptModal } from "@/components/sales/ReceiptModal";
 
 const SaleEditModal = dynamic(() => import("@/components/sales/SaleEditModal").then((m) => m.SaleEditModal));
 
@@ -21,12 +21,10 @@ const PAYMENT_LABEL: Record<PaymentMethod, string> = {
 
 export function SaleDetailSlideOver({
   sale,
-  customers,
   canDelete,
   onClose,
 }: {
   sale: SaleDetail;
-  customers: CustomerOption[];
   canDelete: boolean;
   onClose: () => void;
 }) {
@@ -34,6 +32,7 @@ export function SaleDetailSlideOver({
   const flash = useToast();
   const { format: formatMoney, formatDateTime } = useWorkspace();
   const [showEdit, setShowEdit] = useState(false);
+  const [showReceipt, setShowReceipt] = useState(false);
   const [busy, setBusy] = useState(false);
 
   async function handleDelete() {
@@ -72,6 +71,12 @@ export function SaleDetailSlideOver({
               className="h-[38px] flex-1 rounded-[9px] bg-accent text-[13px] font-semibold text-white"
             >
               Edit
+            </button>
+            <button
+              onClick={() => setShowReceipt(true)}
+              className="h-[38px] rounded-[9px] border border-border bg-surface px-3.5 text-[13px] font-semibold text-text hover:bg-hover"
+            >
+              🧾 Receipt
             </button>
             {canDelete && (
               <button
@@ -135,11 +140,11 @@ export function SaleDetailSlideOver({
       {showEdit && (
         <SaleEditModal
           sale={sale}
-          customers={customers}
           paymentMethod={sale.payments.length === 1 ? sale.payments[0].method : null}
           onClose={() => setShowEdit(false)}
         />
       )}
+      {showReceipt && <ReceiptModal saleId={sale.id} onClose={() => setShowReceipt(false)} />}
     </>
   );
 }

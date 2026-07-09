@@ -1,14 +1,8 @@
 import { getAdjustments } from "@/lib/queries/inventory";
-import { getProducts } from "@/lib/queries/products";
 import { AdjustmentsClient } from "@/components/inventory/AdjustmentsClient";
 
 export default async function AdjustmentsPage() {
-  const [adjustments, products] = await Promise.all([getAdjustments(50), getProducts()]);
+  const adjustments = await getAdjustments(50);
 
-  return (
-    <AdjustmentsClient
-      adjustments={adjustments}
-      products={products.filter((p) => p.isActive).map((p) => ({ id: p.id, name: p.name, sku: p.sku, qty: p.qty }))}
-    />
-  );
+  return <AdjustmentsClient adjustments={adjustments} />;
 }

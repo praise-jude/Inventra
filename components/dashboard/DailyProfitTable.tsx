@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { Table, type TableColumn } from "@/components/ui/Table";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { formatMoneyCompact, formatNumber } from "@/lib/format";
+import { formatMoney, formatNumber } from "@/lib/format";
 import type { DailyProductProfitRow } from "@/lib/supabase/database.types";
 
 export function DailyProfitTable({ rows, currency }: { rows: DailyProductProfitRow[]; currency: string }) {
@@ -33,7 +33,7 @@ export function DailyProfitTable({ rows, currency }: { rows: DailyProductProfitR
       align: "right",
       sortable: true,
       sortValue: (p) => Number(p.revenue) || 0,
-      render: (p) => <span className="font-mono">{formatMoneyCompact(Number(p.revenue) || 0, currency)}</span>,
+      render: (p) => <span className="font-mono">{formatMoney(Number(p.revenue) || 0, currency)}</span>,
     },
     {
       key: "cost",
@@ -41,7 +41,7 @@ export function DailyProfitTable({ rows, currency }: { rows: DailyProductProfitR
       align: "right",
       sortable: true,
       sortValue: (p) => Number(p.cost) || 0,
-      render: (p) => <span className="font-mono text-text-2">{formatMoneyCompact(Number(p.cost) || 0, currency)}</span>,
+      render: (p) => <span className="font-mono text-text-2">{formatMoney(Number(p.cost) || 0, currency)}</span>,
     },
     {
       key: "profit",
@@ -51,7 +51,7 @@ export function DailyProfitTable({ rows, currency }: { rows: DailyProductProfitR
       sortValue: (p) => Number(p.profit) || 0,
       render: (p) => (
         <span className="font-mono font-bold" style={{ color: (Number(p.profit) || 0) >= 0 ? "var(--green)" : "var(--red)" }}>
-          {formatMoneyCompact(Number(p.profit) || 0, currency)}
+          {formatMoney(Number(p.profit) || 0, currency)}
         </span>
       ),
     },

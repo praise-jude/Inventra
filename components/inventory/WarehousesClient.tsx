@@ -6,7 +6,7 @@ import dynamic from "next/dynamic";
 import { useToast } from "@/components/app/ToastProvider";
 import { archiveWarehouse, deleteWarehouse, reactivateWarehouse } from "@/lib/actions/warehouses";
 import type { WarehouseOverview } from "@/lib/queries/inventory";
-import { formatMoneyCompact, formatNumber } from "@/lib/format";
+import { formatMoney, formatNumber } from "@/lib/format";
 import { EmptyState } from "@/components/ui/EmptyState";
 
 const WarehouseModal = dynamic(() => import("@/components/inventory/WarehouseModal").then((m) => m.WarehouseModal));
@@ -138,7 +138,7 @@ export function WarehousesClient({
               </div>
               <div className="mt-1.5 flex justify-between text-[12.5px]">
                 <span className="text-text-2">Stock value</span>
-                <span className="font-mono font-bold">{formatMoneyCompact(w.stockValue, currency)}</span>
+                <span className="font-mono font-bold">{formatMoney(w.stockValue, currency)}</span>
               </div>
               {(canManage || canTransfer) && (
                 <div className="mt-3.5 flex flex-wrap gap-2 border-t border-border pt-3">

@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useToast } from "@/components/app/ToastProvider";
 import { updateSale } from "@/lib/actions/sales";
 import type { SaleDetail } from "@/lib/queries/sales";
-import type { CustomerOption } from "@/lib/queries/customers";
 import { Field } from "@/components/ui/Field";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
@@ -19,19 +18,15 @@ const PAYMENT_OPTIONS = [
 
 export function SaleEditModal({
   sale,
-  customers,
   paymentMethod,
   onClose,
 }: {
   sale: SaleDetail;
-  customers: CustomerOption[];
   paymentMethod: string | null;
   onClose: () => void;
 }) {
   const router = useRouter();
   const flash = useToast();
-  const [customerMode, setCustomerMode] = useState<"walkin" | "existing">(sale.customerId ? "existing" : "walkin");
-  const [customerId, setCustomerId] = useState(sale.customerId ?? customers[0]?.id ?? "");
   const [notes, setNotes] = useState(sale.notes ?? "");
   const [method, setMethod] = useState(paymentMethod ?? "cash");
   const [saving, setSaving] = useState(false);
@@ -43,7 +38,6 @@ export function SaleEditModal({
     setSaving(true);
     try {
       await updateSale(sale.id, {
-        customerId: customerMode === "existing" ? customerId : undefined,
         notes,
         paymentMethod: method,
       });
@@ -74,40 +68,6 @@ export function SaleEditModal({
           </button>
         </div>
         <div className="flex flex-col gap-3.5 px-[22px] py-5">
-          <div className="flex items-center justify-between">
-            <div className="text-[13px] font-bold text-text-2">Customer</div>
-            <div className="flex gap-1.5 rounded-[9px] border border-border p-1">
-              <button
-                type="button"
-                onClick={() => setCustomerMode("walkin")}
-                className="rounded-[7px] px-3 py-1 text-[12.5px] font-semibold"
-                style={{ background: customerMode === "walkin" ? "var(--accent-weak)" : "transparent", color: customerMode === "walkin" ? "var(--accent-text)" : "var(--text-2)" }}
-              >
-                Walk-in
-              </button>
-              <button
-                type="button"
-                onClick={() => setCustomerMode("existing")}
-                className="rounded-[7px] px-3 py-1 text-[12.5px] font-semibold"
-                style={{ background: customerMode === "existing" ? "var(--accent-weak)" : "transparent", color: customerMode === "existing" ? "var(--accent-text)" : "var(--text-2)" }}
-              >
-                Existing customer
-              </button>
-            </div>
-          </div>
-          {customerMode === "walkin" ? (
-            <p className="text-[13px] text-muted">Walk-in sales don&apos;t require any customer details.</p>
-          ) : (
-            <Select label="Customer" value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
-              {customers.length === 0 && <option value="">No customers yet</option>}
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                  {c.phone ? ` · ${c.phone}` : ""}
-                </option>
-              ))}
-            </Select>
-          )}
           <Select label="Payment method" value={method} onChange={(e) => setMethod(e.target.value)}>
             {PAYMENT_OPTIONS.map((p) => (
               <option key={p.value} value={p.value}>

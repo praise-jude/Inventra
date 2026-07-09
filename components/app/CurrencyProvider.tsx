@@ -1,14 +1,13 @@
 "use client";
 
 import { createContext, useContext, useMemo } from "react";
-import { formatMoney, formatMoneyCompact, currencySymbol } from "@/lib/currency";
+import { formatMoney, currencySymbol } from "@/lib/currency";
 import { formatShortDate, formatLongDate, formatDateTime } from "@/lib/datetime";
 
 interface WorkspaceApi {
   currency: string;
   symbol: string;
   format: (n: number) => string;
-  formatCompact: (n: number) => string;
   timezone: string;
   formatShortDate: (iso: string) => string;
   formatLongDate: (iso: string) => string;
@@ -19,7 +18,6 @@ const WorkspaceContext = createContext<WorkspaceApi>({
   currency: "USD",
   symbol: "$",
   format: (n) => formatMoney(n),
-  formatCompact: (n) => formatMoneyCompact(n),
   timezone: "UTC",
   formatShortDate: (iso) => formatShortDate(iso, "UTC"),
   formatLongDate: (iso) => formatLongDate(iso, "UTC"),
@@ -44,7 +42,6 @@ export function WorkspaceProvider({
       currency,
       symbol: currencySymbol(currency),
       format: (n: number) => formatMoney(n, currency),
-      formatCompact: (n: number) => formatMoneyCompact(n, currency),
       timezone,
       formatShortDate: (iso: string) => formatShortDate(iso, timezone),
       formatLongDate: (iso: string) => formatLongDate(iso, timezone),

@@ -1,5 +1,6 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import { escapeIlikeTerm } from "@/lib/postgrest-filter";
 import type { PaymentMethod } from "@/lib/supabase/database.types";
 
 export interface SaleListRow {
@@ -20,33 +21,64 @@ const PAYMENT_LABEL: Record<PaymentMethod, string> = {
   mobile_money: "Mobile Money",
 };
 
-export async function getSalesList(warehouseId?: string): Promise<SaleListRow[]> {
+export interface SalesPageFilters {
+  search?: string;
+  warehouseId?: string;
+}
+
+// Server-side searched + paginated sales listing, mirroring
+// getProductsPage (lib/queries/products.ts) — the old getSalesList silently
+// capped at the 100 most recent sales with no way to see older ones and no
+// server-side search; this scales to the full sales history instead.
+export async function getSalesPage(
+  filters: SalesPageFilters,
+  page = 1,
+  pageSize = 20,
+): Promise<{ rows: SaleListRow[]; total: number }> {
   const supabase = await createClient();
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
   let query = supabase
     .from("sales")
-    .select("id, walk_in_name, total, created_at, warehouse_id, customers(name), warehouses(name)")
-    .order("created_at", { ascending: false })
-    .limit(100);
-  if (warehouseId) query = query.eq("warehouse_id", warehouseId);
-  const { data: sales, error } = await query;
+    .select("id, walk_in_name, total, created_at, warehouse_id, customers(name), warehouses(name)", { count: "exact" })
+    .order("created_at", { ascending: false });
+
+  if (filters.warehouseId) query = query.eq("warehouse_id", filters.warehouseId);
+
+  const search = filters.search?.trim();
+  if (search) {
+    // No single PostgREST filter can match "walk-in name" OR "linked
+    // customer's name" in one round trip, since the latter lives on a
+    // joined table — resolve matching customer ids first (a small, org-
+    // scoped table), then OR both conditions together.
+    const escaped = escapeIlikeTerm(search);
+    const { data: matchingCustomers } = await supabase.from("customers").select("id").ilike("name", `%${escaped}%`);
+    const customerIds = (matchingCustomers ?? []).map((c) => c.id);
+    const orParts = [`walk_in_name.ilike."%${escaped}%"`];
+    if (customerIds.length > 0) orParts.push(`customer_id.in.(${customerIds.join(",")})`);
+    query = query.or(orParts.join(","));
+  }
+
+  const { data: sales, error, count } = await query.range(from, to);
   if (error) {
-    console.error("[Inventra] getSalesList (sales) failed:", error.message, error.details, error.hint, error.code);
+    console.error("[Inventra] getSalesPage (sales) failed:", error.message, error.details, error.hint, error.code);
     throw new Error("Could not load sales.");
   }
 
   const saleIds = (sales ?? []).map((s) => s.id);
-  if (saleIds.length === 0) return [];
+  if (saleIds.length === 0) return { rows: [], total: count ?? 0 };
 
   const [{ data: payments, error: payError }, { data: items, error: itemError }] = await Promise.all([
     supabase.from("sale_payments").select("sale_id, method").in("sale_id", saleIds),
     supabase.from("stock_movements").select("sale_id").in("sale_id", saleIds),
   ]);
   if (payError) {
-    console.error("[Inventra] getSalesList (payments) failed:", payError.message, payError.details, payError.hint, payError.code);
+    console.error("[Inventra] getSalesPage (payments) failed:", payError.message, payError.details, payError.hint, payError.code);
     throw new Error("Could not load sales.");
   }
   if (itemError) {
-    console.error("[Inventra] getSalesList (items) failed:", itemError.message, itemError.details, itemError.hint, itemError.code);
+    console.error("[Inventra] getSalesPage (items) failed:", itemError.message, itemError.details, itemError.hint, itemError.code);
     throw new Error("Could not load sales.");
   }
 
@@ -60,7 +92,7 @@ export async function getSalesList(warehouseId?: string): Promise<SaleListRow[]>
     itemCountBySale.set(i.sale_id, (itemCountBySale.get(i.sale_id) ?? 0) + 1);
   }
 
-  return (sales ?? []).map((s) => {
+  const rows = (sales ?? []).map((s) => {
     const methods = methodsBySale.get(s.id) ?? [];
     const paymentSummary =
       methods.length === 0 ? "—" : methods.length === 1 ? PAYMENT_LABEL[methods[0]] : `Split (${methods.length})`;
@@ -75,6 +107,8 @@ export async function getSalesList(warehouseId?: string): Promise<SaleListRow[]>
       createdAt: s.created_at,
     };
   });
+
+  return { rows, total: count ?? rows.length };
 }
 
 export interface SaleLineItem {
@@ -92,6 +126,7 @@ export interface SalePaymentRow {
 
 export interface SaleDetail {
   id: string;
+  receiptNumber: string;
   customerId: string | null;
   customerName: string;
   walkInName: string | null;
@@ -103,6 +138,14 @@ export interface SaleDetail {
   createdAt: string;
   items: SaleLineItem[];
   payments: SalePaymentRow[];
+  orgName: string;
+  currency: string;
+  branchName: string | null;
+  branchAddress: string | null;
+  cashierName: string | null;
+  receiptFooter: string | null;
+  paperSize: "58mm" | "80mm" | "a4";
+  autoPrint: boolean;
 }
 
 export async function getSaleDetail(id: string): Promise<SaleDetail | null> {
@@ -110,16 +153,19 @@ export async function getSaleDetail(id: string): Promise<SaleDetail | null> {
   const { data: sale, error: saleError } = await supabase
     .from("sales")
     .select(
-      "id, customer_id, walk_in_name, subtotal, discount_amount, tax_amount, total, notes, created_at, customers(name)",
+      "id, org_id, customer_id, walk_in_name, warehouse_id, subtotal, discount_amount, tax_amount, total, notes, created_at, created_by, customers(name), warehouses(name, address), profiles(first_name, last_name)",
     )
     .eq("id", id)
     .single();
   if (saleError || !sale) return null;
 
-  const [{ data: items, error: itemError }, { data: payments, error: payError }] = await Promise.all([
-    supabase.from("stock_movements").select("id, qty_delta, unit_price, products(name)").eq("sale_id", id),
-    supabase.from("sale_payments").select("method, amount").eq("sale_id", id),
-  ]);
+  const [{ data: items, error: itemError }, { data: payments, error: payError }, { data: org }, { data: printSettings }] =
+    await Promise.all([
+      supabase.from("stock_movements").select("id, qty_delta, unit_price, products(name)").eq("sale_id", id),
+      supabase.from("sale_payments").select("method, amount").eq("sale_id", id),
+      supabase.from("organizations").select("name, currency").eq("id", sale.org_id).single(),
+      supabase.from("print_settings").select("paper_size, auto_print, receipt_footer").eq("org_id", sale.org_id).maybeSingle(),
+    ]);
   if (itemError) {
     console.error("[Inventra] getSaleDetail (items) failed:", itemError.message, itemError.details, itemError.hint, itemError.code);
     throw new Error("Could not load this sale's line items.");
@@ -129,8 +175,12 @@ export async function getSaleDetail(id: string): Promise<SaleDetail | null> {
     throw new Error("Could not load this sale's payments.");
   }
 
+  const warehouse = sale.warehouses as unknown as { name: string; address: string | null } | null;
+  const cashier = sale.profiles as unknown as { first_name: string; last_name: string } | null;
+
   return {
     id: sale.id,
+    receiptNumber: `RCPT-${sale.id.slice(0, 8).toUpperCase()}`,
     customerId: sale.customer_id,
     customerName: (sale.customers as unknown as { name: string } | null)?.name ?? sale.walk_in_name ?? "Walk-in customer",
     walkInName: sale.walk_in_name,
@@ -152,5 +202,13 @@ export async function getSaleDetail(id: string): Promise<SaleDetail | null> {
       };
     }),
     payments: (payments ?? []).map((p) => ({ method: p.method, amount: Number(p.amount) })),
+    orgName: org?.name ?? "",
+    currency: org?.currency ?? "USD",
+    branchName: warehouse?.name ?? null,
+    branchAddress: warehouse?.address ?? null,
+    cashierName: cashier ? `${cashier.first_name} ${cashier.last_name}` : null,
+    receiptFooter: printSettings?.receipt_footer ?? null,
+    paperSize: (printSettings?.paper_size as "58mm" | "80mm" | "a4" | undefined) ?? "80mm",
+    autoPrint: printSettings?.auto_print ?? false,
   };
 }

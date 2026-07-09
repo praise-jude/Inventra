@@ -1,12 +1,10 @@
 import { getProducts, getWarehouseOptions } from "@/lib/queries/products";
-import { getCustomerOptions } from "@/lib/queries/customers";
 import { requireSalesProfile } from "@/lib/queries/session";
 import { NewSaleForm } from "@/components/sales/NewSaleForm";
 
 export default async function NewSalePage() {
-  const [products, customers, warehouses, { org }] = await Promise.all([
+  const [products, warehouses, { org }] = await Promise.all([
     getProducts(),
-    getCustomerOptions(),
     getWarehouseOptions(),
     requireSalesProfile(),
   ]);
@@ -19,7 +17,6 @@ export default async function NewSalePage() {
       </div>
       <NewSaleForm
         products={products.filter((p) => p.qty > 0 && p.isActive)}
-        customers={customers}
         warehouses={warehouses}
         taxRate={Number(org.tax_rate)}
       />

@@ -31,24 +31,6 @@ export async function fetchSaleDetail(id: string): Promise<SaleDetail | null> {
   return getSaleDetail(id);
 }
 
-export async function createCustomer(input: { name: string; phone?: string; email?: string }) {
-  const { supabase, orgId } = await requireSalesOrgId();
-  const name = input.name.trim();
-  if (!name) throw new Error("Customer name is required.");
-
-  const { data, error } = await supabase
-    .from("customers")
-    .insert({ org_id: orgId, name, phone: input.phone?.trim() || null, email: input.email?.trim() || null })
-    .select("id, name, phone")
-    .single();
-  if (error) {
-    console.error("[Inventra] createCustomer failed:", error);
-    throw new Error("Could not create the customer.");
-  }
-  revalidatePath("/sales/new");
-  return data;
-}
-
 export interface SaleLineInput {
   productId: string;
   qty: number;
@@ -187,14 +169,15 @@ export interface UpdateSaleInput {
 export async function updateSale(id: string, input: UpdateSaleInput) {
   const { supabase, orgId, userId, role, actorName } = await requireSalesOrgId();
 
-  // Only clear walk_in_name when switching to a registered customer — leave it
-  // untouched otherwise so existing walk-in sales keep their historical name.
+  // customerId is only touched when the caller explicitly sends it — the
+  // Sales UI no longer collects a customer at all, so leaving it undefined
+  // must preserve whatever the sale already had rather than blanking it out.
   const updatePayload: Record<string, unknown> = {
-    customer_id: input.customerId || null,
     notes: input.notes?.trim() || null,
   };
-  if (input.customerId) {
-    updatePayload.walk_in_name = null;
+  if (input.customerId !== undefined) {
+    updatePayload.customer_id = input.customerId || null;
+    if (input.customerId) updatePayload.walk_in_name = null;
   }
 
   const { data: updated, error: saleError } = await supabase

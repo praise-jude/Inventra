@@ -56,6 +56,7 @@ export interface Profile {
   terms_accepted_ip: string | null;
   last_active_at: string | null;
   suspended_at: string | null;
+  branch_id: string | null;
   created_at: string;
 }
 

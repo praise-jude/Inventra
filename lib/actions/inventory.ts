@@ -3,7 +3,39 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/actions/audit";
+import { orIlike } from "@/lib/postgrest-filter";
 import type { AdjustmentType } from "@/lib/supabase/database.types";
+
+export interface ProductPickerRow {
+  id: string;
+  name: string;
+  sku: string;
+  qty: number;
+}
+
+// Debounced type-ahead search for pickers (e.g. Stock Adjustment) that need
+// to find one product in a large catalog without ever loading the whole
+// table into the browser — mirrors getProductsPage's ilike/index-backed
+// search (lib/queries/products.ts) but returns only what a picker needs.
+export async function searchProductsForPicker(query: string, limit = 20): Promise<ProductPickerRow[]> {
+  const supabase = await createClient();
+  const q = query.trim();
+  if (!q) return [];
+
+  const { data, error } = await supabase
+    .from("products")
+    .select("id, name, sku, qty_on_hand")
+    .is("archived_at", null)
+    .eq("is_active", true)
+    .or(orIlike(["name", "sku", "barcode"], q))
+    .order("name", { ascending: true })
+    .limit(limit);
+  if (error) {
+    console.error("[Inventra] searchProductsForPicker failed:", error);
+    throw new Error("Could not search products.");
+  }
+  return (data ?? []).map((p) => ({ id: p.id, name: p.name, sku: p.sku, qty: p.qty_on_hand }));
+}
 
 export interface CreateAdjustmentInput {
   productId: string;

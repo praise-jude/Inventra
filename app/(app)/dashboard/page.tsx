@@ -18,7 +18,7 @@ import { DonutChart } from "@/components/charts/DonutChart";
 import { TeamPresenceCard } from "@/components/team/TeamPresenceCard";
 import { DailyProfitTable } from "@/components/dashboard/DailyProfitTable";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { formatMoneyCompact, formatNumber, formatPct, pctDelta } from "@/lib/format";
+import { formatMoney, formatNumber, formatPct, pctDelta } from "@/lib/format";
 import { formatTodayHeader, formatCurrentTime, greetingFor } from "@/lib/datetime";
 import { countryName } from "@/lib/geo/countries";
 import { MOVEMENT_META } from "@/lib/movement-meta";
@@ -100,7 +100,7 @@ export default async function DashboardPage() {
     { label: "Total products", value: formatNumber(kpis.total_products), icon: "📦", iconBg: "var(--accent-weak)", sub: "active SKUs", delta: null as string | null, deltaColor: "", adminOnly: false, tier: "primary" as const },
     {
       label: "Today's revenue",
-      value: formatMoneyCompact(kpis.today_revenue, org.currency),
+      value: formatMoney(kpis.today_revenue, org.currency),
       icon: "💰",
       iconBg: "var(--green-weak)",
       sub: "vs yesterday",
@@ -111,7 +111,7 @@ export default async function DashboardPage() {
     },
     {
       label: "Monthly profit",
-      value: kpis.monthly_profit !== null ? formatMoneyCompact(kpis.monthly_profit, org.currency) : "—",
+      value: kpis.monthly_profit !== null ? formatMoney(kpis.monthly_profit, org.currency) : "—",
       icon: "📈",
       iconBg: "var(--sky-weak)",
       sub: "vs last month",
@@ -123,7 +123,7 @@ export default async function DashboardPage() {
     },
     {
       label: "Total inventory value",
-      value: formatMoneyCompact(kpis.total_inventory_value ?? 0, org.currency),
+      value: formatMoney(kpis.total_inventory_value ?? 0, org.currency),
       icon: "💎",
       iconBg: "var(--green-weak)",
       sub: "selling price × stock",
@@ -134,7 +134,7 @@ export default async function DashboardPage() {
     },
     {
       label: "Total expected profit",
-      value: formatMoneyCompact(kpis.total_expected_profit ?? 0, org.currency),
+      value: formatMoney(kpis.total_expected_profit ?? 0, org.currency),
       icon: "📊",
       iconBg: "var(--accent-weak)",
       sub: "if all stock sold",
@@ -147,7 +147,7 @@ export default async function DashboardPage() {
     { label: "Out of stock", value: formatNumber(kpis.out_of_stock_count), icon: "⛔", iconBg: "var(--red-weak)", sub: "SKUs", delta: null, deltaColor: "", adminOnly: false, tier: "primary" as const },
     {
       label: "Total inventory cost",
-      value: formatMoneyCompact(kpis.total_inventory_cost ?? 0, org.currency),
+      value: formatMoney(kpis.total_inventory_cost ?? 0, org.currency),
       icon: "🧾",
       iconBg: "var(--sky-weak)",
       sub: "purchase price × stock",
@@ -276,7 +276,7 @@ export default async function DashboardPage() {
           <div className="mb-1.5 text-[12.5px] text-muted">Share of inventory value</div>
           <div className="flex flex-1 items-center gap-3.5">
             <div className="h-[130px] w-[130px] flex-shrink-0">
-              <DonutChart data={categoryMix} totalLabel={formatMoneyCompact(totalCategoryValue, org.currency)} />
+              <DonutChart data={categoryMix} totalLabel={formatMoney(totalCategoryValue, org.currency)} />
             </div>
             <div className="flex flex-1 flex-col gap-2.5">
               {categoryMix.length === 0 && (
@@ -302,7 +302,7 @@ export default async function DashboardPage() {
             <div className="h-[130px] w-[130px] flex-shrink-0">
               <DonutChart
                 data={expenseBreakdown.map((e) => ({ name: e.label, pct: e.pct }))}
-                totalLabel={formatMoneyCompact(totalExpenseValue, org.currency)}
+                totalLabel={formatMoney(totalExpenseValue, org.currency)}
               />
             </div>
             <div className="flex flex-1 flex-col gap-2.5">
@@ -348,7 +348,7 @@ export default async function DashboardPage() {
                   <div className="text-[11.5px] text-muted">{formatNumber(p.units)} sold</div>
                 </div>
                 <div className="text-right">
-                  {isAdminTier && <div className="font-mono text-[13px] font-bold">{formatMoneyCompact(p.revenue, org.currency)}</div>}
+                  {isAdminTier && <div className="font-mono text-[13px] font-bold">{formatMoney(p.revenue, org.currency)}</div>}
                   {p.trend_pct !== null && (
                     <div className="text-[11px] font-semibold" style={{ color: p.trend_pct >= 0 ? "var(--green)" : "var(--red)" }}>
                       {formatPct(p.trend_pct, 0)}
@@ -435,7 +435,7 @@ export default async function DashboardPage() {
           <div className="text-right">
             <div className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted">Today&apos;s profit</div>
             <div className="font-mono text-[19px] font-bold" style={{ color: todaysProfit >= 0 ? "var(--green)" : "var(--red)" }}>
-              {formatMoneyCompact(todaysProfit, org.currency)}
+              {formatMoney(todaysProfit, org.currency)}
             </div>
           </div>
         </div>

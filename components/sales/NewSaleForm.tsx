@@ -5,12 +5,12 @@ import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useToast } from "@/components/app/ToastProvider";
 import { useWorkspace } from "@/components/app/CurrencyProvider";
-import { recordSale, createCustomer } from "@/lib/actions/sales";
+import { recordSale } from "@/lib/actions/sales";
 import type { ProductListRow } from "@/lib/queries/products";
-import type { CustomerOption } from "@/lib/queries/customers";
 import { Field } from "@/components/ui/Field";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
+import { ReceiptModal } from "@/components/sales/ReceiptModal";
 
 const BarcodeScannerModal = dynamic(() =>
   import("@/components/products/BarcodeScannerModal").then((m) => m.BarcodeScannerModal),
@@ -34,12 +34,10 @@ interface CartLine {
 
 export function NewSaleForm({
   products,
-  customers,
   warehouses,
   taxRate,
 }: {
   products: ProductListRow[];
-  customers: CustomerOption[];
   warehouses: { id: string; name: string }[];
   taxRate: number;
 }) {
@@ -47,14 +45,7 @@ export function NewSaleForm({
   const flash = useToast();
   const { format: formatMoney } = useWorkspace();
 
-  const [customerMode, setCustomerMode] = useState<"walkin" | "existing">("walkin");
-  const [customerId, setCustomerId] = useState(customers[0]?.id ?? "");
-  const [customerList, setCustomerList] = useState(customers);
   const [warehouseId, setWarehouseId] = useState("");
-  const [showNewCustomer, setShowNewCustomer] = useState(false);
-  const [newCustomerName, setNewCustomerName] = useState("");
-  const [newCustomerPhone, setNewCustomerPhone] = useState("");
-  const [newCustomerNameError, setNewCustomerNameError] = useState<string | null>(null);
 
   const [productQuery, setProductQuery] = useState("");
   const [showScanner, setShowScanner] = useState(false);
@@ -63,7 +54,7 @@ export function NewSaleForm({
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [savingCustomer, setSavingCustomer] = useState(false);
+  const [receiptSaleId, setReceiptSaleId] = useState<string | null>(null);
 
   const matchingProducts = useMemo(() => {
     const q = productQuery.trim().toLowerCase();
@@ -121,30 +112,6 @@ export function NewSaleForm({
     return { subtotal, discount, tax, total: taxable + tax };
   }, [cart, taxRate]);
 
-  async function handleAddCustomer() {
-    setError(null);
-    setNewCustomerNameError(null);
-    if (!newCustomerName.trim()) {
-      setNewCustomerNameError("Customer name is required.");
-      return;
-    }
-    setSavingCustomer(true);
-    try {
-      const customer = await createCustomer({ name: newCustomerName, phone: newCustomerPhone });
-      setCustomerList((c) => [...c, customer]);
-      setCustomerId(customer.id);
-      setCustomerMode("existing");
-      setShowNewCustomer(false);
-      setNewCustomerName("");
-      setNewCustomerPhone("");
-      flash("Customer added");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not add the customer.");
-    } finally {
-      setSavingCustomer(false);
-    }
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -155,15 +122,14 @@ export function NewSaleForm({
     setSaving(true);
     try {
       const saleId = await recordSale({
-        customerId: customerMode === "existing" ? customerId : undefined,
         warehouseId: warehouseId || undefined,
         items: cart.map((l) => ({ productId: l.productId, qty: l.qty, discountPct: l.discountPct })),
         paymentMethod,
         notes,
       });
       flash("Sale recorded");
-      router.push(`/sales?open=${saleId}`);
       router.refresh();
+      setReceiptSaleId(saleId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not record the sale.");
     } finally {
@@ -171,74 +137,15 @@ export function NewSaleForm({
     }
   }
 
+  function closeReceipt() {
+    const saleId = receiptSaleId;
+    setReceiptSaleId(null);
+    if (saleId) router.push(`/sales?open=${saleId}`);
+  }
+
   return (
     <>
     <form onSubmit={handleSubmit} className="animate-fade-up flex flex-col gap-4.5">
-      <div className="rounded-2xl border border-border bg-surface p-5 shadow-[var(--shadow-sm)]">
-        <div className="mb-3.5 flex items-center justify-between">
-          <div className="text-[15px] font-bold">Customer</div>
-          <div className="flex gap-1.5 rounded-[9px] border border-border p-1">
-            <button
-              type="button"
-              onClick={() => setCustomerMode("walkin")}
-              className="rounded-[7px] px-3 py-1 text-[12.5px] font-semibold"
-              style={{ background: customerMode === "walkin" ? "var(--accent-weak)" : "transparent", color: customerMode === "walkin" ? "var(--accent-text)" : "var(--text-2)" }}
-            >
-              Walk-in
-            </button>
-            <button
-              type="button"
-              onClick={() => setCustomerMode("existing")}
-              className="rounded-[7px] px-3 py-1 text-[12.5px] font-semibold"
-              style={{ background: customerMode === "existing" ? "var(--accent-weak)" : "transparent", color: customerMode === "existing" ? "var(--accent-text)" : "var(--text-2)" }}
-            >
-              Existing customer
-            </button>
-          </div>
-        </div>
-        {customerMode === "walkin" ? (
-          <p className="text-[13px] text-muted">Walk-in sales don&apos;t require any customer details.</p>
-        ) : (
-          <div className="flex items-end gap-2">
-            <div className="flex-1">
-              <Select label="Customer" value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
-                {customerList.length === 0 && <option value="">No customers yet</option>}
-                {customerList.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                    {c.phone ? ` · ${c.phone}` : ""}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <Button type="button" variant="secondary" onClick={() => setShowNewCustomer((v) => !v)}>
-              + New
-            </Button>
-          </div>
-        )}
-        {showNewCustomer && (
-          <div className="mt-3 flex items-end gap-2 rounded-[10px] border border-border bg-surface-2 p-3">
-            <div className="flex-1">
-              <Field
-                label="Name"
-                value={newCustomerName}
-                onChange={(e) => {
-                  setNewCustomerName(e.target.value);
-                  setNewCustomerNameError(null);
-                }}
-                error={newCustomerNameError ?? undefined}
-              />
-            </div>
-            <div className="flex-1">
-              <Field label="Phone" value={newCustomerPhone} onChange={(e) => setNewCustomerPhone(e.target.value)} />
-            </div>
-            <Button type="button" onClick={handleAddCustomer} disabled={savingCustomer}>
-              {savingCustomer ? "Adding…" : "Add"}
-            </Button>
-          </div>
-        )}
-      </div>
-
       <div className="rounded-2xl border border-border bg-surface p-5 shadow-[var(--shadow-sm)]">
         <div className="mb-3.5 text-[15px] font-bold">Items</div>
         <div className="relative flex gap-2">
@@ -385,6 +292,7 @@ export function NewSaleForm({
       </div>
     </form>
     {showScanner && <BarcodeScannerModal onDetected={handleScanDetected} onClose={() => setShowScanner(false)} />}
+    {receiptSaleId && <ReceiptModal saleId={receiptSaleId} onClose={closeReceipt} />}
     </>
   );
 }

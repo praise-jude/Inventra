@@ -240,3 +240,21 @@ body {
     display: none !important;
   }
 }
+
+/* Printing a receipt (components/sales/ReceiptModal.tsx) should show only
+   the receipt itself — hide the rest of the app shell (sidebar, modal
+   chrome) rather than printing the whole dashboard behind it. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #receipt-print-area,
+  #receipt-print-area * {
+    visibility: visible;
+  }
+  #receipt-print-area {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+  }
+}

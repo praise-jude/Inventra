@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
 
 export interface TableColumn<T> {
   key: string;
@@ -47,6 +48,7 @@ export function Table<T>({
   onRowClick,
 }: TableProps<T>) {
   const [query, setQuery] = useState("");
+  const debouncedQuery = useDebouncedValue(query, 250);
   const [sort, setSort] = useState<{ key: string; dir: "asc" | "desc" } | null>(null);
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -54,9 +56,9 @@ export function Table<T>({
   const [columnsMenuOpen, setColumnsMenuOpen] = useState(false);
 
   const filtered = useMemo(() => {
-    if (!search || !query.trim()) return rows;
-    return rows.filter((row) => search.filter(row, query.trim().toLowerCase()));
-  }, [rows, query, search]);
+    if (!search || !debouncedQuery.trim()) return rows;
+    return rows.filter((row) => search.filter(row, debouncedQuery.trim().toLowerCase()));
+  }, [rows, debouncedQuery, search]);
 
   const sorted = useMemo(() => {
     if (!sort) return filtered;
