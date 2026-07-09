@@ -13,6 +13,7 @@ export type IntegrationProvider =
   | "pos_offline"
   | "receipt_printing";
 export type ProductStatus = "in_stock" | "low_stock" | "out_of_stock";
+export type AdjustmentType = "increase" | "decrease" | "damaged" | "expired" | "count_correction" | "loss" | "other";
 export type DebtorStatus = "pending" | "partially_paid" | "paid" | "overdue" | "cancelled";
 export type ExpenseCategory =
   | "rent"
@@ -145,6 +146,7 @@ export interface Product {
   expiry_date: string | null;
   batch_number: string | null;
   status: ProductStatus;
+  is_active: boolean;
   image_url: string | null;
   barcode: string | null;
   archived_at: string | null;
@@ -171,8 +173,29 @@ export interface StockMovement {
   qty_delta: number;
   unit_price: number | null;
   reason: string | null;
+  adjustment_type: AdjustmentType | null;
+  notes: string | null;
   sale_id: string | null;
   created_by: string | null;
+  created_at: string;
+}
+
+export interface AuditLog {
+  id: string;
+  org_id: string;
+  actor_id: string | null;
+  actor_name: string;
+  actor_role: UserRole;
+  action: string;
+  module: string;
+  entity_type: string | null;
+  entity_id: string | null;
+  entity_label: string | null;
+  previous_value: Record<string, unknown> | null;
+  new_value: Record<string, unknown> | null;
+  branch_id: string | null;
+  branch_name: string | null;
+  ip_address: string | null;
   created_at: string;
 }
 
