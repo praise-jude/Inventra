@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { logAudit } from "@/lib/actions/audit";
 
 // Settings mutations are Admin-tier only. `organizations_update` RLS already
 // enforces this at the database layer, but checking here first gives a clear
@@ -12,12 +13,22 @@ async function requireAdminOrgId() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
-  const { data: profile } = await supabase.from("profiles").select("org_id, role").eq("id", user.id).single();
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("org_id, role, first_name, last_name")
+    .eq("id", user.id)
+    .single();
   if (!profile) throw new Error("No profile");
   if (!["owner", "admin"].includes(profile.role)) {
     throw new Error("Only an owner or admin can update settings.");
   }
-  return { supabase, orgId: profile.org_id as string };
+  return {
+    supabase,
+    orgId: profile.org_id as string,
+    userId: user.id,
+    role: profile.role as string,
+    actorName: `${profile.first_name} ${profile.last_name}`,
+  };
 }
 
 export interface GeneralSettingsInput {
@@ -31,7 +42,7 @@ export interface GeneralSettingsInput {
 }
 
 export async function updateGeneralSettings(input: GeneralSettingsInput) {
-  const { supabase, orgId } = await requireAdminOrgId();
+  const { supabase, orgId, userId, role, actorName } = await requireAdminOrgId();
   const { error } = await supabase
     .from("organizations")
     .update({
@@ -46,13 +57,38 @@ export async function updateGeneralSettings(input: GeneralSettingsInput) {
     .eq("id", orgId);
   if (error) throw error;
   revalidatePath("/settings/general");
+
+  await logAudit({
+    orgId,
+    actorId: userId,
+    actorName,
+    actorRole: role,
+    action: "settings.updated",
+    module: "Settings",
+    entityType: "organization",
+    entityId: orgId,
+    entityLabel: "General settings",
+    newValue: { name: input.name, currency: input.currency, timezone: input.timezone, taxRate: input.taxRate },
+  });
 }
 
 export async function toggleNotification(field: string, value: boolean) {
-  const { supabase, orgId } = await requireAdminOrgId();
+  const { supabase, orgId, userId, role, actorName } = await requireAdminOrgId();
   const { error } = await supabase.from("notification_settings").update({ [field]: value }).eq("org_id", orgId);
   if (error) throw error;
   revalidatePath("/settings/notifications");
+
+  await logAudit({
+    orgId,
+    actorId: userId,
+    actorName,
+    actorRole: role,
+    action: "settings.updated",
+    module: "Settings",
+    entityType: "notification_settings",
+    entityLabel: `Notification: ${field}`,
+    newValue: { [field]: value },
+  });
 }
 
 export interface PrintSettingsInput {
@@ -62,7 +98,7 @@ export interface PrintSettingsInput {
 }
 
 export async function updatePrintSettings(input: PrintSettingsInput) {
-  const { supabase, orgId } = await requireAdminOrgId();
+  const { supabase, orgId, userId, role, actorName } = await requireAdminOrgId();
   const { error } = await supabase
     .from("print_settings")
     .update({
@@ -73,10 +109,22 @@ export async function updatePrintSettings(input: PrintSettingsInput) {
     .eq("org_id", orgId);
   if (error) throw error;
   revalidatePath("/settings/printing");
+
+  await logAudit({
+    orgId,
+    actorId: userId,
+    actorName,
+    actorRole: role,
+    action: "settings.updated",
+    module: "Settings",
+    entityType: "print_settings",
+    entityLabel: "Print settings",
+    newValue: { paperSize: input.paperSize, autoPrint: input.autoPrint },
+  });
 }
 
 export async function toggleIntegration(provider: string, connect: boolean) {
-  const { supabase, orgId } = await requireAdminOrgId();
+  const { supabase, orgId, userId, role, actorName } = await requireAdminOrgId();
   const { error } = await supabase
     .from("integrations")
     .update({ status: connect ? "connected" : "not_connected", connected_at: connect ? new Date().toISOString() : null })
@@ -84,4 +132,16 @@ export async function toggleIntegration(provider: string, connect: boolean) {
     .eq("provider", provider);
   if (error) throw error;
   revalidatePath("/settings/integrations");
+
+  await logAudit({
+    orgId,
+    actorId: userId,
+    actorName,
+    actorRole: role,
+    action: "settings.updated",
+    module: "Settings",
+    entityType: "integration",
+    entityLabel: `Integration: ${provider}`,
+    newValue: { provider, connected: connect },
+  });
 }

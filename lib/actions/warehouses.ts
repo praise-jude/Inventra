@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { isAdminRole, isManagerRole } from "@/lib/roles";
+import { logAudit } from "@/lib/actions/audit";
 import { getProductsInWarehouse, type WarehouseProductOption } from "@/lib/queries/inventory";
 
 export async function fetchProductsInWarehouse(warehouseId: string): Promise<WarehouseProductOption[]> {
@@ -19,12 +20,22 @@ async function requireAdminOrgId() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
-  const { data: profile } = await supabase.from("profiles").select("org_id, role").eq("id", user.id).single();
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("org_id, role, first_name, last_name")
+    .eq("id", user.id)
+    .single();
   if (!profile) throw new Error("No profile");
   if (!isAdminRole(profile.role)) {
     throw new Error("Only an owner or admin can manage branches.");
   }
-  return { supabase, orgId: profile.org_id as string, userId: user.id };
+  return {
+    supabase,
+    orgId: profile.org_id as string,
+    userId: user.id,
+    role: profile.role as string,
+    actorName: `${profile.first_name} ${profile.last_name}`,
+  };
 }
 
 // Transferring stock between branches is a day-to-day inventory operation,
@@ -36,12 +47,22 @@ async function requireManagerOrgId() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
-  const { data: profile } = await supabase.from("profiles").select("org_id, role").eq("id", user.id).single();
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("org_id, role, first_name, last_name")
+    .eq("id", user.id)
+    .single();
   if (!profile) throw new Error("No profile");
   if (!isManagerRole(profile.role)) {
     throw new Error("Only an owner, admin, or manager can transfer stock.");
   }
-  return { supabase, orgId: profile.org_id as string, userId: user.id };
+  return {
+    supabase,
+    orgId: profile.org_id as string,
+    userId: user.id,
+    role: profile.role as string,
+    actorName: `${profile.first_name} ${profile.last_name}`,
+  };
 }
 
 export interface WarehouseInput {
@@ -67,7 +88,7 @@ function normalize(input: WarehouseInput) {
 }
 
 export async function createWarehouse(input: WarehouseInput) {
-  const { supabase, orgId } = await requireAdminOrgId();
+  const { supabase, orgId, userId, role, actorName } = await requireAdminOrgId();
   const values = normalize(input);
   if (!values.name) throw new Error("Branch name is required.");
 
@@ -83,13 +104,31 @@ export async function createWarehouse(input: WarehouseInput) {
   revalidatePath("/inventory/warehouses");
   revalidatePath("/settings/branches");
   revalidatePath("/products");
+
+  await logAudit({
+    orgId,
+    actorId: userId,
+    actorName,
+    actorRole: role,
+    action: "branch.created",
+    module: "Branches",
+    entityType: "warehouse",
+    entityId: data.id,
+    entityLabel: data.name,
+    newValue: values,
+    branchId: data.id,
+    branchName: data.name,
+  });
+
   return data;
 }
 
 export async function updateWarehouse(id: string, input: WarehouseInput) {
-  const { supabase } = await requireAdminOrgId();
+  const { supabase, orgId, userId, role, actorName } = await requireAdminOrgId();
   const values = normalize(input);
   if (!values.name) throw new Error("Branch name is required.");
+
+  const { data: before } = await supabase.from("warehouses").select("name, address, phone, capacity").eq("id", id).maybeSingle();
 
   const { error } = await supabase.from("warehouses").update(values).eq("id", id);
   if (error) {
@@ -99,10 +138,27 @@ export async function updateWarehouse(id: string, input: WarehouseInput) {
   revalidatePath("/inventory/warehouses");
   revalidatePath("/settings/branches");
   revalidatePath("/products");
+
+  await logAudit({
+    orgId,
+    actorId: userId,
+    actorName,
+    actorRole: role,
+    action: "branch.updated",
+    module: "Branches",
+    entityType: "warehouse",
+    entityId: id,
+    entityLabel: values.name,
+    previousValue: before,
+    newValue: values,
+    branchId: id,
+    branchName: values.name,
+  });
 }
 
 export async function archiveWarehouse(id: string) {
-  const { supabase } = await requireAdminOrgId();
+  const { supabase, orgId, userId, role, actorName } = await requireAdminOrgId();
+  const { data: warehouse } = await supabase.from("warehouses").select("name").eq("id", id).maybeSingle();
   const { error } = await supabase.from("warehouses").update({ status: "inactive" }).eq("id", id);
   if (error) {
     console.error("[Inventra] archiveWarehouse failed:", error);
@@ -111,10 +167,27 @@ export async function archiveWarehouse(id: string) {
   revalidatePath("/inventory/warehouses");
   revalidatePath("/settings/branches");
   revalidatePath("/products");
+
+  await logAudit({
+    orgId,
+    actorId: userId,
+    actorName,
+    actorRole: role,
+    action: "branch.updated",
+    module: "Branches",
+    entityType: "warehouse",
+    entityId: id,
+    entityLabel: warehouse?.name ?? id,
+    previousValue: { status: "active" },
+    newValue: { status: "inactive" },
+    branchId: id,
+    branchName: warehouse?.name ?? null,
+  });
 }
 
 export async function reactivateWarehouse(id: string) {
-  const { supabase } = await requireAdminOrgId();
+  const { supabase, orgId, userId, role, actorName } = await requireAdminOrgId();
+  const { data: warehouse } = await supabase.from("warehouses").select("name").eq("id", id).maybeSingle();
   const { error } = await supabase.from("warehouses").update({ status: "active" }).eq("id", id);
   if (error) {
     console.error("[Inventra] reactivateWarehouse failed:", error);
@@ -123,6 +196,22 @@ export async function reactivateWarehouse(id: string) {
   revalidatePath("/inventory/warehouses");
   revalidatePath("/settings/branches");
   revalidatePath("/products");
+
+  await logAudit({
+    orgId,
+    actorId: userId,
+    actorName,
+    actorRole: role,
+    action: "branch.updated",
+    module: "Branches",
+    entityType: "warehouse",
+    entityId: id,
+    entityLabel: warehouse?.name ?? id,
+    previousValue: { status: "inactive" },
+    newValue: { status: "active" },
+    branchId: id,
+    branchName: warehouse?.name ?? null,
+  });
 }
 
 export async function deleteWarehouse(id: string) {
@@ -144,17 +233,19 @@ export async function deleteWarehouse(id: string) {
 }
 
 export async function transferWarehouseStock(productId: string, toWarehouseId: string, reason?: string) {
-  const { supabase, orgId, userId } = await requireManagerOrgId();
+  const { supabase, orgId, userId, role, actorName } = await requireManagerOrgId();
 
   const { data: product, error: productError } = await supabase
     .from("products")
-    .select("id, warehouse_id, qty_on_hand")
+    .select("id, name, warehouse_id, qty_on_hand")
     .eq("id", productId)
     .eq("org_id", orgId)
     .maybeSingle();
   if (productError) throw productError;
   if (!product) throw new Error("Product not found.");
   if (product.warehouse_id === toWarehouseId) throw new Error("Product is already in that warehouse.");
+
+  const { data: toWarehouse } = await supabase.from("warehouses").select("name").eq("id", toWarehouseId).maybeSingle();
 
   const { error: updateError } = await supabase
     .from("products")
@@ -183,4 +274,20 @@ export async function transferWarehouseStock(productId: string, toWarehouseId: s
   revalidatePath("/inventory/warehouses");
   revalidatePath("/inventory/movements");
   revalidatePath("/products");
+
+  await logAudit({
+    orgId,
+    actorId: userId,
+    actorName,
+    actorRole: role,
+    action: "stock.transferred",
+    module: "Inventory",
+    entityType: "product",
+    entityId: productId,
+    entityLabel: product.name,
+    previousValue: { warehouseId: product.warehouse_id },
+    newValue: { warehouseId: toWarehouseId, qty: product.qty_on_hand },
+    branchId: toWarehouseId,
+    branchName: toWarehouse?.name ?? null,
+  });
 }

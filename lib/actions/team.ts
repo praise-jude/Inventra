@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ADMIN_ROLES } from "@/lib/roles";
+import { logAudit } from "@/lib/actions/audit";
 
 async function siteUrl(): Promise<string> {
   if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL;
@@ -23,12 +24,22 @@ async function requireAdminOrgId() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
-  const { data: profile } = await supabase.from("profiles").select("org_id, role").eq("id", user.id).single();
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("org_id, role, first_name, last_name")
+    .eq("id", user.id)
+    .single();
   if (!profile) throw new Error("No profile");
   if (!ADMIN_ROLES.includes(profile.role)) {
     throw new Error("Only an owner or admin can manage team members.");
   }
-  return { supabase, orgId: profile.org_id as string, userId: user.id };
+  return {
+    supabase,
+    orgId: profile.org_id as string,
+    userId: user.id,
+    role: profile.role as string,
+    actorName: `${profile.first_name} ${profile.last_name}`,
+  };
 }
 
 async function assertNotLastOwner(supabase: Awaited<ReturnType<typeof createClient>>, orgId: string, memberId: string) {
@@ -43,7 +54,7 @@ async function assertNotLastOwner(supabase: Awaited<ReturnType<typeof createClie
 }
 
 export async function inviteMember(email: string, role: string, firstName: string, lastName: string) {
-  const { orgId } = await requireAdminOrgId();
+  const { orgId, userId, role: actorRole, actorName } = await requireAdminOrgId();
 
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
     throw new Error(
@@ -61,6 +72,18 @@ export async function inviteMember(email: string, role: string, firstName: strin
   }
 
   revalidatePath("/team");
+
+  await logAudit({
+    orgId,
+    actorId: userId,
+    actorName,
+    actorRole: actorRole,
+    action: "user.invited",
+    module: "Team",
+    entityType: "profile",
+    entityLabel: `${firstName} ${lastName} (${email})`,
+    newValue: { email, role },
+  });
 }
 
 export async function resendInvite(memberId: string) {
@@ -91,9 +114,11 @@ export async function resendInvite(memberId: string) {
 }
 
 export async function updateMemberRole(memberId: string, role: string) {
-  const { supabase, orgId, userId } = await requireAdminOrgId();
+  const { supabase, orgId, userId, role: actorRole, actorName } = await requireAdminOrgId();
   if (memberId === userId) throw new Error("You can't change your own role.");
   await assertNotLastOwner(supabase, orgId, memberId);
+
+  const { data: before } = await supabase.from("profiles").select("role, first_name, last_name").eq("id", memberId).maybeSingle();
 
   const { error } = await supabase.from("profiles").update({ role }).eq("id", memberId).eq("org_id", orgId);
   if (error) {
@@ -101,12 +126,28 @@ export async function updateMemberRole(memberId: string, role: string) {
     throw new Error("Could not update this member's role.");
   }
   revalidatePath("/team");
+
+  await logAudit({
+    orgId,
+    actorId: userId,
+    actorName,
+    actorRole,
+    action: "user.role_changed",
+    module: "Team",
+    entityType: "profile",
+    entityId: memberId,
+    entityLabel: before ? `${before.first_name} ${before.last_name}` : memberId,
+    previousValue: { role: before?.role ?? null },
+    newValue: { role },
+  });
 }
 
 export async function suspendMember(memberId: string) {
-  const { supabase, orgId, userId } = await requireAdminOrgId();
+  const { supabase, orgId, userId, role: actorRole, actorName } = await requireAdminOrgId();
   if (memberId === userId) throw new Error("You can't suspend your own account.");
   await assertNotLastOwner(supabase, orgId, memberId);
+
+  const { data: member } = await supabase.from("profiles").select("first_name, last_name").eq("id", memberId).maybeSingle();
 
   const { error } = await supabase
     .from("profiles")
@@ -118,10 +159,24 @@ export async function suspendMember(memberId: string) {
     throw new Error("Could not suspend this member.");
   }
   revalidatePath("/team");
+
+  await logAudit({
+    orgId,
+    actorId: userId,
+    actorName,
+    actorRole,
+    action: "user.suspended",
+    module: "Team",
+    entityType: "profile",
+    entityId: memberId,
+    entityLabel: member ? `${member.first_name} ${member.last_name}` : memberId,
+  });
 }
 
 export async function reactivateMember(memberId: string) {
-  const { supabase, orgId } = await requireAdminOrgId();
+  const { supabase, orgId, userId, role: actorRole, actorName } = await requireAdminOrgId();
+
+  const { data: member } = await supabase.from("profiles").select("first_name, last_name").eq("id", memberId).maybeSingle();
 
   const { error } = await supabase
     .from("profiles")
@@ -133,14 +188,26 @@ export async function reactivateMember(memberId: string) {
     throw new Error("Could not reactivate this member.");
   }
   revalidatePath("/team");
+
+  await logAudit({
+    orgId,
+    actorId: userId,
+    actorName,
+    actorRole,
+    action: "user.reactivated",
+    module: "Team",
+    entityType: "profile",
+    entityId: memberId,
+    entityLabel: member ? `${member.first_name} ${member.last_name}` : memberId,
+  });
 }
 
 export async function removeMember(memberId: string) {
-  const { supabase, orgId, userId } = await requireAdminOrgId();
+  const { supabase, orgId, userId, role: actorRole, actorName } = await requireAdminOrgId();
   if (memberId === userId) throw new Error("You can't remove your own account.");
   await assertNotLastOwner(supabase, orgId, memberId);
 
-  const { data: member } = await supabase.from("profiles").select("org_id").eq("id", memberId).single();
+  const { data: member } = await supabase.from("profiles").select("org_id, first_name, last_name").eq("id", memberId).single();
   if (!member || member.org_id !== orgId) throw new Error("Member not found.");
 
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -153,4 +220,16 @@ export async function removeMember(memberId: string) {
     throw new Error("Could not remove this member.");
   }
   revalidatePath("/team");
+
+  await logAudit({
+    orgId,
+    actorId: userId,
+    actorName,
+    actorRole,
+    action: "user.removed",
+    module: "Team",
+    entityType: "profile",
+    entityId: memberId,
+    entityLabel: `${member.first_name} ${member.last_name}`,
+  });
 }

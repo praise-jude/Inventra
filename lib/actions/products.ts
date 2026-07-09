@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { isManagerRole } from "@/lib/roles";
+import { logAudit } from "@/lib/actions/audit";
 import {
   getProductDetail,
   findProductIdByCode,
@@ -17,9 +18,19 @@ async function requireOrgId() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
-  const { data: profile } = await supabase.from("profiles").select("org_id, role").eq("id", user.id).single();
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("org_id, role, first_name, last_name")
+    .eq("id", user.id)
+    .single();
   if (!profile) throw new Error("No profile");
-  return { supabase, orgId: profile.org_id as string, userId: user.id, role: profile.role as string };
+  return {
+    supabase,
+    orgId: profile.org_id as string,
+    userId: user.id,
+    role: profile.role as string,
+    actorName: `${profile.first_name} ${profile.last_name}`,
+  };
 }
 
 // Products are Manager-tier+ to mutate (owner/admin/manager) — matching the
@@ -62,7 +73,7 @@ export interface CreateProductInput {
 }
 
 export async function createProduct(input: CreateProductInput) {
-  const { supabase, orgId, userId, role } = await requireOrgId();
+  const { supabase, orgId, userId, role, actorName } = await requireOrgId();
   requireManagerRole(role);
 
   const { data: product, error } = await supabase
@@ -105,6 +116,21 @@ export async function createProduct(input: CreateProductInput) {
 
   revalidatePath("/products");
   revalidatePath("/dashboard");
+
+  await logAudit({
+    orgId,
+    actorId: userId,
+    actorName,
+    actorRole: role,
+    action: "product.created",
+    module: "Products",
+    entityType: "product",
+    entityId: product.id as string,
+    entityLabel: input.name,
+    newValue: { name: input.name, sku: input.sku, costPrice: input.costPrice, sellPrice: input.sellPrice, openingQty: input.openingQty },
+    branchId: input.warehouseId || null,
+  });
+
   return product.id as string;
 }
 
@@ -126,12 +152,18 @@ export interface UpdateProductInput {
 }
 
 export async function updateProduct(id: string, input: UpdateProductInput): Promise<ProductDetail> {
-  const { supabase, orgId, role } = await requireOrgId();
+  const { supabase, orgId, userId, role, actorName } = await requireOrgId();
   requireManagerRole(role);
   const name = input.name.trim();
   const sku = input.sku.trim();
   if (!name) throw new Error("Product name is required.");
   if (!sku) throw new Error("SKU is required.");
+
+  const { data: before } = await supabase
+    .from("products")
+    .select("name, sku, cost_price, sell_price")
+    .eq("id", id)
+    .maybeSingle();
 
   const { data: clash } = await supabase
     .from("products")
@@ -179,13 +211,29 @@ export async function updateProduct(id: string, input: UpdateProductInput): Prom
   revalidatePath("/products");
   revalidatePath("/dashboard");
 
+  await logAudit({
+    orgId,
+    actorId: userId,
+    actorName,
+    actorRole: role,
+    action: "product.updated",
+    module: "Products",
+    entityType: "product",
+    entityId: id,
+    entityLabel: name,
+    previousValue: before ? { name: before.name, sku: before.sku, costPrice: before.cost_price, sellPrice: before.sell_price } : null,
+    newValue: { name, sku, costPrice: input.costPrice, sellPrice: input.sellPrice },
+    branchId: input.warehouseId || null,
+  });
+
   const fresh = await getProductDetail(id);
   if (!fresh) throw new Error("Product updated, but could not reload its details.");
   return fresh;
 }
 
 export async function archiveProduct(id: string) {
-  const { supabase, orgId } = await requireOrgId();
+  const { supabase, orgId, userId, role, actorName } = await requireOrgId();
+  const { data: product } = await supabase.from("products").select("name").eq("id", id).maybeSingle();
   const { data: archived, error } = await supabase
     .from("products")
     .update({ archived_at: new Date().toISOString() })
@@ -197,10 +245,56 @@ export async function archiveProduct(id: string) {
   if (!archived) throw new Error("Could not archive the product — it may have been deleted or you no longer have access to it.");
   revalidatePath("/products");
   revalidatePath("/dashboard");
+
+  await logAudit({
+    orgId,
+    actorId: userId,
+    actorName,
+    actorRole: role,
+    action: "product.archived",
+    module: "Products",
+    entityType: "product",
+    entityId: id,
+    entityLabel: product?.name ?? id,
+  });
+}
+
+export async function setProductActive(id: string, isActive: boolean) {
+  const { supabase, orgId, userId, role, actorName } = await requireOrgId();
+  requireManagerRole(role);
+  const { data: updated, error } = await supabase
+    .from("products")
+    .update({ is_active: isActive })
+    .eq("id", id)
+    .eq("org_id", orgId)
+    .select("id, name")
+    .maybeSingle();
+  if (error) {
+    console.error("[Inventra] setProductActive failed:", error);
+    throw new Error("Could not update the product's status.");
+  }
+  if (!updated) throw new Error("Could not update the product — it may have been deleted or you no longer have access to it.");
+
+  revalidatePath("/products");
+  revalidatePath("/dashboard");
+
+  await logAudit({
+    orgId,
+    actorId: userId,
+    actorName,
+    actorRole: role,
+    action: "product.updated",
+    module: "Products",
+    entityType: "product",
+    entityId: id,
+    entityLabel: updated.name,
+    previousValue: { isActive: !isActive },
+    newValue: { isActive },
+  });
 }
 
 export async function deleteProduct(id: string) {
-  const { supabase, orgId, role } = await requireOrgId();
+  const { supabase, orgId, userId, role, actorName } = await requireOrgId();
   if (!["owner", "admin", "manager"].includes(role)) {
     throw new Error("Only an owner, admin, or manager can delete a product.");
   }
@@ -212,6 +306,8 @@ export async function deleteProduct(id: string) {
   if ((count ?? 0) > 0) {
     throw new Error("This product has stock/sale history — use Archive instead to keep its records intact.");
   }
+
+  const { data: product } = await supabase.from("products").select("name").eq("id", id).maybeSingle();
 
   const { data: deleted, error } = await supabase
     .from("products")
@@ -227,6 +323,18 @@ export async function deleteProduct(id: string) {
   if (!deleted) throw new Error("Could not delete the product — it may have already been removed.");
   revalidatePath("/products");
   revalidatePath("/dashboard");
+
+  await logAudit({
+    orgId,
+    actorId: userId,
+    actorName,
+    actorRole: role,
+    action: "product.deleted",
+    module: "Products",
+    entityType: "product",
+    entityId: id,
+    entityLabel: product?.name ?? id,
+  });
 }
 
 export async function duplicateProduct(id: string) {
@@ -339,7 +447,7 @@ export interface ImportResult {
 }
 
 export async function importProductsCsv(rows: ImportProductRow[]): Promise<ImportResult> {
-  const { supabase, orgId, userId, role } = await requireOrgId();
+  const { supabase, orgId, userId, role, actorName } = await requireOrgId();
   requireManagerRole(role);
   const result: ImportResult = { created: 0, updated: 0, failed: 0, errors: [] };
 
@@ -469,5 +577,20 @@ export async function importProductsCsv(rows: ImportProductRow[]): Promise<Impor
 
   revalidatePath("/products");
   revalidatePath("/dashboard");
+
+  if (result.created > 0 || result.updated > 0) {
+    await logAudit({
+      orgId,
+      actorId: userId,
+      actorName,
+      actorRole: role,
+      action: "product.imported",
+      module: "Products",
+      entityType: "product",
+      entityLabel: `CSV import (${result.created} created, ${result.updated} updated, ${result.failed} failed)`,
+      newValue: { created: result.created, updated: result.updated, failed: result.failed },
+    });
+  }
+
   return result;
 }

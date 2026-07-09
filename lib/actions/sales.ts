@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { logAudit } from "@/lib/actions/audit";
 import { getSaleDetail, type SaleDetail } from "@/lib/queries/sales";
 
 async function requireSalesOrgId() {
@@ -10,10 +11,20 @@ async function requireSalesOrgId() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
-  const { data: profile } = await supabase.from("profiles").select("org_id, role").eq("id", user.id).single();
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("org_id, role, first_name, last_name")
+    .eq("id", user.id)
+    .single();
   if (!profile) throw new Error("No profile");
   if (profile.role === "warehouse") throw new Error("Warehouse accounts can't record sales.");
-  return { supabase, orgId: profile.org_id as string, userId: user.id, role: profile.role as string };
+  return {
+    supabase,
+    orgId: profile.org_id as string,
+    userId: user.id,
+    role: profile.role as string,
+    actorName: `${profile.first_name} ${profile.last_name}`,
+  };
 }
 
 export async function fetchSaleDetail(id: string): Promise<SaleDetail | null> {
@@ -53,7 +64,7 @@ export interface RecordSaleInput {
 }
 
 export async function recordSale(input: RecordSaleInput) {
-  const { supabase, orgId, userId } = await requireSalesOrgId();
+  const { supabase, orgId, userId, role, actorName } = await requireSalesOrgId();
 
   if (input.items.length === 0) throw new Error("Add at least one product to the sale.");
   for (const item of input.items) {
@@ -63,7 +74,7 @@ export async function recordSale(input: RecordSaleInput) {
 
   const productIds = input.items.map((i) => i.productId);
   const [{ data: products, error: prodError }, { data: org, error: orgError }] = await Promise.all([
-    supabase.from("products").select("id, name, sell_price, qty_on_hand, warehouse_id").in("id", productIds),
+    supabase.from("products").select("id, name, sell_price, qty_on_hand, warehouse_id, is_active").in("id", productIds),
     supabase.from("organizations").select("tax_rate").eq("id", orgId).single(),
   ]);
   if (prodError || !products) throw new Error("Could not load the selected products.");
@@ -78,6 +89,7 @@ export async function recordSale(input: RecordSaleInput) {
   for (const item of input.items) {
     const product = productById.get(item.productId);
     if (!product) throw new Error("One of the selected products no longer exists.");
+    if (!product.is_active) throw new Error(`"${product.name}" is inactive and can't be sold — reactivate it first.`);
     if (item.qty > product.qty_on_hand) {
       throw new Error(`Only ${product.qty_on_hand} of "${product.name}" in stock.`);
     }
@@ -148,6 +160,21 @@ export async function recordSale(input: RecordSaleInput) {
   revalidatePath("/dashboard");
   revalidatePath("/products");
   revalidatePath("/inventory");
+
+  await logAudit({
+    orgId,
+    actorId: userId,
+    actorName,
+    actorRole: role,
+    action: "sale.created",
+    module: "Sales",
+    entityType: "sale",
+    entityId: sale.id as string,
+    entityLabel: `Sale of ${lines.length} item${lines.length === 1 ? "" : "s"} — ${total.toFixed(2)}`,
+    newValue: { total, subtotal, discountAmount, taxAmount, itemCount: lines.length, paymentMethod: input.paymentMethod },
+    branchId: input.warehouseId || null,
+  });
+
   return sale.id as string;
 }
 
@@ -158,7 +185,7 @@ export interface UpdateSaleInput {
 }
 
 export async function updateSale(id: string, input: UpdateSaleInput) {
-  const { supabase } = await requireSalesOrgId();
+  const { supabase, orgId, userId, role, actorName } = await requireSalesOrgId();
 
   // Only clear walk_in_name when switching to a registered customer — leave it
   // untouched otherwise so existing walk-in sales keep their historical name.
@@ -204,15 +231,28 @@ export async function updateSale(id: string, input: UpdateSaleInput) {
   }
 
   revalidatePath("/sales");
+
+  await logAudit({
+    orgId,
+    actorId: userId,
+    actorName,
+    actorRole: role,
+    action: "sale.updated",
+    module: "Sales",
+    entityType: "sale",
+    entityId: id,
+    entityLabel: `Sale ${id.slice(0, 8)}`,
+    newValue: { customerId: input.customerId ?? null, paymentMethod: input.paymentMethod ?? null },
+  });
 }
 
 export async function deleteSale(id: string) {
-  const { supabase, role } = await requireSalesOrgId();
+  const { supabase, orgId, userId, role, actorName } = await requireSalesOrgId();
   if (!["owner", "admin", "manager"].includes(role)) {
     throw new Error("Only an owner, admin, or manager can delete a sale.");
   }
 
-  const { data: sale, error: saleError } = await supabase.from("sales").select("id").eq("id", id).maybeSingle();
+  const { data: sale, error: saleError } = await supabase.from("sales").select("id, total").eq("id", id).maybeSingle();
   if (saleError) {
     console.error("[Inventra] deleteSale (sale fetch) failed:", saleError);
     throw new Error("Could not load this sale.");
@@ -237,4 +277,17 @@ export async function deleteSale(id: string) {
   revalidatePath("/sales");
   revalidatePath("/dashboard");
   revalidatePath("/products");
+
+  await logAudit({
+    orgId,
+    actorId: userId,
+    actorName,
+    actorRole: role,
+    action: "sale.voided",
+    module: "Sales",
+    entityType: "sale",
+    entityId: id,
+    entityLabel: `Sale ${id.slice(0, 8)}`,
+    previousValue: { total: sale.total },
+  });
 }
