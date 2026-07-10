@@ -28,8 +28,13 @@ export default function LoginPage() {
       setLoading(false);
       return;
     }
-    void recordLogin();
+    // Navigate first: recordLogin() is a server action that POSTs to
+    // whatever page it's called from, and middleware redirects an
+    // authenticated request for /login straight to /dashboard — calling
+    // it before router.push made that redirect collide with the action's
+    // own response, surfacing as "unexpected response from server".
     router.push("/dashboard");
+    void recordLogin();
   }
 
   async function handleGoogle() {
