@@ -7,6 +7,7 @@ import { changePlan } from "@/lib/actions/billing";
 import { PLANS } from "@/lib/billing-plans";
 import type { Invoice } from "@/lib/billing-plans";
 import { useWorkspace } from "@/components/app/CurrencyProvider";
+import { PricingPlans } from "@/components/billing/PricingPlans";
 
 interface Props {
   planKey: string;
@@ -113,54 +114,13 @@ export function BillingClient({ planKey, seatsUsed, skuCount, warehouseCount, re
         </button>
       </div>
 
-      <div className="mb-5 grid gap-3.5" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))" }}>
-        {PLANS.map((p) => {
-          const isCurrent = p.key === planKey;
-          return (
-            <div
-              key={p.key}
-              className="relative flex flex-col rounded-2xl border bg-surface p-5"
-              style={{
-                borderWidth: isCurrent ? 1.5 : 1,
-                borderColor: isCurrent ? "var(--accent)" : "var(--border)",
-                boxShadow: isCurrent ? "var(--shadow)" : "var(--shadow-sm)",
-              }}
-            >
-              {isCurrent && (
-                <div className="absolute -top-px right-4 rounded-b-[7px] bg-accent px-[9px] py-[3px] text-[10.5px] font-bold uppercase tracking-[0.04em] text-white">
-                  Current
-                </div>
-              )}
-              <div className="text-[16px] font-bold">{p.name}</div>
-              <div className="mt-1.5 text-[28px] font-extrabold tracking-tight">
-                {formatMoney(p.price)}
-                <span className="text-[14px] font-semibold text-muted">/mo</span>
-              </div>
-              <div className="mb-3.5 mt-0.5 text-[12.5px] leading-relaxed text-text-2">{p.desc}</div>
-              <div className="mb-4 flex flex-col gap-2">
-                {p.features.map((f) => (
-                  <div key={f} className="flex items-center gap-2 text-[12.5px] text-text-2">
-                    <span className="font-extrabold text-green">✓</span>
-                    {f}
-                  </div>
-                ))}
-              </div>
-              <button
-                disabled={isCurrent || busy !== null}
-                onClick={() => handleChange(p.key as "starter" | "growth" | "scale")}
-                className="mt-auto h-[38px] rounded-[9px] text-[13px] font-semibold"
-                style={
-                  isCurrent
-                    ? { border: "1px solid var(--border)", background: "var(--hover)", color: "var(--muted)", cursor: "default" }
-                    : { border: "none", background: "var(--accent)", color: "#fff", cursor: "pointer" }
-                }
-              >
-                {isCurrent ? "Current plan" : busy === p.key ? "Switching…" : PLANS.indexOf(p) > PLANS.findIndex((x) => x.key === planKey) ? "Upgrade" : "Downgrade"}
-              </button>
-            </div>
-          );
-        })}
-      </div>
+      <PricingPlans
+        plans={PLANS}
+        currentPlanKey={planKey}
+        busyKey={busy}
+        onChoosePlan={(key) => handleChange(key as "starter" | "growth" | "scale")}
+        formatMoney={formatMoney}
+      />
 
       <div className="overflow-hidden rounded-[14px] border border-border bg-surface shadow-[var(--shadow-sm)]">
         <div className="border-b border-border-2 px-4 py-3.5 text-[14px] font-bold">Invoice history</div>
