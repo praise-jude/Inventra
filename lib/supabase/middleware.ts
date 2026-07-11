@@ -13,6 +13,10 @@ const AUTH_ROUTES = [
 ];
 
 const ONBOARDING_ROUTE = "/onboarding/complete";
+const ONBOARDING_PLAN_ROUTE = "/onboarding/plan";
+const BILLING_ROUTE = "/billing";
+const SUBSCRIPTION_REQUIRED_ROUTE = "/subscription-required";
+const BLOCKED_STATUSES = ["past_due", "payment_failed", "cancelled", "expired", "suspended"];
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -80,6 +84,54 @@ export async function updateSession(request: NextRequest) {
       const url = request.nextUrl.clone();
       url.pathname = "/dashboard";
       return NextResponse.redirect(url);
+    }
+
+    // Subscription gate — only once the terms/country onboarding above has
+    // passed. Three states: still needs to add a card (new trial signups),
+    // blocked (trial/subscription expired or in a failed-payment state), or
+    // neither (normal access).
+    if (!needsOnboarding) {
+      const { data: sub } = await supabase
+        .from("subscriptions")
+        .select("status, trial_ends_at, cancel_at_period_end")
+        .eq("org_id", profileRow!.org_id)
+        .single();
+
+      const isOnboardingPlanCallback = path === `${ONBOARDING_PLAN_ROUTE}/callback`;
+      const isOnboardingPlanRoute = path.startsWith(ONBOARDING_PLAN_ROUTE) && !isOnboardingPlanCallback;
+      const isExemptFromBlock = path.startsWith(BILLING_ROUTE) || path === SUBSCRIPTION_REQUIRED_ROUTE;
+      const awaitingCard = sub?.status === "trialing" && !sub.trial_ends_at;
+
+      if (isOnboardingPlanCallback) {
+        // Always let this through — it's the Paystack redirect target for
+        // both the initial trial setup and later "update card" calls from
+        // an already-onboarded org, and it redirects itself once done.
+      } else if (awaitingCard) {
+        if (!isOnboardingPlanRoute) {
+          const url = request.nextUrl.clone();
+          url.pathname = ONBOARDING_PLAN_ROUTE;
+          return NextResponse.redirect(url);
+        }
+      } else if (isOnboardingPlanRoute) {
+        // Card already on file — nothing left to do on this route.
+        const url = request.nextUrl.clone();
+        url.pathname = "/dashboard";
+        return NextResponse.redirect(url);
+      } else {
+        const trialExpired = sub?.status === "trialing" && !!sub.trial_ends_at && new Date(sub.trial_ends_at) < new Date();
+        const blocked = trialExpired || (!!sub?.status && BLOCKED_STATUSES.includes(sub.status));
+
+        if (blocked && !isExemptFromBlock) {
+          const url = request.nextUrl.clone();
+          url.pathname = SUBSCRIPTION_REQUIRED_ROUTE;
+          return NextResponse.redirect(url);
+        }
+        if (!blocked && path === SUBSCRIPTION_REQUIRED_ROUTE) {
+          const url = request.nextUrl.clone();
+          url.pathname = "/dashboard";
+          return NextResponse.redirect(url);
+        }
+      }
     }
   } else if (path === "/login" || path === "/signup") {
     // Already authenticated — bounce to the app.

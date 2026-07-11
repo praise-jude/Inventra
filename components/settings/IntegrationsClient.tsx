@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { toggleIntegration } from "@/lib/actions/settings";
 
 const META: Record<string, { name: string; desc: string; icon: string; bg: string }> = {
@@ -20,6 +21,7 @@ export function IntegrationsClient({ initial }: { initial: { provider: string; s
   const [, startTransition] = useTransition();
 
   function toggle(provider: string) {
+    if (provider === "paystack") return; // managed from Billing, not a cosmetic toggle
     const connected = rows.find((r) => r.provider === provider)?.status === "connected";
     setRows((rs) => rs.map((r) => (r.provider === provider ? { ...r, status: connected ? "not_connected" : "connected" } : r)));
     startTransition(() => {
@@ -38,17 +40,31 @@ export function IntegrationsClient({ initial }: { initial: { provider: string; s
               <span className="flex h-[38px] w-[38px] items-center justify-center rounded-[10px] text-[18px]" style={{ background: meta.bg }}>
                 {meta.icon}
               </span>
-              <span
-                onClick={() => toggle(r.provider)}
-                className="cursor-pointer rounded-[20px] px-[9px] py-0.5 text-[11px] font-bold"
-                style={
-                  connected
-                    ? { color: "var(--green)", background: "var(--green-weak)" }
-                    : { color: "var(--accent-text)", background: "var(--accent-weak)" }
-                }
-              >
-                {connected ? "Connected" : "Connect"}
-              </span>
+              {r.provider === "paystack" ? (
+                <Link
+                  href="/billing"
+                  className="rounded-[20px] px-[9px] py-0.5 text-[11px] font-bold"
+                  style={
+                    connected
+                      ? { color: "var(--green)", background: "var(--green-weak)" }
+                      : { color: "var(--accent-text)", background: "var(--accent-weak)" }
+                  }
+                >
+                  {connected ? "Connected" : "Manage in Billing"}
+                </Link>
+              ) : (
+                <span
+                  onClick={() => toggle(r.provider)}
+                  className="cursor-pointer rounded-[20px] px-[9px] py-0.5 text-[11px] font-bold"
+                  style={
+                    connected
+                      ? { color: "var(--green)", background: "var(--green-weak)" }
+                      : { color: "var(--accent-text)", background: "var(--accent-weak)" }
+                  }
+                >
+                  {connected ? "Connected" : "Connect"}
+                </span>
+              )}
             </div>
             <div className="text-[13.5px] font-bold">{meta.name}</div>
             <div className="mt-0.5 text-[12px] leading-snug text-text-2">{meta.desc}</div>

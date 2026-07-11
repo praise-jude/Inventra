@@ -6,6 +6,10 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { isAdminRole, isManagerRole } from "@/lib/roles";
 
+function daysUntil(iso: string): number {
+  return Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000));
+}
+
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: "▦" },
   { href: "/products", label: "Products", icon: "📦" },
@@ -26,6 +30,8 @@ const NAV = [
 export function Sidebar({
   orgName,
   plan,
+  trialStatus,
+  trialEndsAt,
   inventoryBadge,
   role,
   open,
@@ -33,6 +39,8 @@ export function Sidebar({
 }: {
   orgName: string;
   plan: string;
+  trialStatus: string | null;
+  trialEndsAt: string | null;
   inventoryBadge: number;
   role: string;
   open: boolean;
@@ -125,22 +133,20 @@ export function Sidebar({
           );
         })}
       </nav>
-      {!collapsed && (
+      {!collapsed && trialStatus === "trialing" && trialEndsAt && (
         <div className="border-t border-border p-2.5">
           <div
             className="rounded-[11px] border border-border p-3"
             style={{ background: "linear-gradient(150deg,var(--accent-weak),transparent)" }}
           >
-            <div className="mb-0.5 text-[12.5px] font-bold">Trial · 6 days left</div>
-            <div className="mb-2.5 text-[11.5px] leading-snug text-text-2">
-              Unlock forecasting &amp; unlimited SKUs.
-            </div>
+            <div className="mb-0.5 text-[12.5px] font-bold">Trial · {daysUntil(trialEndsAt)} day(s) left</div>
+            <div className="mb-2.5 text-[11.5px] leading-snug text-text-2">Add a plan to keep access after your trial ends.</div>
             <Link
               href="/billing"
               onClick={onNavigate}
               className="flex h-8 w-full items-center justify-center rounded-[7px] bg-accent text-[12.5px] font-semibold text-white"
             >
-              Upgrade plan
+              View billing
             </Link>
           </div>
         </div>

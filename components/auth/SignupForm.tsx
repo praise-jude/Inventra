@@ -119,7 +119,7 @@ export function SignupForm() {
   return (
     <div>
       <h1 className="mb-1.5 text-2xl font-bold tracking-tight">Create your workspace</h1>
-      <p className="mb-[26px] text-text-2">Start your 14-day trial. No card required.</p>
+      <p className="mb-[26px] text-text-2">Start your 6-day free trial — a card is required to activate it.</p>
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-3.5">
         <div>
           <Field label="Full name" value={fullName} onChange={(e) => setFullName(e.target.value)} />

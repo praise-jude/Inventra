@@ -1,60 +1,53 @@
+import type { BillingInterval } from "@/lib/supabase/database.types";
+
 export interface PlanDef {
-  key: string;
+  key: "trial" | "monthly" | "yearly";
   name: string;
-  price: number;
-  seatLimit: number;
-  skuLimit: number;
-  warehouseLimit: number;
+  price: number; // naira; 0 for the trial
+  interval: BillingInterval | null; // null for the trial (not a recurring interval itself)
   desc: string;
   features: string[];
   cta: string;
   badge?: string;
   highlight?: boolean;
+  selectable: boolean; // the trial tile is informational only, not a checkout target
 }
 
 export const PLANS: PlanDef[] = [
   {
-    key: "starter",
-    name: "Starter",
+    key: "trial",
+    name: "Free Trial",
     price: 0,
-    seatLimit: 2,
-    skuLimit: 500,
-    warehouseLimit: 1,
-    desc: "For a single store finding its feet.",
-    features: ["Up to 500 SKUs", "1 warehouse", "2 team seats", "Basic reports"],
-    cta: "Start with Starter",
+    interval: null,
+    desc: "6 days, full access, no charge until it ends.",
+    features: ["Full access to every feature", "A card is required to activate it", "Cancel anytime before it ends"],
+    cta: "Included with signup",
+    selectable: false,
   },
   {
-    key: "growth",
-    name: "Growth",
-    price: 99,
-    seatLimit: 15,
-    skuLimit: Infinity,
-    warehouseLimit: 5,
-    desc: "For growing multi-store retailers.",
-    features: ["Unlimited SKUs", "5 warehouses", "15 team seats", "Demand forecasting", "API access"],
-    cta: "Choose Growth",
-    badge: "Most popular",
-    highlight: true,
+    key: "monthly",
+    name: "Monthly",
+    price: 1500,
+    interval: "monthly",
+    desc: "Billed every month, cancel anytime.",
+    features: ["Everything in Inventra", "Auto-renews monthly", "Cancel or switch anytime"],
+    cta: "Choose Monthly",
+    selectable: true,
   },
   {
-    key: "scale",
-    name: "Scale",
-    price: 249,
-    seatLimit: Infinity,
-    skuLimit: Infinity,
-    warehouseLimit: Infinity,
-    desc: "For wholesalers & chains.",
-    features: ["Everything in Growth", "Unlimited warehouses", "SSO & audit logs", "Dedicated success mgr", "99.99% SLA"],
-    cta: "Go Scale",
+    key: "yearly",
+    name: "Yearly",
+    price: 15000,
+    interval: "yearly",
+    desc: "Billed once a year — best value.",
+    features: ["Everything in Inventra", "Two months free vs. monthly", "Auto-renews yearly"],
+    cta: "Choose Yearly",
     badge: "Best value",
+    highlight: true,
+    selectable: true,
   },
 ];
 
-export interface Invoice {
-  id: string;
-  invoice_number: string;
-  amount: number;
-  status: string;
-  issued_at: string;
+export function planByKey(key: string): PlanDef | undefined {
+  return PLANS.find((p) => p.key === key);
 }

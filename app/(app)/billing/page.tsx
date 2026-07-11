@@ -4,16 +4,7 @@ import { BillingClient } from "@/components/billing/BillingClient";
 
 export default async function BillingPage() {
   await requireAdminProfile();
-  const { org, seatsUsed, skuCount, warehouseCount, invoices } = await getBillingData();
+  const { org, subscription, invoices } = await getBillingData();
 
-  return (
-    <BillingClient
-      planKey={org.plan}
-      seatsUsed={seatsUsed}
-      skuCount={skuCount}
-      warehouseCount={warehouseCount}
-      renewsAt={org.trial_ends_at}
-      invoices={invoices}
-    />
-  );
+  return <BillingClient orgName={org.name} subscription={subscription} invoices={invoices} />;
 }

@@ -19,20 +19,18 @@ interface PricingPlansProps {
   plans: PlanDef[];
   currentPlanKey: string;
   busyKey: string | null;
-  onChoosePlan: (key: string) => void;
+  onChoosePlan: (key: PlanDef["key"]) => void;
   formatMoney: (amount: number) => string;
 }
 
 export function PricingPlans({ plans, currentPlanKey, busyKey, onChoosePlan, formatMoney }: PricingPlansProps) {
-  const currentIndex = plans.findIndex((p) => p.key === currentPlanKey);
-
   return (
     <div className="mb-5 grid gap-3.5" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))" }}>
-      {plans.map((plan, i) => {
+      {plans.map((plan) => {
         const isCurrent = plan.key === currentPlanKey;
         const isBusy = busyKey === plan.key;
-        const direction = i > currentIndex ? "Upgrade" : "Downgrade";
-        const label = isCurrent ? "Current plan" : isBusy ? "Switching…" : `${plan.cta} (${direction})`;
+        const label = isCurrent ? "Current plan" : isBusy ? "Switching…" : plan.cta;
+        const priceSuffix = plan.interval === "monthly" ? "/mo" : plan.interval === "yearly" ? "/yr" : "";
 
         return (
           <div
@@ -56,7 +54,7 @@ export function PricingPlans({ plans, currentPlanKey, busyKey, onChoosePlan, for
             <div className="text-[16px] font-bold">{plan.name}</div>
             <div className="mt-1.5 text-[28px] font-extrabold tracking-tight">
               {formatMoney(plan.price)}
-              <span className="text-[14px] font-semibold text-muted">/mo</span>
+              <span className="text-[14px] font-semibold text-muted">{priceSuffix}</span>
             </div>
             <div className="mb-3.5 mt-0.5 text-[12.5px] leading-relaxed text-text-2">{plan.desc}</div>
 
@@ -69,18 +67,20 @@ export function PricingPlans({ plans, currentPlanKey, busyKey, onChoosePlan, for
               ))}
             </div>
 
-            <button
-              disabled={isCurrent || busyKey !== null}
-              onClick={() => onChoosePlan(plan.key)}
-              className="mt-auto h-[38px] rounded-[9px] text-[13px] font-semibold disabled:cursor-not-allowed"
-              style={
-                isCurrent
-                  ? { border: "1px solid var(--border)", background: "var(--hover)", color: "var(--muted)" }
-                  : { border: "none", background: "var(--accent)", color: "#fff", cursor: "pointer" }
-              }
-            >
-              {label}
-            </button>
+            {plan.selectable && (
+              <button
+                disabled={isCurrent || busyKey !== null}
+                onClick={() => onChoosePlan(plan.key)}
+                className="mt-auto h-[38px] rounded-[9px] text-[13px] font-semibold disabled:cursor-not-allowed"
+                style={
+                  isCurrent
+                    ? { border: "1px solid var(--border)", background: "var(--hover)", color: "var(--muted)" }
+                    : { border: "none", background: "var(--accent)", color: "#fff", cursor: "pointer" }
+                }
+              >
+                {label}
+              </button>
+            )}
           </div>
         );
       })}

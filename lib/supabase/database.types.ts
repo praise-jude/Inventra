@@ -24,6 +24,16 @@ export type ExpenseCategory =
   | "logistics"
   | "miscellaneous";
 export type PaymentMethod = "cash" | "card" | "bank_transfer" | "mobile_money";
+export type SubscriptionStatus =
+  | "trialing"
+  | "active"
+  | "past_due"
+  | "payment_failed"
+  | "cancelled"
+  | "expired"
+  | "suspended";
+export type BillingInterval = "monthly" | "yearly";
+export type PaymentAttemptStatus = "success" | "failed" | "pending";
 
 export interface Organization {
   id: string;
@@ -238,6 +248,58 @@ export interface Invoice {
   amount: number;
   status: InvoiceStatus;
   issued_at: string;
+  paystack_reference: string | null;
+  plan_key: string | null;
+  billing_interval: BillingInterval | null;
+  period_start: string | null;
+  period_end: string | null;
+  paid_at: string | null;
+}
+
+export interface Subscription {
+  org_id: string;
+  status: SubscriptionStatus;
+  plan_key: string;
+  billing_interval: BillingInterval | null;
+  amount: number | null;
+  currency: string;
+  trial_started_at: string | null;
+  trial_ends_at: string | null;
+  trial_reminders_sent: number;
+  current_period_start: string | null;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+  cancelled_at: string | null;
+  paystack_customer_code: string | null;
+  paystack_subscription_code: string | null;
+  paystack_email_token: string | null;
+  paystack_plan_code: string | null;
+  authorization_code: string | null;
+  card_brand: string | null;
+  card_last4: string | null;
+  card_exp_month: string | null;
+  card_exp_year: string | null;
+  card_bank: string | null;
+  failed_payment_count: number;
+  last_payment_attempt_at: string | null;
+  last_payment_error: string | null;
+  next_retry_at: string | null;
+  grandfathered: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PaymentAttempt {
+  id: string;
+  org_id: string;
+  invoice_id: string | null;
+  attempt_number: number;
+  status: PaymentAttemptStatus;
+  amount: number;
+  currency: string;
+  paystack_reference: string | null;
+  failure_reason: string | null;
+  attempted_at: string;
 }
 
 export interface MonthlyStat {

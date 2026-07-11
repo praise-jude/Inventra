@@ -9,6 +9,8 @@ import { setTheme as persistTheme } from "@/lib/actions/theme";
 export function Shell({
   orgName,
   plan,
+  trialStatus,
+  trialEndsAt,
   inventoryBadge,
   initials,
   firstName,
@@ -18,6 +20,8 @@ export function Shell({
 }: {
   orgName: string;
   plan: string;
+  trialStatus: string | null;
+  trialEndsAt: string | null;
   inventoryBadge: number;
   initials: string;
   firstName: string;
@@ -61,6 +65,8 @@ export function Shell({
       <Sidebar
         orgName={orgName}
         plan={plan}
+        trialStatus={trialStatus}
+        trialEndsAt={trialEndsAt}
         inventoryBadge={inventoryBadge}
         role={role}
         open={sidebarOpen}

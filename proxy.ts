@@ -6,5 +6,9 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  // api/ is excluded: the Paystack webhook and cron routes authenticate
+  // themselves (signature / bearer secret) and have no Supabase user
+  // session to check — running the auth/onboarding/subscription gate
+  // against them would just redirect every call to /login.
+  matcher: ["/((?!api/|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };

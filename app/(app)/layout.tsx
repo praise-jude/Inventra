@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { requireProfile } from "@/lib/queries/session";
 import { getKpis } from "@/lib/queries/dashboard";
+import { createClient } from "@/lib/supabase/server";
 import { ToastProvider } from "@/components/app/ToastProvider";
 import { WorkspaceProvider } from "@/components/app/CurrencyProvider";
 import { PresenceProvider } from "@/components/app/PresenceProvider";
@@ -9,6 +10,12 @@ import { Shell } from "@/components/app/Shell";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { profile, org } = await requireProfile();
   const kpis = await getKpis();
+  const supabase = await createClient();
+  const { data: subscription } = await supabase
+    .from("subscriptions")
+    .select("status, trial_ends_at")
+    .eq("org_id", profile.org_id)
+    .single();
   const cookieStore = await cookies();
   const initialTheme = cookieStore.get("theme")?.value === "dark" ? "dark" : "light";
 
@@ -27,6 +34,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <Shell
             orgName={org.name}
             plan={org.plan}
+            trialStatus={subscription?.status ?? null}
+            trialEndsAt={subscription?.trial_ends_at ?? null}
             inventoryBadge={inventoryBadge}
             initials={initials}
             firstName={profile.first_name}

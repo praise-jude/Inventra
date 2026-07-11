@@ -154,6 +154,67 @@ export async function exportReceiptPdf(data: ReceiptData) {
   doc.save(`${data.receiptNumber}.pdf`);
 }
 
+export interface InvoicePdfData {
+  orgName: string;
+  invoiceNumber: string;
+  issuedAt: string;
+  status: string;
+  planLabel: string;
+  periodStart: string | null;
+  periodEnd: string | null;
+  paystackReference: string | null;
+  amount: number;
+  formatMoney: (n: number) => string;
+}
+
+// A4 subscription invoice — separate from exportReceiptPdf's thermal/A4
+// point-of-sale receipt, but the same dynamic-import jsPDF+autoTable
+// convention so this stays out of the Billing page's initial bundle.
+export async function exportInvoicePdf(data: InvoicePdfData) {
+  const { default: jsPDF } = await import("jspdf");
+  const { default: autoTable } = await import("jspdf-autotable");
+
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  let y = 20;
+  doc.setFontSize(18);
+  doc.text(data.orgName, 14, y);
+  doc.setFontSize(11);
+  doc.text("Subscription invoice", 196, y, { align: "right" });
+  y += 10;
+  doc.setFontSize(9.5);
+  doc.text(`Invoice number: ${data.invoiceNumber}`, 14, y);
+  doc.text(`Issued: ${data.issuedAt}`, 196, y, { align: "right" });
+  y += 5;
+  doc.text(`Status: ${data.status.toUpperCase()}`, 14, y);
+  if (data.paystackReference) doc.text(`Reference: ${data.paystackReference}`, 196, y, { align: "right" });
+  y += 10;
+
+  autoTable(doc, {
+    startY: y,
+    margin: { left: 14, right: 14 },
+    head: [["Description", "Billing period", "Amount"]],
+    body: [
+      [
+        `${data.planLabel} plan subscription`,
+        data.periodStart && data.periodEnd ? `${data.periodStart} – ${data.periodEnd}` : "—",
+        data.formatMoney(data.amount),
+      ],
+    ],
+    styles: { fontSize: 9.5, cellPadding: 3 },
+    headStyles: { fillColor: [37, 99, 235] },
+    theme: "grid",
+  });
+
+  y = (doc as any).lastAutoTable.finalY + 8;
+  doc.setFontSize(12);
+  doc.text(`Total: ${data.formatMoney(data.amount)}`, 196, y, { align: "right" });
+  y += 12;
+  doc.setFontSize(9.5);
+  doc.text("Thank you for your business.", 14, y);
+
+  doc.save(`${data.invoiceNumber}.pdf`);
+}
+
 export async function exportToPdf<T>(title: string, rows: T[], columns: ExportColumn<T>[], filename: string) {
   const { default: jsPDF } = await import("jspdf");
   const { default: autoTable } = await import("jspdf-autotable");
