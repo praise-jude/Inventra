@@ -5,11 +5,13 @@ import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useToast } from "@/components/app/ToastProvider";
 import { deleteSupplier, fetchSupplierDetail } from "@/lib/actions/suppliers";
-import { SupplierDetailSlideOver } from "@/components/suppliers/SupplierDetailSlideOver";
 import { Table, type TableColumn } from "@/components/ui/Table";
 import { EmptyState } from "@/components/ui/EmptyState";
 
 const SupplierModal = dynamic(() => import("@/components/suppliers/SupplierModal").then((m) => m.SupplierModal));
+const SupplierDetailSlideOver = dynamic(() =>
+  import("@/components/suppliers/SupplierDetailSlideOver").then((m) => m.SupplierDetailSlideOver),
+);
 import type { SupplierRow, SupplierDetail } from "@/lib/queries/suppliers";
 
 export function SuppliersClient({ suppliers, canManage }: { suppliers: SupplierRow[]; canManage: boolean }) {

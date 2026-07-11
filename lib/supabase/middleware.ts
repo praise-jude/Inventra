@@ -57,22 +57,18 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (!isAuthRoute) {
+    // One round trip instead of three (profiles -> organizations ->
+    // subscriptions) — get_access_gate_state() left-joins all three so this
+    // check, which runs on every single authenticated navigation, doesn't
+    // chain sequential requests. See supabase/migrations/20260711090000_access_gate_rpc.sql.
+    const { data: gate } = await supabase.rpc("get_access_gate_state");
+
     // Make sure signup/OAuth onboarding gaps (business country/currency,
     // terms acceptance) are filled in before letting the user any further
     // into the app.
-    const { data: profileRow } = await supabase
-      .from("profiles")
-      .select("org_id, terms_accepted")
-      .eq("id", user.id)
-      .single();
-    let needsOnboarding = !profileRow || !profileRow.terms_accepted;
-    if (profileRow && profileRow.terms_accepted) {
-      const { data: orgRow } = await supabase
-        .from("organizations")
-        .select("country")
-        .eq("id", profileRow.org_id)
-        .single();
-      needsOnboarding = !orgRow?.country;
+    let needsOnboarding = !gate?.profile_exists || !gate.terms_accepted;
+    if (gate?.profile_exists && gate.terms_accepted) {
+      needsOnboarding = !gate.country;
     }
 
     if (needsOnboarding && path !== ONBOARDING_ROUTE) {
@@ -91,16 +87,10 @@ export async function updateSession(request: NextRequest) {
     // blocked (trial/subscription expired or in a failed-payment state), or
     // neither (normal access).
     if (!needsOnboarding) {
-      const { data: sub } = await supabase
-        .from("subscriptions")
-        .select("status, trial_ends_at, cancel_at_period_end")
-        .eq("org_id", profileRow!.org_id)
-        .single();
-
       const isOnboardingPlanCallback = path === `${ONBOARDING_PLAN_ROUTE}/callback`;
       const isOnboardingPlanRoute = path.startsWith(ONBOARDING_PLAN_ROUTE) && !isOnboardingPlanCallback;
       const isExemptFromBlock = path.startsWith(BILLING_ROUTE) || path === SUBSCRIPTION_REQUIRED_ROUTE;
-      const awaitingCard = sub?.status === "trialing" && !sub.trial_ends_at;
+      const awaitingCard = gate?.subscription_status === "trialing" && !gate.trial_ends_at;
 
       if (isOnboardingPlanCallback) {
         // Always let this through — it's the Paystack redirect target for
@@ -118,8 +108,9 @@ export async function updateSession(request: NextRequest) {
         url.pathname = "/dashboard";
         return NextResponse.redirect(url);
       } else {
-        const trialExpired = sub?.status === "trialing" && !!sub.trial_ends_at && new Date(sub.trial_ends_at) < new Date();
-        const blocked = trialExpired || (!!sub?.status && BLOCKED_STATUSES.includes(sub.status));
+        const trialExpired =
+          gate?.subscription_status === "trialing" && !!gate.trial_ends_at && new Date(gate.trial_ends_at) < new Date();
+        const blocked = trialExpired || (!!gate?.subscription_status && BLOCKED_STATUSES.includes(gate.subscription_status));
 
         if (blocked && !isExemptFromBlock) {
           const url = request.nextUrl.clone();

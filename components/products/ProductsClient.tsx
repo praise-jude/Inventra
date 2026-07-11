@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import { ProductDetailSlideOver } from "@/components/products/ProductDetailSlideOver";
 import { Table, type TableColumn } from "@/components/ui/Table";
 import { EmptyState } from "@/components/ui/EmptyState";
 import {
@@ -23,6 +22,9 @@ import { exportToCsv } from "@/lib/export";
 const AddProductModal = dynamic(() => import("@/components/products/AddProductModal").then((m) => m.AddProductModal));
 const BarcodeScannerModal = dynamic(() =>
   import("@/components/products/BarcodeScannerModal").then((m) => m.BarcodeScannerModal),
+);
+const ProductDetailSlideOver = dynamic(() =>
+  import("@/components/products/ProductDetailSlideOver").then((m) => m.ProductDetailSlideOver),
 );
 
 const EXPORT_COLUMNS = [

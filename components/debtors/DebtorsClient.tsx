@@ -6,11 +6,13 @@ import dynamic from "next/dynamic";
 import { useToast } from "@/components/app/ToastProvider";
 import { useWorkspace } from "@/components/app/CurrencyProvider";
 import { deleteDebtor, fetchDebtorDetail, updateDebtorStatus } from "@/lib/actions/debtors";
-import { DebtorDetailSlideOver } from "@/components/debtors/DebtorDetailSlideOver";
 import { Table, type TableColumn } from "@/components/ui/Table";
 import { EmptyState } from "@/components/ui/EmptyState";
 
 const DebtorModal = dynamic(() => import("@/components/debtors/DebtorModal").then((m) => m.DebtorModal));
+const DebtorDetailSlideOver = dynamic(() =>
+  import("@/components/debtors/DebtorDetailSlideOver").then((m) => m.DebtorDetailSlideOver),
+);
 import type { DebtorsOverview, DebtorRow, DebtorDetail } from "@/lib/queries/debtors";
 
 const STATUS_STYLE: Record<string, { color: string; background: string }> = {

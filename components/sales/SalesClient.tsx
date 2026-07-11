@@ -2,13 +2,17 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useWorkspace } from "@/components/app/CurrencyProvider";
 import { fetchSaleDetail } from "@/lib/actions/sales";
-import { SaleDetailSlideOver } from "@/components/sales/SaleDetailSlideOver";
 import type { SaleListRow, SaleDetail } from "@/lib/queries/sales";
 import { Table, type TableColumn } from "@/components/ui/Table";
 import { EmptyState } from "@/components/ui/EmptyState";
+
+const SaleDetailSlideOver = dynamic(() =>
+  import("@/components/sales/SaleDetailSlideOver").then((m) => m.SaleDetailSlideOver),
+);
 
 interface SalesFiltersState {
   q: string;
