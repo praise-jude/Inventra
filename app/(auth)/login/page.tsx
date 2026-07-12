@@ -38,11 +38,16 @@ export default function LoginPage() {
   }
 
   async function handleGoogle() {
+    setError(null);
     const supabase = createClient();
-    await supabase.auth.signInWithOAuth({
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo: `${window.location.origin}/auth/callback` },
     });
+    // On success this redirects the whole page to Google's consent screen —
+    // execution only reaches here when the request never sent the browser
+    // anywhere, e.g. the provider isn't enabled in Supabase yet.
+    if (oauthError) setError(oauthError.message);
   }
 
   return (
