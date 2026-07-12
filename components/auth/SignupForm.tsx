@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Eye, EyeOff } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { registerAccount } from "@/lib/actions/auth";
 import { COUNTRIES, statesForCountry } from "@/lib/geo/countries";
@@ -146,9 +147,10 @@ export function SignupForm() {
             <button
               type="button"
               onClick={() => setShowPassword((v) => !v)}
-              className="absolute right-3 top-[30px] text-[12.5px] font-semibold text-text-2"
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              className="absolute right-3 top-[30px] text-text-2 hover:text-text"
             >
-              {showPassword ? "Hide" : "Show"}
+              {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
             </button>
           </div>
           <div className="mt-2 flex gap-[5px]">

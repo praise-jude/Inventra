@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { Eye, EyeOff } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { recordLogin } from "@/lib/actions/audit";
 import { Field } from "@/components/ui/Field";
@@ -14,6 +15,7 @@ export default function LoginPage() {
   const suspended = searchParams.get("suspended") === "1";
   const [email, setEmail] = useState("ava@freshmart.co");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -74,12 +76,23 @@ export default function LoginPage() {
               Forgot?
             </Link>
           </div>
-          <Field
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
+          <div className="relative">
+            <Field
+              type={showPassword ? "text" : "password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              className="pr-11"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-text-2 hover:text-text"
+            >
+              {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+            </button>
+          </div>
         </div>
         {error && <p className="text-[13px] font-medium text-red">{error}</p>}
         <Button type="submit" disabled={loading} className="w-full">
