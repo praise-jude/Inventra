@@ -8,3 +8,6 @@ export default async function RootPage() {
   } = await supabase.auth.getUser();
   redirect(user ? "/dashboard" : "/login");
 }
+
+
+// just test
