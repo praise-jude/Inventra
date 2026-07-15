@@ -193,7 +193,13 @@ export function BillingClient({ orgName, subscription, invoices }: Props) {
                   onClick={handleReactivate}
                   className="h-[38px] rounded-[9px] bg-white px-4 text-[13px] font-bold text-accent-2 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {busy === "reactivate" ? "Reactivating…" : "Reactivate"}
+                  {subscription.status === "past_due"
+                    ? busy === "reactivate"
+                      ? "Retrying…"
+                      : "Retry payment"
+                    : busy === "reactivate"
+                      ? "Reactivating…"
+                      : "Reactivate"}
                 </button>
               )}
             </div>

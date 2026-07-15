@@ -4,12 +4,9 @@ import crypto from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/actions/audit";
-import { siteUrl } from "@/lib/site-url";
 import { planByKey } from "@/lib/billing-plans";
-import type { Subscription } from "@/lib/supabase/database.types";
+import { resolveAdminBillingContext, initiateAddCardForContext } from "@/lib/billing-service";
 import {
-  createCustomer,
-  initializeTransaction,
   disableSubscription,
   enableSubscription,
   createSubscription,
@@ -24,74 +21,19 @@ function planCodeFor(interval: "monthly" | "yearly"): string {
 
 async function requireAdminContext() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("id, org_id, role, first_name, last_name, email")
-    .eq("id", user.id)
-    .single();
-  if (!profile) throw new Error("No profile");
-  if (!["owner", "admin"].includes(profile.role)) {
-    throw new Error("Only an owner or admin can manage billing.");
-  }
-
-  const { data: subscription } = await supabase
-    .from("subscriptions")
-    .select("*")
-    .eq("org_id", profile.org_id)
-    .single<Subscription>();
-  if (!subscription) throw new Error("No subscription found for this organization.");
-
-  return { supabase, user, profile, subscription };
+  const { profile, subscription } = await resolveAdminBillingContext(supabase);
+  return { supabase, profile, subscription };
 }
 
 // Kicks off card tokenization via Paystack's hosted checkout: a small ₦50
 // charge (refunded once the webhook confirms and stores the authorization)
 // so the app never touches raw card data. Used both by onboarding (new
 // trial) and by "Update payment method" on an existing subscription.
+// Actual Paystack calls live in lib/billing-service.ts, shared with the
+// mobile app's app/api/mobile/billing/initiate-card route.
 export async function initiateAddCard(planKey: "monthly" | "yearly"): Promise<{ authorizationUrl: string }> {
   const { profile, subscription } = await requireAdminContext();
-  const plan = planByKey(planKey);
-  if (!plan || !plan.selectable) throw new Error("Invalid plan.");
-
-  let customerCode = subscription.paystack_customer_code;
-  if (!customerCode) {
-    const customer = await createCustomer({
-      email: profile.email,
-      firstName: profile.first_name,
-      lastName: profile.last_name,
-      orgId: profile.org_id,
-    });
-    customerCode = customer.customer_code;
-  }
-
-  // Distinguishes a brand-new trial (no trial_ends_at yet) from swapping the
-  // card on an already-running trial/subscription — the webhook must not
-  // reset an active paying org back into a fresh trial just because they
-  // updated their card.
-  const mode = subscription.trial_ends_at ? "update" : "initial";
-
-  const reference = `verify_${profile.org_id}_${crypto.randomUUID()}`;
-  const origin = await siteUrl();
-  const { authorization_url } = await initializeTransaction({
-    email: profile.email,
-    amountNaira: 50,
-    reference,
-    callbackUrl: `${origin}/onboarding/plan/callback`,
-    metadata: {
-      purpose: "card_verification",
-      mode,
-      org_id: profile.org_id,
-      plan_key: planKey,
-      customer_code: customerCode,
-    },
-  });
-
-  return { authorizationUrl: authorization_url };
+  return initiateAddCardForContext({ profile, subscription }, planKey);
 }
 
 // Switches plan/interval. Rather than prorating mid-cycle (out of scope and

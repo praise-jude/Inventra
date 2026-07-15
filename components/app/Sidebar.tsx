@@ -133,6 +133,27 @@ export function Sidebar({
           );
         })}
       </nav>
+      {!collapsed && (trialStatus === "past_due" || trialStatus === "suspended") && (
+        <div className="border-t border-border p-2.5">
+          <div className="rounded-[11px] border border-red bg-red-weak p-3">
+            <div className="mb-0.5 text-[12.5px] font-bold text-red">
+              {trialStatus === "past_due" ? "Payment failed" : "Subscription suspended"}
+            </div>
+            <div className="mb-2.5 text-[11.5px] leading-snug text-text-2">
+              {trialStatus === "past_due"
+                ? "We couldn't charge your card. Retry payment to avoid losing access."
+                : "Your subscription is suspended. Update billing to restore access."}
+            </div>
+            <Link
+              href="/billing"
+              onClick={onNavigate}
+              className="flex h-8 w-full items-center justify-center rounded-[7px] bg-red text-[12.5px] font-semibold text-white"
+            >
+              Go to billing
+            </Link>
+          </div>
+        </div>
+      )}
       {!collapsed && trialStatus === "trialing" && trialEndsAt && (
         <div className="border-t border-border p-2.5">
           <div
