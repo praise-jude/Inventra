@@ -24,6 +24,7 @@ const TITLES: Record<string, string> = {
   "/notifications": "Notifications",
   "/billing": "Billing",
   "/settings": "Settings",
+  "/account/security": "Security",
   "/support": "Contact support",
 };
 
@@ -227,6 +228,12 @@ export function Topbar({
               className="block w-full px-3.5 py-2 text-left text-[13px] font-medium text-text hover:bg-hover"
             >
               Settings
+            </button>
+            <button
+              onClick={() => router.push("/account/security")}
+              className="block w-full px-3.5 py-2 text-left text-[13px] font-medium text-text hover:bg-hover"
+            >
+              Security
             </button>
             <button
               onClick={handleLogout}

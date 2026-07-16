@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { recordLogin } from "@/lib/actions/audit";
+import { verifyRecoveryCode } from "@/lib/actions/mfa";
 import { Field } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 
@@ -19,6 +20,14 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Set once password auth succeeds but a second factor is still required
+  // (getAuthenticatorAssuranceLevel().nextLevel === "aal2") — the user
+  // already has a valid AAL1 session at this point, they just can't reach
+  // protected pages until they step up.
+  const [needsMfa, setNeedsMfa] = useState(false);
+  const [useRecoveryCode, setUseRecoveryCode] = useState(false);
+  const [mfaCode, setMfaCode] = useState("");
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -30,6 +39,18 @@ export default function LoginPage() {
       setLoading(false);
       return;
     }
+
+    const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (aal && aal.nextLevel === "aal2" && aal.nextLevel !== aal.currentLevel) {
+      setNeedsMfa(true);
+      setLoading(false);
+      return;
+    }
+
+    finishLogin();
+  }
+
+  function finishLogin() {
     // Navigate first: recordLogin() is a server action that POSTs to
     // whatever page it's called from, and middleware redirects an
     // authenticated request for /login straight to /dashboard — calling
@@ -37,6 +58,40 @@ export default function LoginPage() {
     // own response, surfacing as "unexpected response from server".
     router.push("/dashboard");
     void recordLogin();
+  }
+
+  async function handleMfaSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    try {
+      if (useRecoveryCode) {
+        const ok = await verifyRecoveryCode(mfaCode.trim());
+        if (!ok) throw new Error("Invalid recovery code.");
+        finishLogin();
+        return;
+      }
+
+      const supabase = createClient();
+      const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors();
+      if (factorsError) throw factorsError;
+      const totpFactor = factors?.totp?.[0];
+      if (!totpFactor) throw new Error("No authenticator found on this account.");
+
+      const challenge = await supabase.auth.mfa.challenge({ factorId: totpFactor.id });
+      if (challenge.error) throw challenge.error;
+      const verify = await supabase.auth.mfa.verify({
+        factorId: totpFactor.id,
+        challengeId: challenge.data.id,
+        code: mfaCode.trim(),
+      });
+      if (verify.error) throw verify.error;
+
+      finishLogin();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Invalid authentication code.");
+      setLoading(false);
+    }
   }
 
   async function handleGoogle() {
@@ -50,6 +105,46 @@ export default function LoginPage() {
     // execution only reaches here when the request never sent the browser
     // anywhere, e.g. the provider isn't enabled in Supabase yet.
     if (oauthError) setError(oauthError.message);
+  }
+
+  if (needsMfa) {
+    return (
+      <div>
+        <h1 className="mb-1.5 text-2xl font-bold tracking-tight">Enter authentication code</h1>
+        <p className="mb-[26px] text-text-2">
+          {useRecoveryCode
+            ? "Enter one of your recovery codes."
+            : "Enter the 6-digit code from your authenticator app."}
+        </p>
+        <form onSubmit={handleMfaSubmit} className="flex flex-col gap-3.5">
+          <Field
+            value={mfaCode}
+            onChange={(e) => setMfaCode(e.target.value.trim())}
+            placeholder={useRecoveryCode ? "HDT4-9XPA" : "123456"}
+            inputMode={useRecoveryCode ? "text" : "numeric"}
+            autoFocus
+            required
+          />
+          {error && <p className="text-[13px] font-medium text-red">{error}</p>}
+          <Button type="submit" disabled={loading} className="w-full">
+            {loading ? "Verifying…" : "Verify"}
+          </Button>
+        </form>
+        <p className="mt-6 text-center text-[13.5px] text-text-2">
+          <button
+            type="button"
+            onClick={() => {
+              setError(null);
+              setMfaCode("");
+              setUseRecoveryCode((v) => !v);
+            }}
+            className="font-semibold text-accent-text"
+          >
+            {useRecoveryCode ? "Use authenticator app instead" : "Lost your authenticator? Use a recovery code"}
+          </button>
+        </p>
+      </div>
+    );
   }
 
   return (

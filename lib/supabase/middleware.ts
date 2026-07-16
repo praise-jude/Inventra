@@ -61,6 +61,18 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse;
   }
 
+  // Password auth alone sets a valid (AAL1) session cookie immediately —
+  // without this check, a user with MFA enabled could skip the login
+  // page's challenge screen entirely by navigating straight to a
+  // protected route in a new tab right after entering their password.
+  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  const needsMfaStepUp = aal?.nextLevel === "aal2" && aal.nextLevel !== aal.currentLevel;
+  if (needsMfaStepUp && path !== "/login") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    return NextResponse.redirect(url);
+  }
+
   if (path.startsWith(ADMIN_ROUTE)) {
     return supabaseResponse;
   }
@@ -133,8 +145,10 @@ export async function updateSession(request: NextRequest) {
         }
       }
     }
-  } else if (path === "/login" || path === "/signup") {
-    // Already authenticated — bounce to the app.
+  } else if ((path === "/login" || path === "/signup") && !needsMfaStepUp) {
+    // Already fully authenticated — bounce to the app. Skipped while an
+    // MFA step-up is still pending, or this would infinite-loop against
+    // the needsMfaStepUp redirect-to-/login above.
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);

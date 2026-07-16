@@ -204,3 +204,39 @@ export async function sendPaymentMethodUpdatedEmail(input: { to: string; orgName
     ),
   });
 }
+
+export async function sendMfaEnabledEmail(input: { to: string }): Promise<void> {
+  await sendEmail({
+    to: input.to,
+    subject: "Two-factor authentication enabled",
+    html: wrap(
+      "Two-factor authentication enabled",
+      `<p>Two-factor authentication was just turned on for your Inventra account. You'll now be asked for a code from your authenticator app each time you sign in.</p>
+       <p>If you didn't make this change, please contact support immediately.</p>`,
+    ),
+  });
+}
+
+export async function sendMfaDisabledEmail(input: { to: string }): Promise<void> {
+  await sendEmail({
+    to: input.to,
+    subject: "Two-factor authentication disabled",
+    html: wrap(
+      "Two-factor authentication disabled",
+      `<p>Two-factor authentication was just turned off for your Inventra account. Signing in now only requires your password.</p>
+       <p>If you didn't make this change, please contact support immediately and change your password.</p>`,
+    ),
+  });
+}
+
+export async function sendRecoveryCodeUsedEmail(input: { to: string }): Promise<void> {
+  await sendEmail({
+    to: input.to,
+    subject: "A recovery code was used on your account",
+    html: wrap(
+      "A recovery code was used",
+      `<p>One of your two-factor recovery codes was just used to sign in to your Inventra account.</p>
+       <p>If this wasn't you, please contact support immediately and change your password.</p>`,
+    ),
+  });
+}
