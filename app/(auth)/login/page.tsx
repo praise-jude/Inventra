@@ -24,8 +24,11 @@ export default function LoginPage() {
   // Set once password auth succeeds but a second factor is still required
   // (getAuthenticatorAssuranceLevel().nextLevel === "aal2") — the user
   // already has a valid AAL1 session at this point, they just can't reach
-  // protected pages until they step up.
-  const [needsMfa, setNeedsMfa] = useState(false);
+  // protected pages until they step up. Also seeded from ?mfa=1, which
+  // middleware sets when it bounces an AAL1-only session back here —
+  // needed for Google OAuth, whose full-page redirect round trip remounts
+  // this component fresh and would otherwise lose the step-up prompt.
+  const [needsMfa, setNeedsMfa] = useState(searchParams.get("mfa") === "1");
   const [useRecoveryCode, setUseRecoveryCode] = useState(false);
   const [mfaCode, setMfaCode] = useState("");
 

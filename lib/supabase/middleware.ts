@@ -70,6 +70,11 @@ export async function updateSession(request: NextRequest) {
   if (needsMfaStepUp && path !== "/login") {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
+    // Signals the login page to open straight into the authenticator-code
+    // screen — needed for any AAL1 session that never went through the
+    // password form's own client-side step-up branch, e.g. Google OAuth,
+    // which does a full-page round trip and remounts the page fresh.
+    url.searchParams.set("mfa", "1");
     return NextResponse.redirect(url);
   }
 
