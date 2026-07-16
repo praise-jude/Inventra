@@ -9,8 +9,16 @@ import { SecurityClient } from "@/components/account/SecurityClient";
 export default async function AccountSecurityPage() {
   await requireProfile();
   const supabase = await createClient();
-  const { data: factors } = await supabase.auth.mfa.listFactors();
-  const totpFactor = factors?.totp?.[0] ?? null;
+
+  let totpFactor = null;
+  try {
+    const { data: factors, error } = await supabase.auth.mfa.listFactors();
+    if (error) console.error("[Inventra] listFactors failed:", error);
+    totpFactor = factors?.totp?.[0] ?? null;
+  } catch (err) {
+    console.error("[Inventra] listFactors threw:", err);
+  }
+
   const recoveryCodeCount = totpFactor ? await getRecoveryCodeCount() : 0;
 
   return <SecurityClient mfaEnabled={!!totpFactor} recoveryCodeCount={recoveryCodeCount} />;

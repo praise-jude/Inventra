@@ -81,18 +81,24 @@ export async function verifyRecoveryCode(code: string): Promise<boolean> {
 }
 
 export async function getRecoveryCodeCount(): Promise<number> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return 0;
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return 0;
 
-  const { count } = await supabase
-    .from("mfa_recovery_codes")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", user.id)
-    .eq("used", false);
-  return count ?? 0;
+    const { count, error } = await supabase
+      .from("mfa_recovery_codes")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("used", false);
+    if (error) console.error("[Inventra] getRecoveryCodeCount failed:", error);
+    return count ?? 0;
+  } catch (err) {
+    console.error("[Inventra] getRecoveryCodeCount threw:", err);
+    return 0;
+  }
 }
 
 // Disabling requires the password PLUS a second factor (TOTP code OR a
