@@ -45,6 +45,15 @@ export async function updateSupportSettings(input: UpdateSupportSettingsInput): 
 
   const tawkPropertyId = sanitizeText(input.tawkPropertyId, 64);
   const tawkWidgetId = sanitizeText(input.tawkWidgetId, 64);
+  // Real Tawk IDs are always plain alphanumeric — these two values get
+  // interpolated into an inline <script> tag (TawkScript.tsx) to build the
+  // embed URL and set Tawk_API.customStyle, so this also closes off any
+  // script-injection surface even though only a trusted platform admin can
+  // set them.
+  const ID_RE = /^[a-zA-Z0-9]*$/;
+  if (!ID_RE.test(tawkPropertyId) || !ID_RE.test(tawkWidgetId)) {
+    throw new Error("Tawk.to IDs can only contain letters and numbers.");
+  }
   if (input.tawkEnabled && (!tawkPropertyId || !tawkWidgetId)) {
     throw new Error("Tawk.to Property ID and Widget ID are required to enable live chat.");
   }
