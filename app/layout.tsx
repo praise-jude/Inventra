@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
 import { cookies } from "next/headers";
+import { getSupportSettings } from "@/lib/queries/support-settings";
+import { SupportWidget } from "@/components/support/SupportWidget";
+import { TawkScript } from "@/components/support/TawkScript";
 import "./globals.css";
 
 const hanken = Hanken_Grotesk({
@@ -32,10 +35,20 @@ export default async function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   const cookieStore = await cookies();
   const theme = cookieStore.get("theme")?.value === "dark" ? "dark" : "light";
+  // Every page, logged in or not (login/signup included) — fetched once
+  // per request via the service-role client, never exposed to the
+  // anon-key client, so no RLS policy is needed for this read.
+  const supportSettings = await getSupportSettings();
 
   return (
     <html lang="en" data-theme={theme} className={`${hanken.variable} ${jetbrains.variable}`}>
-      <body suppressHydrationWarning>{children}</body>
+      <body suppressHydrationWarning>
+        {children}
+        <SupportWidget settings={supportSettings} />
+        {supportSettings.tawkEnabled && supportSettings.tawkPropertyId && supportSettings.tawkWidgetId && (
+          <TawkScript propertyId={supportSettings.tawkPropertyId} widgetId={supportSettings.tawkWidgetId} />
+        )}
+      </body>
     </html>
   );
 }

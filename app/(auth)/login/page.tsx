@@ -14,6 +14,7 @@ export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const suspended = searchParams.get("suspended") === "1";
+  const rejected = searchParams.get("rejected") === "1";
   const [email, setEmail] = useState("ava@freshmart.co");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -154,6 +155,11 @@ export default function LoginPage() {
       {suspended && (
         <p className="mb-3.5 rounded-[9px] border border-red bg-red-weak px-3.5 py-2.5 text-[13px] font-medium text-red">
           Your account has been suspended. Contact your workspace admin for access.
+        </p>
+      )}
+      {rejected && (
+        <p className="mb-3.5 rounded-[9px] border border-red bg-red-weak px-3.5 py-2.5 text-[13px] font-medium text-red">
+          Your access request was declined. Contact your workspace admin, or ask for a new invitation.
         </p>
       )}
       <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">

@@ -240,3 +240,14 @@ export async function sendRecoveryCodeUsedEmail(input: { to: string }): Promise<
     ),
   });
 }
+
+export async function sendMemberApprovedEmail(input: { to: string; orgName: string }): Promise<void> {
+  await sendEmail({
+    to: input.to,
+    subject: "Your Inventra account has been approved",
+    html: wrap(
+      "You're approved",
+      `<p>Your ${input.orgName} account has been approved. You can now log in and access your assigned branch.</p>`,
+    ),
+  });
+}

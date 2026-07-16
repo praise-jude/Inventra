@@ -36,7 +36,9 @@ export default function AcceptInvitePage() {
 
     try {
       if (userData.user) {
-        await supabase.from("profiles").update({ status: "active" }).eq("id", userData.user.id);
+        // Lands in awaiting_approval, not active — an admin must approve
+        // before this account can use the app (see requireProfile()).
+        await supabase.from("profiles").update({ status: "awaiting_approval" }).eq("id", userData.user.id);
         await acceptInviteTerms();
       }
     } catch (err) {
@@ -46,7 +48,7 @@ export default function AcceptInvitePage() {
     }
 
     setLoading(false);
-    router.push("/dashboard");
+    router.push("/pending-approval");
   }
 
   if (linkExpired) {

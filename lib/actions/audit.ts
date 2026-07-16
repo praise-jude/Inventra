@@ -28,6 +28,11 @@ async function clientIp(): Promise<string | null> {
   return h.get("x-real-ip");
 }
 
+async function clientDevice(): Promise<string | null> {
+  const h = await headers();
+  return h.get("user-agent");
+}
+
 // Fire-and-forget by design: a failed audit insert must never break the
 // mutation it's describing (e.g. a stock adjustment should still succeed
 // even if the audit_logs insert fails for some reason) — errors are logged,
@@ -35,7 +40,7 @@ async function clientIp(): Promise<string | null> {
 export async function logAudit(input: AuditLogInput): Promise<void> {
   try {
     const supabase = await createClient();
-    const ip = await clientIp();
+    const [ip, device] = await Promise.all([clientIp(), clientDevice()]);
     const { error } = await supabase.from("audit_logs").insert({
       org_id: input.orgId,
       actor_id: input.actorId,
@@ -51,6 +56,7 @@ export async function logAudit(input: AuditLogInput): Promise<void> {
       branch_id: input.branchId ?? null,
       branch_name: input.branchName ?? null,
       ip_address: ip,
+      device,
     });
     if (error) console.error("[Inventra] logAudit insert failed:", error);
   } catch (err) {

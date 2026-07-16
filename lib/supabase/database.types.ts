@@ -1,5 +1,5 @@
 export type UserRole = "owner" | "admin" | "manager" | "cashier" | "warehouse";
-export type MemberStatus = "active" | "invited";
+export type MemberStatus = "active" | "invited" | "awaiting_approval";
 export type MovementType = "received" | "sale" | "adjustment" | "transfer" | "return" | "expired";
 export type InvoiceStatus = "paid" | "pending" | "failed";
 export type IntegrationProvider =
@@ -66,6 +66,10 @@ export interface Profile {
   terms_accepted_ip: string | null;
   last_active_at: string | null;
   suspended_at: string | null;
+  rejected_at: string | null;
+  rejected_reason: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
   branch_id: string | null;
   created_at: string;
 }

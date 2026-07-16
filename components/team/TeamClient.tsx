@@ -6,11 +6,22 @@ import dynamic from "next/dynamic";
 import { useWorkspace } from "@/components/app/CurrencyProvider";
 import { usePresence } from "@/components/app/PresenceProvider";
 import { useToast } from "@/components/app/ToastProvider";
-import { reactivateMember, removeMember, resendInvite, suspendMember, updateMemberRole } from "@/lib/actions/team";
+import {
+  approveMember,
+  rejectMember,
+  reactivateMember,
+  removeMember,
+  resendInvite,
+  suspendMember,
+  updateMemberRole,
+  type REJECT_REASONS,
+} from "@/lib/actions/team";
 import type { TeamMemberRow } from "@/lib/queries/team";
 import { Table, type TableColumn } from "@/components/ui/Table";
 
 const InviteMemberModal = dynamic(() => import("@/components/team/InviteMemberModal").then((m) => m.InviteMemberModal));
+const ApproveMemberModal = dynamic(() => import("@/components/team/ApproveMemberModal").then((m) => m.ApproveMemberModal));
+const RejectMemberModal = dynamic(() => import("@/components/team/RejectMemberModal").then((m) => m.RejectMemberModal));
 
 function timeAgo(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime();
@@ -28,6 +39,17 @@ const ROLE_STYLE: Record<string, { color: string; background: string }> = {
   manager: { color: "var(--green)", background: "var(--green-weak)" },
   cashier: { color: "var(--amber)", background: "var(--amber-weak)" },
   warehouse: { color: "var(--sky)", background: "var(--sky-weak)" },
+};
+
+// Five distinct colors using only tokens the design system already has —
+// amber (Invited) and sky (Awaiting Approval) stand in for "orange" and
+// "yellow" respectively, since the palette doesn't carry a separate yellow.
+const STATUS_STYLE: Record<string, { label: string; color: string; background: string }> = {
+  invited: { label: "Invited", color: "var(--amber)", background: "var(--amber-weak)" },
+  awaiting_approval: { label: "Awaiting approval", color: "var(--sky)", background: "var(--sky-weak)" },
+  active: { label: "Approved", color: "var(--green)", background: "var(--green-weak)" },
+  rejected: { label: "Rejected", color: "var(--red)", background: "var(--red-weak)" },
+  suspended: { label: "Suspended", color: "var(--muted)", background: "var(--hover)" },
 };
 
 const ASSIGNABLE_ROLES = ["admin", "manager", "cashier", "warehouse"];
@@ -66,6 +88,9 @@ export function TeamClient({
   const [showInvite, setShowInvite] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [approveTarget, setApproveTarget] = useState<TeamMemberRow | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<TeamMemberRow | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"all" | "invited" | "awaiting_approval" | "active" | "suspended" | "rejected">("all");
   const { formatDateTime } = useWorkspace();
   const { online } = usePresence();
   const presenceById = useMemo(() => new Map(online.map((u) => [u.userId, u])), [online]);
@@ -87,6 +112,14 @@ export function TeamClient({
     [flash, router],
   );
 
+  // Mirrors the display precedence already used by the status badge/cards:
+  // rejected_at and suspended_at override `status` for display purposes.
+  function displayStatus(m: TeamMemberRow): "invited" | "awaiting_approval" | "active" | "suspended" | "rejected" {
+    if (m.rejectedAt) return "rejected";
+    if (m.suspendedAt) return "suspended";
+    return m.status as "invited" | "awaiting_approval" | "active";
+  }
+
   const handleRoleChange = useCallback((id: string, role: string) => run(id, () => updateMemberRole(id, role), "Role updated"), [run]);
 
   const handleSuspend = useCallback(
@@ -100,6 +133,21 @@ export function TeamClient({
   const handleReactivate = useCallback((m: TeamMemberRow) => run(m.id, () => reactivateMember(m.id), "Member reactivated"), [run]);
 
   const handleResendInvite = useCallback((m: TeamMemberRow) => run(m.id, () => resendInvite(m.id), "Invite resent"), [run]);
+
+  const handleApprove = useCallback(async () => {
+    if (!approveTarget) return;
+    await run(approveTarget.id, () => approveMember(approveTarget.id), "Team member approved successfully.");
+    setApproveTarget(null);
+  }, [approveTarget, run]);
+
+  const handleReject = useCallback(
+    async (reason: (typeof REJECT_REASONS)[number], detail?: string) => {
+      if (!rejectTarget) return;
+      await run(rejectTarget.id, () => rejectMember(rejectTarget.id, reason, detail), "Member rejected");
+      setRejectTarget(null);
+    },
+    [rejectTarget, run],
+  );
 
   const handleRemove = useCallback(
     (m: TeamMemberRow) => {
@@ -188,21 +236,12 @@ export function TeamClient({
       key: "status",
       header: "Status",
       sortable: true,
-      sortValue: (m) => (m.suspendedAt ? "suspended" : m.status),
+      sortValue: (m) => displayStatus(m),
       render: (m) => {
-        const isSuspended = !!m.suspendedAt;
+        const style = STATUS_STYLE[displayStatus(m)];
         return (
-          <span
-            className="rounded-[20px] px-[9px] py-0.5 text-[11.5px] font-bold"
-            style={
-              isSuspended
-                ? { color: "var(--red)", background: "var(--red-weak)" }
-                : m.status === "active"
-                  ? { color: "var(--green)", background: "var(--green-weak)" }
-                  : { color: "var(--amber)", background: "var(--amber-weak)" }
-            }
-          >
-            {isSuspended ? "Suspended" : m.status === "active" ? "Active" : "Invited"}
+          <span className="rounded-[20px] px-[9px] py-0.5 text-[11.5px] font-bold" style={style}>
+            {style.label}
           </span>
         );
       },
@@ -212,12 +251,12 @@ export function TeamClient({
       header: "Last active",
       render: (m) => {
         const presence = presenceById.get(m.id);
-        const isSuspended = !!m.suspendedAt;
+        const status = displayStatus(m);
         return (
           <span className="text-[12.5px] text-text-2">
-            {isSuspended
+            {status === "suspended" || status === "rejected"
               ? "—"
-              : m.status === "invited"
+              : status === "invited" || status === "awaiting_approval"
                 ? "Pending"
                 : presence
                   ? presence.status === "online"
@@ -238,7 +277,7 @@ export function TeamClient({
       render: (m) => {
         const isSelf = m.id === currentUserId;
         const isBusy = busyId === m.id;
-        const isSuspended = !!m.suspendedAt;
+        const status = displayStatus(m);
         if (isSelf || m.role === "owner") return null;
         return (
           <div className="relative" onClick={(e) => e.stopPropagation()}>
@@ -251,7 +290,7 @@ export function TeamClient({
             </button>
             {menuOpenId === m.id && (
               <div className="absolute right-0 top-8 z-10 w-[180px] rounded-[10px] border border-border bg-surface py-1.5 text-left shadow-[var(--shadow-lg)]">
-                {m.status === "invited" && (
+                {status === "invited" && (
                   <button
                     onClick={() => handleResendInvite(m)}
                     className="block w-full px-3.5 py-2 text-left text-[12.5px] text-text hover:bg-hover"
@@ -259,14 +298,37 @@ export function TeamClient({
                     Resend invite
                   </button>
                 )}
-                {isSuspended ? (
+                {status === "awaiting_approval" && (
+                  <>
+                    <button
+                      onClick={() => {
+                        setMenuOpenId(null);
+                        setApproveTarget(m);
+                      }}
+                      className="block w-full px-3.5 py-2 text-left text-[12.5px] text-text hover:bg-hover"
+                    >
+                      ✅ Approve
+                    </button>
+                    <button
+                      onClick={() => {
+                        setMenuOpenId(null);
+                        setRejectTarget(m);
+                      }}
+                      className="block w-full px-3.5 py-2 text-left text-[12.5px] text-red hover:bg-hover"
+                    >
+                      ❌ Reject
+                    </button>
+                  </>
+                )}
+                {status === "suspended" && (
                   <button
                     onClick={() => handleReactivate(m)}
                     className="block w-full px-3.5 py-2 text-left text-[12.5px] text-text hover:bg-hover"
                   >
                     Reactivate
                   </button>
-                ) : (
+                )}
+                {status === "active" && (
                   <button
                     onClick={() => handleSuspend(m)}
                     className="block w-full px-3.5 py-2 text-left text-[12.5px] text-text hover:bg-hover"
@@ -302,7 +364,47 @@ export function TeamClient({
         </button>
       </div>
 
-      <Table columns={columns} rows={members} rowKey={(m) => m.id} pageSize={20} />
+      <div className="mb-4 grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(140px,1fr))" }}>
+        {(
+          [
+            ["all", "Total"],
+            ["invited", "Invited"],
+            ["awaiting_approval", "Awaiting approval"],
+            ["active", "Approved"],
+            ["suspended", "Suspended"],
+            ["rejected", "Rejected"],
+          ] as const
+        ).map(([key, label]) => {
+          const count = key === "all" ? members.length : members.filter((m) => displayStatus(m) === key).length;
+          const active = statusFilter === key;
+          return (
+            <button
+              key={key}
+              onClick={() => setStatusFilter(key)}
+              className="rounded-xl border p-[12px_14px] text-left shadow-[var(--shadow-sm)]"
+              style={active ? { borderColor: "var(--accent)", background: "var(--accent-weak)" } : { borderColor: "var(--border)", background: "var(--surface)" }}
+            >
+              <div className="text-[20px] font-bold">{count}</div>
+              <div className="text-[11.5px] text-text-2">{label}</div>
+            </button>
+          );
+        })}
+      </div>
+
+      <Table
+        columns={columns}
+        rows={statusFilter === "all" ? members : members.filter((m) => displayStatus(m) === statusFilter)}
+        rowKey={(m) => m.id}
+        pageSize={20}
+        search={{
+          placeholder: "Search by name, email, branch, or role…",
+          filter: (m, query) =>
+            m.name.toLowerCase().includes(query) ||
+            m.email.toLowerCase().includes(query) ||
+            m.role.toLowerCase().includes(query) ||
+            (m.branchName ?? "").toLowerCase().includes(query),
+        }}
+      />
 
       <div className="mt-4 grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))" }}>
         {ROLE_LEGEND.map((r) => (
@@ -314,6 +416,12 @@ export function TeamClient({
       </div>
 
       {showInvite && <InviteMemberModal warehouses={warehouses} onClose={() => setShowInvite(false)} />}
+      {approveTarget && (
+        <ApproveMemberModal name={approveTarget.name} onConfirm={handleApprove} onClose={() => setApproveTarget(null)} />
+      )}
+      {rejectTarget && (
+        <RejectMemberModal name={rejectTarget.name} onConfirm={handleReject} onClose={() => setRejectTarget(null)} />
+      )}
     </div>
   );
 }

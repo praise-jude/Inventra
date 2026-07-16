@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { ADMIN_ROLES } from "@/lib/roles";
 import { logAudit } from "@/lib/actions/audit";
 import { siteUrl } from "@/lib/site-url";
+import { sendMemberApprovedEmail } from "@/lib/email";
 
 // Mirrors the check inviteMember already did — Team Management is Admin-tier
 // only (owner/admin). Returns the acting profile so callers can guard
@@ -81,7 +82,7 @@ export async function inviteMember(email: string, role: string, firstName: strin
 }
 
 export async function resendInvite(memberId: string) {
-  const { orgId } = await requireAdminOrgId();
+  const { orgId, userId, role: actorRole, actorName } = await requireAdminOrgId();
   const supabase = await createClient();
   const { data: member } = await supabase
     .from("profiles")
@@ -105,6 +106,18 @@ export async function resendInvite(memberId: string) {
     throw new Error("Could not resend the invite email. Please try again in a moment.");
   }
   revalidatePath("/team");
+
+  await logAudit({
+    orgId,
+    actorId: userId,
+    actorName,
+    actorRole,
+    action: "user.invite_resent",
+    module: "Team",
+    entityType: "profile",
+    entityId: memberId,
+    entityLabel: `${member.first_name} ${member.last_name} (${member.email})`,
+  });
 }
 
 export async function updateMemberRole(memberId: string, role: string) {
@@ -225,5 +238,84 @@ export async function removeMember(memberId: string) {
     entityType: "profile",
     entityId: memberId,
     entityLabel: `${member.first_name} ${member.last_name}`,
+  });
+}
+
+export const REJECT_REASONS = ["Wrong branch", "Duplicate account", "Invalid invitation", "Other"] as const;
+
+export async function approveMember(memberId: string) {
+  const { supabase, orgId, userId, role: actorRole, actorName } = await requireAdminOrgId();
+
+  const { data: member } = await supabase
+    .from("profiles")
+    .select("org_id, first_name, last_name, email, status")
+    .eq("id", memberId)
+    .single();
+  if (!member || member.org_id !== orgId) throw new Error("Member not found.");
+  if (member.status !== "awaiting_approval") throw new Error("This member isn't awaiting approval.");
+
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .from("profiles")
+    .update({ status: "active", approved_by: userId, approved_at: now })
+    .eq("id", memberId)
+    .eq("org_id", orgId);
+  if (error) {
+    console.error("[Inventra] approveMember failed:", { memberId, orgId, error });
+    throw new Error("Could not approve this member.");
+  }
+  revalidatePath("/team");
+
+  const { data: org } = await supabase.from("organizations").select("name").eq("id", orgId).single();
+  void sendMemberApprovedEmail({ to: member.email, orgName: org?.name ?? "your workspace" }).catch(() => {});
+
+  await logAudit({
+    orgId,
+    actorId: userId,
+    actorName,
+    actorRole,
+    action: "user.approved",
+    module: "Team",
+    entityType: "profile",
+    entityId: memberId,
+    entityLabel: `${member.first_name} ${member.last_name}`,
+    newValue: { approvedBy: userId, approvedAt: now },
+  });
+}
+
+export async function rejectMember(memberId: string, reason: (typeof REJECT_REASONS)[number], detail?: string) {
+  const { supabase, orgId, userId, role: actorRole, actorName } = await requireAdminOrgId();
+
+  const { data: member } = await supabase
+    .from("profiles")
+    .select("org_id, first_name, last_name, status")
+    .eq("id", memberId)
+    .single();
+  if (!member || member.org_id !== orgId) throw new Error("Member not found.");
+  if (member.status !== "awaiting_approval") throw new Error("This member isn't awaiting approval.");
+
+  const fullReason = reason === "Other" && detail?.trim() ? detail.trim() : reason;
+  const { error } = await supabase
+    .from("profiles")
+    .update({ rejected_at: new Date().toISOString(), rejected_reason: fullReason })
+    .eq("id", memberId)
+    .eq("org_id", orgId);
+  if (error) {
+    console.error("[Inventra] rejectMember failed:", { memberId, orgId, error });
+    throw new Error("Could not reject this member.");
+  }
+  revalidatePath("/team");
+
+  await logAudit({
+    orgId,
+    actorId: userId,
+    actorName,
+    actorRole,
+    action: "user.rejected",
+    module: "Team",
+    entityType: "profile",
+    entityId: memberId,
+    entityLabel: `${member.first_name} ${member.last_name}`,
+    newValue: { reason: fullReason },
   });
 }

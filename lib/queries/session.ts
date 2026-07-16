@@ -25,6 +25,13 @@ export const requireProfile = cache(async (): Promise<{ profile: Profile; org: O
     await supabase.auth.signOut();
     redirect("/login?suspended=1");
   }
+  if (profile.rejected_at) {
+    await supabase.auth.signOut();
+    redirect("/login?rejected=1");
+  }
+  if (profile.status === "awaiting_approval") {
+    redirect("/pending-approval");
+  }
 
   const { data: org } = await supabase
     .from("organizations")

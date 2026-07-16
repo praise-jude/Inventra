@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useToast } from "@/components/app/ToastProvider";
@@ -75,9 +76,14 @@ export function AdminDashboardClient({ stats, rows, query }: Props) {
 
   return (
     <div className="animate-fade-up p-6">
-      <div className="mb-[18px]">
-        <div className="text-[22px] font-bold tracking-tight">Platform subscriptions</div>
-        <div className="mt-[3px] text-text-2">Cross-org billing overview — visible only to platform admins.</div>
+      <div className="mb-[18px] flex items-end justify-between gap-3.5">
+        <div>
+          <div className="text-[22px] font-bold tracking-tight">Platform subscriptions</div>
+          <div className="mt-[3px] text-text-2">Cross-org billing overview — visible only to platform admins.</div>
+        </div>
+        <Link href="/admin/support" className="text-[12.5px] font-semibold text-accent-text">
+          Support settings →
+        </Link>
       </div>
 
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
