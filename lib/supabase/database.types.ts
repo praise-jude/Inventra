@@ -266,6 +266,7 @@ export interface Subscription {
   trial_started_at: string | null;
   trial_ends_at: string | null;
   trial_reminders_sent: number;
+  renewal_reminder_sent: boolean;
   current_period_start: string | null;
   current_period_end: string | null;
   cancel_at_period_end: boolean;

@@ -82,6 +82,7 @@ export async function recordSuccessfulCharge(
       last_payment_error: null,
       next_retry_at: null,
       last_payment_attempt_at: now.toISOString(),
+      renewal_reminder_sent: false,
     })
     .eq("org_id", orgId);
 

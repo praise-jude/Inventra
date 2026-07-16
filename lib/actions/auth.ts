@@ -7,6 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { currencyForCountry, isKnownCountry, timezoneFor } from "@/lib/geo/countries";
 import { CURRENT_TERMS_VERSION } from "@/lib/terms";
 import { siteUrl } from "@/lib/site-url";
+import { sendWelcomeEmail } from "@/lib/email";
 import {
   validateFullName,
   validateEmail,
@@ -124,6 +125,11 @@ export async function registerAccount(input: RegisterAccountInput): Promise<Regi
   });
 
   if (error) return { ok: false, error: error.message };
+
+  // Fire-and-forget — a delayed/failed welcome email should never block
+  // account creation, matching sendEmail()'s own no-throw contract.
+  void sendWelcomeEmail({ to: email, orgName: businessName }).catch(() => {});
+
   return { ok: true, hasSession: !!data.session };
 }
 

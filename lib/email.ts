@@ -38,6 +38,19 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
 }
 
+export async function sendWelcomeEmail(input: { to: string; orgName: string }): Promise<void> {
+  await sendEmail({
+    to: input.to,
+    subject: "Welcome to Inventra",
+    html: wrap(
+      "Welcome to Inventra",
+      `<p>Hi ${input.orgName},</p>
+       <p>Your account is ready. Sign in anytime to set up your inventory, invite your team, and start tracking sales.</p>
+       <p>If you haven't added a payment method yet, you can start your 6-day free trial from Settings → Billing &amp; Subscription — no charge until it ends.</p>`,
+    ),
+  });
+}
+
 export async function sendTrialStartedEmail(input: { to: string; orgName: string; trialEndsAt: string }): Promise<void> {
   await sendEmail({
     to: input.to,
@@ -55,7 +68,7 @@ export async function sendTrialEndingEmail(input: {
   to: string;
   orgName: string;
   trialEndsAt: string;
-  daysLeft: 1 | 2;
+  daysLeft: 1 | 2 | 3;
 }): Promise<void> {
   await sendEmail({
     to: input.to,
@@ -64,6 +77,48 @@ export async function sendTrialEndingEmail(input: {
       `Your trial ends in ${input.daysLeft} day${input.daysLeft > 1 ? "s" : ""}`,
       `<p>Hi ${input.orgName},</p>
        <p>Your free trial ends on <strong>${formatDate(input.trialEndsAt)}</strong>. Your saved card will be charged automatically to continue your subscription — no action is needed if you'd like to continue.</p>
+       <p>To change your plan or payment method first, visit Settings → Billing &amp; Subscription.</p>`,
+    ),
+  });
+}
+
+// Fires when a trial ends without ever converting to a paid subscription
+// (no card on file, or explicitly cancelled before conversion) — see the
+// cron sweep's endedTrials loop. Paying subscriptions never reach "expired"
+// in this app's state machine; a failed-renewal subscription instead moves
+// through past_due -> suspended -> cancelled (see recordFailedCharge),
+// which already have their own emails. So this is the one real
+// "expired" event, covering both "trial expired" and "subscription
+// expired" from a user's perspective.
+export async function sendTrialExpiredEmail(input: { to: string; orgName: string }): Promise<void> {
+  await sendEmail({
+    to: input.to,
+    subject: "Your Inventra trial has ended",
+    html: wrap(
+      "Your trial has ended",
+      `<p>Hi ${input.orgName},</p>
+       <p>Your free trial has ended and access to your Inventra workspace is now restricted. Add a payment method to reactivate your subscription — your data is safe and waiting for you.</p>
+       <p>Reactivate anytime from Settings → Billing &amp; Subscription.</p>`,
+    ),
+  });
+}
+
+// A heads-up a few days before a paying (non-trial) subscription's next
+// auto-charge — distinct from sendTrialEndingEmail, which only applies
+// during the trial. See the cron sweep's renewal-reminder block.
+export async function sendRenewalReminderEmail(input: {
+  to: string;
+  orgName: string;
+  amount: number;
+  renewsAt: string;
+}): Promise<void> {
+  await sendEmail({
+    to: input.to,
+    subject: "Your Inventra subscription renews soon",
+    html: wrap(
+      "Your subscription renews soon",
+      `<p>Hi ${input.orgName},</p>
+       <p>Your subscription will automatically renew on <strong>${formatDate(input.renewsAt)}</strong> for <strong>${formatMoney(input.amount, "NGN")}</strong>, charged to your card on file.</p>
        <p>To change your plan or payment method first, visit Settings → Billing &amp; Subscription.</p>`,
     ),
   });

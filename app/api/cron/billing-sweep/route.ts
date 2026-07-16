@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { chargeAuthorization } from "@/lib/paystack";
 import { planByKey } from "@/lib/billing-plans";
-import { sendTrialEndingEmail } from "@/lib/email";
+import { sendTrialEndingEmail, sendTrialExpiredEmail, sendRenewalReminderEmail } from "@/lib/email";
 import { recordSuccessfulCharge, recordFailedCharge } from "@/lib/billing-engine";
 
 // Runs once/day (Vercel Cron on the Hobby tier caps at 1 run/day — see
@@ -20,9 +20,16 @@ export async function GET(req: NextRequest) {
 
   const admin = createAdminClient();
   const now = new Date();
-  const results = { reminders: 0, expired: 0, reconciled: 0, finalizedCancellations: 0, errors: [] as string[] };
+  const results = {
+    reminders: 0,
+    renewalReminders: 0,
+    expired: 0,
+    reconciled: 0,
+    finalizedCancellations: 0,
+    errors: [] as string[],
+  };
 
-  // --- Trial reminder emails (2 days / 1 day before trial_ends_at) ---
+  // --- Trial reminder emails (3 / 2 / 1 days before trial_ends_at) ---
   const { data: trialing } = await admin
     .from("subscriptions")
     .select("org_id, trial_ends_at, trial_reminders_sent")
@@ -33,17 +40,57 @@ export async function GET(req: NextRequest) {
   for (const sub of trialing ?? []) {
     try {
       const daysLeft = Math.ceil((new Date(sub.trial_ends_at).getTime() - now.getTime()) / 86_400_000);
-      if (daysLeft === 2 && sub.trial_reminders_sent < 1) {
-        await sendReminder(admin, sub.org_id, sub.trial_ends_at, 2);
+      if (daysLeft === 3 && sub.trial_reminders_sent < 1) {
+        await sendReminder(admin, sub.org_id, sub.trial_ends_at, 3);
         await admin.from("subscriptions").update({ trial_reminders_sent: 1 }).eq("org_id", sub.org_id);
         results.reminders++;
-      } else if (daysLeft === 1 && sub.trial_reminders_sent < 2) {
-        await sendReminder(admin, sub.org_id, sub.trial_ends_at, 1);
+      } else if (daysLeft === 2 && sub.trial_reminders_sent < 2) {
+        await sendReminder(admin, sub.org_id, sub.trial_ends_at, 2);
         await admin.from("subscriptions").update({ trial_reminders_sent: 2 }).eq("org_id", sub.org_id);
+        results.reminders++;
+      } else if (daysLeft === 1 && sub.trial_reminders_sent < 3) {
+        await sendReminder(admin, sub.org_id, sub.trial_ends_at, 1);
+        await admin.from("subscriptions").update({ trial_reminders_sent: 3 }).eq("org_id", sub.org_id);
         results.reminders++;
       }
     } catch (err) {
       results.errors.push(`reminder ${sub.org_id}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // --- Renewal reminder emails (3 days before a paying subscription's next
+  //     auto-charge) — distinct from the trial reminders above. ---
+  const threeDaysOut = new Date(now.getTime() + 3 * 86_400_000);
+  const { data: renewingSoon } = await admin
+    .from("subscriptions")
+    .select("org_id, plan_key, amount, current_period_end")
+    .eq("status", "active")
+    .eq("renewal_reminder_sent", false)
+    .not("current_period_end", "is", null)
+    .lte("current_period_end", threeDaysOut.toISOString())
+    .gt("current_period_end", now.toISOString());
+
+  for (const sub of renewingSoon ?? []) {
+    try {
+      const { data: profile } = await admin
+        .from("profiles")
+        .select("email")
+        .eq("org_id", sub.org_id)
+        .eq("role", "owner")
+        .single();
+      if (profile?.email) {
+        const plan = planByKey(sub.plan_key);
+        await sendRenewalReminderEmail({
+          to: profile.email,
+          orgName: "there",
+          amount: sub.amount ?? plan?.price ?? 0,
+          renewsAt: sub.current_period_end,
+        });
+      }
+      await admin.from("subscriptions").update({ renewal_reminder_sent: true }).eq("org_id", sub.org_id);
+      results.renewalReminders++;
+    } catch (err) {
+      results.errors.push(`renewal-reminder ${sub.org_id}: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
@@ -60,6 +107,15 @@ export async function GET(req: NextRequest) {
     try {
       if (sub.cancel_at_period_end || !sub.authorization_code) {
         await admin.from("subscriptions").update({ status: "expired" }).eq("org_id", sub.org_id);
+        const { data: ownerProfile } = await admin
+          .from("profiles")
+          .select("email")
+          .eq("org_id", sub.org_id)
+          .eq("role", "owner")
+          .single();
+        if (ownerProfile?.email) {
+          await sendTrialExpiredEmail({ to: ownerProfile.email, orgName: "there" });
+        }
         results.expired++;
         continue;
       }
@@ -117,7 +173,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ ok: true, ranAt: now.toISOString(), ...results });
 }
 
-async function sendReminder(admin: ReturnType<typeof createAdminClient>, orgId: string, trialEndsAt: string, daysLeft: 1 | 2) {
+async function sendReminder(admin: ReturnType<typeof createAdminClient>, orgId: string, trialEndsAt: string, daysLeft: 1 | 2 | 3) {
   const { data: profile } = await admin.from("profiles").select("email").eq("org_id", orgId).eq("role", "owner").single();
   if (!profile?.email) return;
   await sendTrialEndingEmail({ to: profile.email, orgName: "there", trialEndsAt, daysLeft });

@@ -16,6 +16,11 @@ const ONBOARDING_ROUTE = "/onboarding/complete";
 const ONBOARDING_PLAN_ROUTE = "/onboarding/plan";
 const BILLING_ROUTE = "/billing";
 const SUBSCRIPTION_REQUIRED_ROUTE = "/subscription-required";
+// Platform-admin dashboard (requirePlatformAdmin() in lib/queries/session.ts
+// does the real, server-side authorization check) — exempt from org-scoped
+// onboarding/subscription gating entirely, since it's cross-org and must
+// stay reachable regardless of the admin's own org's billing state.
+const ADMIN_ROUTE = "/admin";
 const BLOCKED_STATUSES = ["past_due", "payment_failed", "cancelled", "expired", "suspended"];
 
 export async function updateSession(request: NextRequest) {
@@ -53,6 +58,10 @@ export async function updateSession(request: NextRequest) {
       url.pathname = "/login";
       return NextResponse.redirect(url);
     }
+    return supabaseResponse;
+  }
+
+  if (path.startsWith(ADMIN_ROUTE)) {
     return supabaseResponse;
   }
 

@@ -59,3 +59,27 @@ export const requireSalesProfile = cache(async (): Promise<{ profile: Profile; o
   if (result.profile.role === "warehouse") redirect("/dashboard");
   return result;
 });
+
+// Platform-admin (cross-org) access, deliberately separate from
+// requireAdminProfile: that gate is scoped to a single org's owner/admin
+// role, but the platform admin dashboard reads every org's billing data —
+// an org admin must never qualify just by being an admin of their own org.
+// Gated by a plain email allowlist for now (PLATFORM_ADMIN_EMAILS,
+// comma-separated) rather than a new role/schema, since there's exactly one
+// platform admin today; revisit if that ever needs to scale beyond a
+// hardcoded list.
+export const requirePlatformAdmin = cache(async (): Promise<{ email: string }> => {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user?.email) redirect("/login");
+
+  const allowlist = (process.env.PLATFORM_ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  if (!allowlist.includes(user.email.toLowerCase())) redirect("/dashboard");
+
+  return { email: user.email };
+});
