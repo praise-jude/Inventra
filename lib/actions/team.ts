@@ -7,6 +7,7 @@ import { ADMIN_ROLES } from "@/lib/roles";
 import { logAudit } from "@/lib/actions/audit";
 import { siteUrl } from "@/lib/site-url";
 import { sendMemberApprovedEmail } from "@/lib/email";
+import { REJECT_REASONS } from "@/lib/constants/team";
 
 // Mirrors the check inviteMember already did — Team Management is Admin-tier
 // only (owner/admin). Returns the acting profile so callers can guard
@@ -240,8 +241,6 @@ export async function removeMember(memberId: string) {
     entityLabel: `${member.first_name} ${member.last_name}`,
   });
 }
-
-export const REJECT_REASONS = ["Wrong branch", "Duplicate account", "Invalid invitation", "Other"] as const;
 
 export async function approveMember(memberId: string) {
   const { supabase, orgId, userId, role: actorRole, actorName } = await requireAdminOrgId();

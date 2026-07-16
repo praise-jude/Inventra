@@ -14,8 +14,8 @@ import {
   resendInvite,
   suspendMember,
   updateMemberRole,
-  type REJECT_REASONS,
 } from "@/lib/actions/team";
+import type { REJECT_REASONS } from "@/lib/constants/team";
 import type { TeamMemberRow } from "@/lib/queries/team";
 import { Table, type TableColumn } from "@/components/ui/Table";
 

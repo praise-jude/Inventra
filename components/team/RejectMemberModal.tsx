@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { REJECT_REASONS } from "@/lib/actions/team";
+import { REJECT_REASONS } from "@/lib/constants/team";
 import { Field } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 
