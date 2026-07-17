@@ -35,14 +35,11 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (next: boolean) => vo
 export function SupportSettingsClient({ settings }: { settings: SupportSettings }) {
   const flash = useToast();
   const [form, setForm] = useState({
-    tawkPropertyId: settings.tawkPropertyId ?? "",
-    tawkWidgetId: settings.tawkWidgetId ?? "",
     whatsappNumber: settings.whatsappNumber,
     whatsappMessage: settings.whatsappMessage,
     businessHours: settings.businessHours,
     supportEmail: settings.supportEmail,
     averageResponse: settings.averageResponse,
-    tawkEnabled: settings.tawkEnabled,
     whatsappEnabled: settings.whatsappEnabled,
     widgetEnabled: settings.widgetEnabled,
   });
@@ -74,7 +71,7 @@ export function SupportSettingsClient({ settings }: { settings: SupportSettings 
       </Link>
       <div className="mb-[18px] mt-2">
         <div className="text-[22px] font-bold tracking-tight">Support settings</div>
-        <div className="mt-[3px] text-text-2">Live chat and WhatsApp support, shown to every user across every org.</div>
+        <div className="mt-[3px] text-text-2">WhatsApp support, shown to every user across every org.</div>
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
@@ -85,27 +82,6 @@ export function SupportSettingsClient({ settings }: { settings: SupportSettings 
               <div className="text-[12px] text-text-2">Master switch for the whole widget.</div>
             </div>
             <Toggle on={form.widgetEnabled} onChange={(v) => set("widgetEnabled", v)} />
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-border bg-surface p-5 shadow-[var(--shadow-sm)]">
-          <div className="mb-3.5 flex items-center justify-between">
-            <div className="text-[14px] font-bold">Tawk.to live chat</div>
-            <Toggle on={form.tawkEnabled} onChange={(v) => set("tawkEnabled", v)} />
-          </div>
-          <div className="flex flex-col gap-3">
-            <Field
-              label="Property ID"
-              value={form.tawkPropertyId}
-              onChange={(e) => set("tawkPropertyId", e.target.value)}
-              placeholder="YOUR_TAWK_PROPERTY_ID"
-            />
-            <Field
-              label="Widget ID"
-              value={form.tawkWidgetId}
-              onChange={(e) => set("tawkWidgetId", e.target.value)}
-              placeholder="YOUR_WIDGET_ID"
-            />
           </div>
         </div>
 

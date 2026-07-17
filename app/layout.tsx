@@ -3,7 +3,6 @@ import { Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
 import { cookies } from "next/headers";
 import { getSupportSettings } from "@/lib/queries/support-settings";
 import { SupportWidget } from "@/components/support/SupportWidget";
-import { TawkScript } from "@/components/support/TawkScript";
 import "./globals.css";
 
 const hanken = Hanken_Grotesk({
@@ -45,9 +44,6 @@ export default async function RootLayout({
       <body suppressHydrationWarning>
         {children}
         <SupportWidget settings={supportSettings} />
-        {supportSettings.tawkEnabled && supportSettings.tawkPropertyId && supportSettings.tawkWidgetId && (
-          <TawkScript propertyId={supportSettings.tawkPropertyId} widgetId={supportSettings.tawkWidgetId} />
-        )}
       </body>
     </html>
   );

@@ -3,12 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { SupportSettings } from "@/lib/queries/support-settings";
 
-declare global {
-  interface Window {
-    Tawk_API?: { toggle?: () => void; maximize?: () => void };
-  }
-}
-
 function WhatsAppIcon({ size = 26 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -29,15 +23,9 @@ export function SupportWidget({ settings }: { settings: SupportSettings }) {
     return () => document.removeEventListener("click", onDocClick);
   }, []);
 
-  if (!settings.widgetEnabled || (!settings.whatsappEnabled && !settings.tawkEnabled)) return null;
+  if (!settings.widgetEnabled || !settings.whatsappEnabled) return null;
 
   const whatsappUrl = `https://wa.me/${settings.whatsappNumber}?text=${encodeURIComponent(settings.whatsappMessage)}`;
-
-  function startLiveChat() {
-    setOpen(false);
-    if (window.Tawk_API?.maximize) window.Tawk_API.maximize();
-    else if (window.Tawk_API?.toggle) window.Tawk_API.toggle();
-  }
 
   return (
     <div ref={panelRef} className="fixed bottom-5 right-5 z-40 sm:bottom-6 sm:right-6">
@@ -49,7 +37,6 @@ export function SupportWidget({ settings }: { settings: SupportSettings }) {
         >
           <div className="text-[15px] font-bold">Need help?</div>
           <ul className="mt-2.5 flex flex-col gap-1 text-[12.5px] text-text-2">
-            {settings.tawkEnabled && <li>✓ Live chat</li>}
             {settings.whatsappEnabled && <li>✓ WhatsApp support</li>}
           </ul>
           {settings.businessHours && (
@@ -60,15 +47,6 @@ export function SupportWidget({ settings }: { settings: SupportSettings }) {
             </div>
           )}
           <div className="mt-3.5 flex flex-col gap-2">
-            {settings.tawkEnabled && (
-              <button
-                type="button"
-                onClick={startLiveChat}
-                className="h-[38px] rounded-[9px] border-none bg-accent text-[13px] font-semibold text-white"
-              >
-                Start live chat
-              </button>
-            )}
             {settings.whatsappEnabled && (
               <a
                 href={whatsappUrl}

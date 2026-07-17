@@ -8,14 +8,11 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_TEXT_LENGTH = 500;
 
 export interface UpdateSupportSettingsInput {
-  tawkPropertyId: string;
-  tawkWidgetId: string;
   whatsappNumber: string;
   whatsappMessage: string;
   businessHours: string;
   supportEmail: string;
   averageResponse: string;
-  tawkEnabled: boolean;
   whatsappEnabled: boolean;
   widgetEnabled: boolean;
 }
@@ -43,21 +40,6 @@ export async function updateSupportSettings(input: UpdateSupportSettingsInput): 
     throw new Error("Enter a valid WhatsApp number (country code + number, digits only).");
   }
 
-  const tawkPropertyId = sanitizeText(input.tawkPropertyId, 64);
-  const tawkWidgetId = sanitizeText(input.tawkWidgetId, 64);
-  // Real Tawk IDs are always plain alphanumeric — these two values get
-  // interpolated into an inline <script> tag (TawkScript.tsx) to build the
-  // embed URL and set Tawk_API.customStyle, so this also closes off any
-  // script-injection surface even though only a trusted platform admin can
-  // set them.
-  const ID_RE = /^[a-zA-Z0-9]*$/;
-  if (!ID_RE.test(tawkPropertyId) || !ID_RE.test(tawkWidgetId)) {
-    throw new Error("Tawk.to IDs can only contain letters and numbers.");
-  }
-  if (input.tawkEnabled && (!tawkPropertyId || !tawkWidgetId)) {
-    throw new Error("Tawk.to Property ID and Widget ID are required to enable live chat.");
-  }
-
   const admin = createAdminClient();
   const { data: existing } = await admin.from("support_settings").select("id").single();
   if (!existing) throw new Error("Support settings row not found.");
@@ -65,14 +47,11 @@ export async function updateSupportSettings(input: UpdateSupportSettingsInput): 
   const { error } = await admin
     .from("support_settings")
     .update({
-      tawk_property_id: tawkPropertyId || null,
-      tawk_widget_id: tawkWidgetId || null,
       whatsapp_number: whatsappDigits,
       whatsapp_message: sanitizeText(input.whatsappMessage, 1000),
       business_hours: sanitizeText(input.businessHours, 200),
       support_email: supportEmail,
       average_response: sanitizeText(input.averageResponse, 100),
-      tawk_enabled: input.tawkEnabled,
       whatsapp_enabled: input.whatsappEnabled,
       widget_enabled: input.widgetEnabled,
       updated_at: new Date().toISOString(),

@@ -3,28 +3,22 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export interface SupportSettings {
   id: string;
-  tawkPropertyId: string | null;
-  tawkWidgetId: string | null;
   whatsappNumber: string;
   whatsappMessage: string;
   businessHours: string;
   supportEmail: string;
   averageResponse: string;
-  tawkEnabled: boolean;
   whatsappEnabled: boolean;
   widgetEnabled: boolean;
 }
 
 const FALLBACK: SupportSettings = {
   id: "",
-  tawkPropertyId: null,
-  tawkWidgetId: null,
   whatsappNumber: "",
   whatsappMessage: "",
   businessHours: "",
   supportEmail: "",
   averageResponse: "",
-  tawkEnabled: false,
   whatsappEnabled: false,
   widgetEnabled: false,
 };
@@ -48,14 +42,11 @@ export async function getSupportSettings(): Promise<SupportSettings> {
     }
     return {
       id: data.id,
-      tawkPropertyId: data.tawk_property_id,
-      tawkWidgetId: data.tawk_widget_id,
       whatsappNumber: data.whatsapp_number,
       whatsappMessage: data.whatsapp_message,
       businessHours: data.business_hours,
       supportEmail: data.support_email,
       averageResponse: data.average_response,
-      tawkEnabled: data.tawk_enabled,
       whatsappEnabled: data.whatsapp_enabled,
       widgetEnabled: data.widget_enabled,
     };
