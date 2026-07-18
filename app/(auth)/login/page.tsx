@@ -7,6 +7,7 @@ import { Eye, EyeOff } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { recordLogin } from "@/lib/actions/audit";
 import { verifyRecoveryCode } from "@/lib/actions/mfa";
+import { friendlyAuthErrorMessage, withAuthRetry } from "@/lib/network-retry";
 import { Field } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 
@@ -37,9 +38,9 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     const supabase = createClient();
-    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+    const { error: signInError } = await withAuthRetry(() => supabase.auth.signInWithPassword({ email, password }));
     if (signInError) {
-      setError(signInError.message);
+      setError(friendlyAuthErrorMessage(signInError.message));
       setLoading(false);
       return;
     }

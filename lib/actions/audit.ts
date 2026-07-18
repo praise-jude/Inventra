@@ -1,6 +1,7 @@
 "use server";
 
 import { headers } from "next/headers";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import type { UserRole } from "@/lib/supabase/database.types";
 import { getAuditLogExportRows, type AuditLogFilters, type AuditLogRow } from "@/lib/queries/audit";
@@ -37,9 +38,15 @@ async function clientDevice(): Promise<string | null> {
 // mutation it's describing (e.g. a stock adjustment should still succeed
 // even if the audit_logs insert fails for some reason) — errors are logged,
 // never thrown.
-export async function logAudit(input: AuditLogInput): Promise<void> {
+//
+// `client` lets a bearer-token-authenticated caller (the mobile API routes
+// under app/api/mobile/, which have no cookies to build the default
+// server client from) pass in its own already-authenticated Supabase
+// client instead — every existing cookie-session call site is unaffected
+// since the parameter defaults to the same client this always used.
+export async function logAudit(input: AuditLogInput, client?: SupabaseClient): Promise<void> {
   try {
-    const supabase = await createClient();
+    const supabase = client ?? (await createClient());
     const [ip, device] = await Promise.all([clientIp(), clientDevice()]);
     const { error } = await supabase.from("audit_logs").insert({
       org_id: input.orgId,

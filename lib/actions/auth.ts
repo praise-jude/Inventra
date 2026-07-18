@@ -8,6 +8,7 @@ import { currencyForCountry, isKnownCountry, timezoneFor } from "@/lib/geo/count
 import { CURRENT_TERMS_VERSION } from "@/lib/terms";
 import { siteUrl } from "@/lib/site-url";
 import { sendWelcomeEmail } from "@/lib/email";
+import { friendlyAuthErrorMessage, withAuthRetry } from "@/lib/network-retry";
 import {
   validateFullName,
   validateEmail,
@@ -102,29 +103,32 @@ export async function registerAccount(input: RegisterAccountInput): Promise<Regi
   const timezone = timezoneFor(country, state);
 
   const supabase = await createClient();
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password: input.password,
-    options: {
-      data: {
-        first_name: firstName,
-        last_name: lastName,
-        business_name: businessName,
-        business_email: businessEmail,
-        country,
-        state,
-        currency,
-        timezone,
-        role: input.role,
-        terms_accepted: true,
-        terms_version: CURRENT_TERMS_VERSION,
-        terms_accepted_ip: ip,
+  const emailRedirectTo = `${await siteUrl()}/dashboard`;
+  const { data, error } = await withAuthRetry(() =>
+    supabase.auth.signUp({
+      email,
+      password: input.password,
+      options: {
+        data: {
+          first_name: firstName,
+          last_name: lastName,
+          business_name: businessName,
+          business_email: businessEmail,
+          country,
+          state,
+          currency,
+          timezone,
+          role: input.role,
+          terms_accepted: true,
+          terms_version: CURRENT_TERMS_VERSION,
+          terms_accepted_ip: ip,
+        },
+        emailRedirectTo,
       },
-      emailRedirectTo: `${await siteUrl()}/dashboard`,
-    },
-  });
+    }),
+  );
 
-  if (error) return { ok: false, error: error.message };
+  if (error) return { ok: false, error: friendlyAuthErrorMessage(error.message) };
 
   // Fire-and-forget — a delayed/failed welcome email should never block
   // account creation, matching sendEmail()'s own no-throw contract.
