@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { checkPasswordResetRateLimit } from "@/lib/actions/auth";
 import { Field } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 
@@ -16,6 +17,12 @@ export default function ForgotPasswordPage() {
     e.preventDefault();
     setError(null);
     setLoading(true);
+    const rateLimit = await checkPasswordResetRateLimit();
+    if (!rateLimit.ok) {
+      setError(rateLimit.error ?? "Too many attempts. Please try again in a few minutes.");
+      setLoading(false);
+      return;
+    }
     const supabase = createClient();
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,

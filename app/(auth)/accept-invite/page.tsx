@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { acceptInviteTerms } from "@/lib/actions/auth";
+import { acceptInviteTerms, activateInviteAccount } from "@/lib/actions/auth";
 import { notifyPendingApproval } from "@/lib/actions/notifications";
 import { Field } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
@@ -26,14 +26,16 @@ export default function AcceptInvitePage() {
       return;
     }
     setLoading(true);
-    const supabase = createClient();
 
-    const { data: userData, error: updateError } = await supabase.auth.updateUser({ password });
-    if (updateError) {
-      setError(updateError.message);
+    const result = await activateInviteAccount(password);
+    if (!result.ok) {
+      setError(result.error ?? "Could not set your password.");
       setLoading(false);
       return;
     }
+
+    const supabase = createClient();
+    const { data: userData } = await supabase.auth.getUser();
 
     try {
       if (userData.user) {

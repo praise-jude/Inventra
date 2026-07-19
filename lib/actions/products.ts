@@ -393,6 +393,16 @@ export async function duplicateProduct(id: string) {
 
 export async function uploadProductImage(formData: FormData) {
   const { supabase, orgId } = await requireOrgId();
+  // Shared by both the Add and Edit product forms, so either permission
+  // suffices — this only needed to happen before the actual product
+  // create/update call started enforcing requirePermission itself.
+  const [{ data: canCreate }, { data: canEdit }] = await Promise.all([
+    supabase.rpc("has_permission", { p_module: "inventory", p_action: "create" }),
+    supabase.rpc("has_permission", { p_module: "inventory", p_action: "edit" }),
+  ]);
+  if (!canCreate && !canEdit) {
+    throw new Error("You don't have permission to do that.");
+  }
 
   const file = formData.get("file");
   if (!(file instanceof File)) throw new Error("No file provided.");

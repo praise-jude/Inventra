@@ -9,6 +9,7 @@ import { CURRENT_TERMS_VERSION } from "@/lib/terms";
 import { siteUrl } from "@/lib/site-url";
 import { sendWelcomeEmail } from "@/lib/email";
 import { friendlyAuthErrorMessage, withAuthRetry } from "@/lib/network-retry";
+import { checkAndRecordRateLimit } from "@/lib/rate-limit";
 import {
   validateFullName,
   validateEmail,
@@ -27,10 +28,43 @@ async function clientIp(): Promise<string> {
   return h.get("x-real-ip") ?? "unknown";
 }
 
+// Pre-flight rate-limit checks for login/password-reset/MFA-verify — called
+// by the client just before the actual Supabase Auth SDK call (which stays
+// unchanged, avoiding any regression risk to session/cookie or MFA-challenge
+// behavior). Note: this only protects requests going through this app's own
+// forms — see lib/rate-limit.ts's header comment for why it isn't a
+// complete fix against someone calling the Auth REST API directly.
+export async function checkLoginRateLimit(): Promise<{ ok: boolean; error?: string }> {
+  const ip = await clientIp();
+  const allowed = await checkAndRecordRateLimit("login", ip);
+  if (!allowed) return { ok: false, error: "Too many login attempts from this network. Please try again in a few minutes." };
+  return { ok: true };
+}
+
+export async function checkPasswordResetRateLimit(): Promise<{ ok: boolean; error?: string }> {
+  const ip = await clientIp();
+  const allowed = await checkAndRecordRateLimit("password-reset", ip);
+  if (!allowed) return { ok: false, error: "Too many reset attempts. Please try again in a few minutes." };
+  return { ok: true };
+}
+
+// Keyed by user (not IP) since MFA verify only happens after a valid AAL1
+// session already exists — mirrors mfa_recovery_attempts' per-user scoping.
+export async function checkMfaVerifyRateLimit(): Promise<{ ok: boolean; error?: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Not authenticated." };
+  const allowed = await checkAndRecordRateLimit("mfa-verify", user.id);
+  if (!allowed) return { ok: false, error: "Too many verification attempts. Please try again in a few minutes." };
+  return { ok: true };
+}
+
 // Only the service-role admin client can read/write signup_attempts (RLS has
 // no policies for anon/authenticated roles) — this can never be checked or
 // tampered with from the browser.
-async function checkAndRecordRateLimit(ip: string): Promise<boolean> {
+async function checkAndRecordSignupRateLimit(ip: string): Promise<boolean> {
   const admin = createAdminClient();
   const since = new Date(Date.now() - RATE_LIMIT_WINDOW_MINUTES * 60_000).toISOString();
   const { count } = await admin
@@ -92,7 +126,7 @@ export async function registerAccount(input: RegisterAccountInput): Promise<Regi
   }
 
   const ip = await clientIp();
-  const allowed = await checkAndRecordRateLimit(ip);
+  const allowed = await checkAndRecordSignupRateLimit(ip);
   if (!allowed) {
     return { ok: false, error: "Too many signup attempts from this network. Please try again in a few minutes." };
   }
@@ -201,6 +235,20 @@ export async function completeOnboarding(input: CompleteOnboardingInput) {
 
   revalidatePath("/onboarding/complete");
   revalidatePath("/dashboard");
+}
+
+// accept-invite/page.tsx used to call supabase.auth.updateUser({password})
+// straight from the browser client, with zero server-side check — trivially
+// bypassable by anyone calling the Supabase Auth API directly, unlike
+// registerAccount() above which always validates server-side first.
+export async function activateInviteAccount(password: string): Promise<{ ok: boolean; error?: string }> {
+  const fieldError = validatePassword(password);
+  if (fieldError) return { ok: false, error: fieldError };
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
 }
 
 export async function acceptInviteTerms() {

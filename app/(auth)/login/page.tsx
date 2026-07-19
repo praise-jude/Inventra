@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { recordLogin } from "@/lib/actions/audit";
+import { checkLoginRateLimit, checkMfaVerifyRateLimit } from "@/lib/actions/auth";
 import { verifyRecoveryCode } from "@/lib/actions/mfa";
 import { friendlyAuthErrorMessage, withAuthRetry } from "@/lib/network-retry";
 import { Field } from "@/components/ui/Field";
@@ -37,6 +38,12 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null);
     setLoading(true);
+    const rateLimit = await checkLoginRateLimit();
+    if (!rateLimit.ok) {
+      setError(rateLimit.error ?? "Too many attempts. Please try again in a few minutes.");
+      setLoading(false);
+      return;
+    }
     const supabase = createClient();
     const { error: signInError } = await withAuthRetry(() => supabase.auth.signInWithPassword({ email, password }));
     if (signInError) {
@@ -70,6 +77,9 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     try {
+      const rateLimit = await checkMfaVerifyRateLimit();
+      if (!rateLimit.ok) throw new Error(rateLimit.error ?? "Too many attempts. Please try again in a few minutes.");
+
       if (useRecoveryCode) {
         const ok = await verifyRecoveryCode(mfaCode.trim());
         if (!ok) throw new Error("Invalid recovery code.");

@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { chargeAuthorization } from "@/lib/paystack";
@@ -13,8 +14,13 @@ import { recordSuccessfulCharge, recordFailedCharge } from "@/lib/billing-engine
 // safety-net reconciliation charge if a webhook was somehow never delivered,
 // and finalizing subscriptions the user scheduled to cancel at period end.
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  const authHeader = req.headers.get("authorization") ?? "";
+  const expected = `Bearer ${process.env.CRON_SECRET ?? ""}`;
+  const authBuf = Buffer.from(authHeader);
+  const expectedBuf = Buffer.from(expected);
+  const isAuthorized =
+    authBuf.length === expectedBuf.length && crypto.timingSafeEqual(authBuf, expectedBuf);
+  if (!isAuthorized) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
