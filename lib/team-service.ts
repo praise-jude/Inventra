@@ -1,8 +1,13 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ADMIN_ROLES } from "@/lib/roles";
+import { ADMIN_ROLES, MANAGER_ROLES } from "@/lib/roles";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { siteUrl } from "@/lib/site-url";
+
+// Staff-tier roles a Manager is allowed to invite — everything that isn't
+// Admin/Owner/Manager itself. Admins/Owners can still invite any role,
+// unchanged.
+const MANAGER_INVITABLE_ROLES = ["cashier", "warehouse"];
 
 // Narrowed to just what inviteMemberForContext/resendInviteForContext/
 // removeMemberForContext actually use — role/name aren't needed here since
@@ -26,8 +31,11 @@ export interface AdminTeamContext {
 // Shared by lib/actions/team.ts (web Server Actions, cookie-session auth)
 // and app/api/mobile/team/* (mobile route handlers, bearer-JWT auth) — same
 // "resolve the authenticated org-admin" pattern as billing-service.ts's
-// resolveAdminBillingContext.
-export async function resolveAdminTeamContext(supabase: SupabaseClient): Promise<AdminTeamContext> {
+// resolveAdminBillingContext. `allowManager` widens this from Admin/Owner
+// to also accept Manager-tier callers — only the invite route passes it,
+// since resend/remove stay Admin-only (see MANAGER_INVITABLE_ROLES above
+// for the role restriction that keeps a Manager invite to Staff-only).
+export async function resolveAdminTeamContext(supabase: SupabaseClient, opts: { allowManager?: boolean } = {}): Promise<AdminTeamContext> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -39,7 +47,8 @@ export async function resolveAdminTeamContext(supabase: SupabaseClient): Promise
     .eq("id", user.id)
     .single();
   if (!profile) throw new Error("No profile");
-  if (!ADMIN_ROLES.includes(profile.role)) {
+  const allowedRoles = opts.allowManager ? MANAGER_ROLES : ADMIN_ROLES;
+  if (!allowedRoles.includes(profile.role)) {
     throw new Error("Only an owner or admin can manage team members.");
   }
   return { profile, actorName: `${profile.first_name} ${profile.last_name}`, actorRole: profile.role };
@@ -52,10 +61,13 @@ export async function resolveAdminTeamContext(supabase: SupabaseClient): Promise
 // RLS-scoped table write and doesn't need this file at all.
 
 export async function inviteMemberForContext(
-  { profile }: AdminTeamContext,
+  { profile, actorRole }: AdminTeamContext,
   input: { email: string; role: string; firstName: string; lastName: string; branchId: string },
 ): Promise<void> {
   if (!input.branchId) throw new Error("Pick a branch for this member.");
+  if (actorRole === "manager" && !MANAGER_INVITABLE_ROLES.includes(input.role)) {
+    throw new Error("Managers can only invite Staff members (Cashier or Warehouse).");
+  }
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
     throw new Error(
       "Invites need the SUPABASE_SERVICE_ROLE_KEY server secret — add it to the deployment's environment (Supabase dashboard → Project Settings → API).",
@@ -63,7 +75,15 @@ export async function inviteMemberForContext(
   }
   const admin = createAdminClient();
   const { error } = await admin.auth.admin.inviteUserByEmail(input.email, {
-    data: { org_id: profile.org_id, role: input.role, first_name: input.firstName, last_name: input.lastName, branch_id: input.branchId },
+    data: {
+      org_id: profile.org_id,
+      role: input.role,
+      first_name: input.firstName,
+      last_name: input.lastName,
+      branch_id: input.branchId,
+      invited_by: profile.id,
+      invited_by_role: actorRole,
+    },
     redirectTo: `${await siteUrl()}/auth/callback?next=/accept-invite`,
   });
   if (error) {

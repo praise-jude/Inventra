@@ -251,3 +251,14 @@ export async function sendMemberApprovedEmail(input: { to: string; orgName: stri
     ),
   });
 }
+
+export async function sendMemberRejectedEmail(input: { to: string; reason: string }): Promise<void> {
+  await sendEmail({
+    to: input.to,
+    subject: "Your Inventra account request was not approved",
+    html: wrap(
+      "Account request declined",
+      `<p>Your request to join this workspace was not approved.</p><p><strong>Reason:</strong> ${input.reason}</p><p>If you believe this is a mistake, contact whoever invited you.</p>`,
+    ),
+  });
+}

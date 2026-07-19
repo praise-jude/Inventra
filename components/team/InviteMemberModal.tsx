@@ -7,21 +7,28 @@ import { inviteMember } from "@/lib/actions/team";
 import { Field } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 
-const ROLES = ["admin", "manager", "cashier", "warehouse"];
+const ADMIN_ROLES_OPTIONS = ["admin", "manager", "cashier", "warehouse"];
+// A Manager may only invite Staff — enforced again server-side in
+// lib/team-service.ts's MANAGER_INVITABLE_ROLES, this just keeps the
+// picker from offering a choice the server would reject.
+const MANAGER_ROLES_OPTIONS = ["cashier", "warehouse"];
 
 export function InviteMemberModal({
   warehouses,
+  isAdmin,
   onClose,
 }: {
   warehouses: { id: string; name: string }[];
+  isAdmin: boolean;
   onClose: () => void;
 }) {
   const router = useRouter();
   const flash = useToast();
+  const ROLES = isAdmin ? ADMIN_ROLES_OPTIONS : MANAGER_ROLES_OPTIONS;
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState("manager");
+  const [role, setRole] = useState(isAdmin ? "manager" : "cashier");
   const [branchId, setBranchId] = useState(warehouses[0]?.id ?? "");
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<{ firstName?: string; lastName?: string; email?: string; branchId?: string }>({});

@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const context = await resolveAdminTeamContext(auth.supabase);
+    const context = await resolveAdminTeamContext(auth.supabase, { allowManager: true });
     await inviteMemberForContext(context, { email, role, firstName, lastName, branchId });
 
     await logAudit(

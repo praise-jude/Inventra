@@ -76,12 +76,19 @@ export function TeamClient({
   seatsTotal,
   currentUserId,
   warehouses,
+  isAdmin,
 }: {
   members: TeamMemberRow[];
   seatsUsed: number;
   seatsTotal: number;
   currentUserId: string;
   warehouses: { id: string; name: string }[];
+  // Managers can reach this page too (see app/(app)/team/page.tsx) but only
+  // to invite Staff and approve/reject awaiting_approval members — role
+  // changes, suspend/reactivate, resend invite, and remove stay Admin-only,
+  // enforced here (UI) and again server-side (lib/actions/team.ts +
+  // guard_profile_status_transitions() RLS trigger).
+  isAdmin: boolean;
 }) {
   const router = useRouter();
   const flash = useToast();
@@ -204,7 +211,7 @@ export function TeamClient({
       render: (m) => {
         const isSelf = m.id === currentUserId;
         const isBusy = busyId === m.id;
-        return m.role === "owner" || isSelf ? (
+        return m.role === "owner" || isSelf || !isAdmin ? (
           <span className="rounded-[20px] px-[9px] py-0.5 text-[11.5px] font-bold capitalize" style={ROLE_STYLE[m.role]}>
             {m.role}
           </span>
@@ -279,6 +286,10 @@ export function TeamClient({
         const isBusy = busyId === m.id;
         const status = displayStatus(m);
         if (isSelf || m.role === "owner") return null;
+        // Managers only get a menu at all for rows they can actually act on
+        // (approve/reject) — same restriction enforced server-side by
+        // guard_profile_status_transitions().
+        if (!isAdmin && status !== "awaiting_approval") return null;
         return (
           <div className="relative" onClick={(e) => e.stopPropagation()}>
             <button
@@ -290,7 +301,7 @@ export function TeamClient({
             </button>
             {menuOpenId === m.id && (
               <div className="absolute right-0 top-8 z-10 w-[180px] rounded-[10px] border border-border bg-surface py-1.5 text-left shadow-[var(--shadow-lg)]">
-                {status === "invited" && (
+                {isAdmin && status === "invited" && (
                   <button
                     onClick={() => handleResendInvite(m)}
                     className="block w-full px-3.5 py-2 text-left text-[12.5px] text-text hover:bg-hover"
@@ -320,7 +331,7 @@ export function TeamClient({
                     </button>
                   </>
                 )}
-                {status === "suspended" && (
+                {isAdmin && status === "suspended" && (
                   <button
                     onClick={() => handleReactivate(m)}
                     className="block w-full px-3.5 py-2 text-left text-[12.5px] text-text hover:bg-hover"
@@ -328,7 +339,7 @@ export function TeamClient({
                     Reactivate
                   </button>
                 )}
-                {status === "active" && (
+                {isAdmin && status === "active" && (
                   <button
                     onClick={() => handleSuspend(m)}
                     className="block w-full px-3.5 py-2 text-left text-[12.5px] text-text hover:bg-hover"
@@ -336,16 +347,18 @@ export function TeamClient({
                     Suspend
                   </button>
                 )}
-                <button onClick={() => handleRemove(m)} className="block w-full px-3.5 py-2 text-left text-[12.5px] text-red hover:bg-hover">
-                  Remove
-                </button>
+                {isAdmin && (
+                  <button onClick={() => handleRemove(m)} className="block w-full px-3.5 py-2 text-left text-[12.5px] text-red hover:bg-hover">
+                    Remove
+                  </button>
+                )}
               </div>
             )}
           </div>
         );
       },
     },
-  ], [presenceById, currentUserId, busyId, menuOpenId, formatDateTime, gradientIndex, handleRoleChange, handleSuspend, handleReactivate, handleResendInvite, handleRemove]);
+  ], [presenceById, currentUserId, busyId, menuOpenId, formatDateTime, gradientIndex, handleRoleChange, handleSuspend, handleReactivate, handleResendInvite, handleRemove, isAdmin]);
 
   return (
     <div className="animate-fade-up">
@@ -415,7 +428,7 @@ export function TeamClient({
         ))}
       </div>
 
-      {showInvite && <InviteMemberModal warehouses={warehouses} onClose={() => setShowInvite(false)} />}
+      {showInvite && <InviteMemberModal warehouses={warehouses} isAdmin={isAdmin} onClose={() => setShowInvite(false)} />}
       {approveTarget && (
         <ApproveMemberModal name={approveTarget.name} onConfirm={handleApprove} onClose={() => setApproveTarget(null)} />
       )}

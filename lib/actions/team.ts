@@ -2,16 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { ADMIN_ROLES } from "@/lib/roles";
+import { ADMIN_ROLES, MANAGER_ROLES } from "@/lib/roles";
 import { logAudit } from "@/lib/actions/audit";
-import { sendMemberApprovedEmail } from "@/lib/email";
+import { sendMemberApprovedEmail, sendMemberRejectedEmail } from "@/lib/email";
 import { REJECT_REASONS } from "@/lib/constants/team";
 import { inviteMemberForContext, resendInviteForContext, removeMemberForContext } from "@/lib/team-service";
 
-// Mirrors the check inviteMember already did — Team Management is Admin-tier
-// only (owner/admin). Returns the acting profile so callers can guard
-// self-action / last-owner cases.
-async function requireAdminOrgId() {
+async function resolveActor(allowedRoles: readonly string[]) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -23,7 +20,7 @@ async function requireAdminOrgId() {
     .eq("id", user.id)
     .single();
   if (!profile) throw new Error("No profile");
-  if (!ADMIN_ROLES.includes(profile.role)) {
+  if (!allowedRoles.includes(profile.role)) {
     throw new Error("Only an owner or admin can manage team members.");
   }
   return {
@@ -33,6 +30,24 @@ async function requireAdminOrgId() {
     role: profile.role as string,
     actorName: `${profile.first_name} ${profile.last_name}`,
   };
+}
+
+// Team Management is Admin-tier only (owner/admin) for most actions.
+// Returns the acting profile so callers can guard self-action / last-owner
+// cases.
+async function requireAdminOrgId() {
+  return resolveActor(ADMIN_ROLES);
+}
+
+// Invite and approve/reject also accept Manager-tier callers — a Manager
+// can invite Staff (see MANAGER_INVITABLE_ROLES in lib/team-service.ts,
+// which further restricts *which* roles they can invite) and approve/
+// reject anyone currently awaiting approval (further restricted at the DB
+// layer by guard_profile_status_transitions(), which only lets a Manager
+// touch a row while it's awaiting_approval). Role changes, suspend/
+// reactivate, resend, and remove stay Admin-only.
+async function requireAdminOrManagerOrgId() {
+  return resolveActor(MANAGER_ROLES);
 }
 
 async function assertNotLastOwner(supabase: Awaited<ReturnType<typeof createClient>>, orgId: string, memberId: string) {
@@ -47,7 +62,7 @@ async function assertNotLastOwner(supabase: Awaited<ReturnType<typeof createClie
 }
 
 export async function inviteMember(email: string, role: string, firstName: string, lastName: string, branchId: string) {
-  const { orgId, userId, role: actorRole, actorName } = await requireAdminOrgId();
+  const { orgId, userId, role: actorRole, actorName } = await requireAdminOrManagerOrgId();
   await inviteMemberForContext({ profile: { id: userId, org_id: orgId }, actorName, actorRole }, { email, role, firstName, lastName, branchId });
 
   revalidatePath("/team");
@@ -203,7 +218,7 @@ export async function removeMember(memberId: string) {
 }
 
 export async function approveMember(memberId: string) {
-  const { supabase, orgId, userId, role: actorRole, actorName } = await requireAdminOrgId();
+  const { supabase, orgId, userId, role: actorRole, actorName } = await requireAdminOrManagerOrgId();
 
   const { data: member } = await supabase
     .from("profiles")
@@ -243,11 +258,11 @@ export async function approveMember(memberId: string) {
 }
 
 export async function rejectMember(memberId: string, reason: (typeof REJECT_REASONS)[number], detail?: string) {
-  const { supabase, orgId, userId, role: actorRole, actorName } = await requireAdminOrgId();
+  const { supabase, orgId, userId, role: actorRole, actorName } = await requireAdminOrManagerOrgId();
 
   const { data: member } = await supabase
     .from("profiles")
-    .select("org_id, first_name, last_name, status")
+    .select("org_id, first_name, last_name, email, status")
     .eq("id", memberId)
     .single();
   if (!member || member.org_id !== orgId) throw new Error("Member not found.");
@@ -264,6 +279,8 @@ export async function rejectMember(memberId: string, reason: (typeof REJECT_REAS
     throw new Error("Could not reject this member.");
   }
   revalidatePath("/team");
+
+  void sendMemberRejectedEmail({ to: member.email, reason: fullReason }).catch(() => {});
 
   await logAudit({
     orgId,
