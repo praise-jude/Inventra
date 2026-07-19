@@ -2,12 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { ADMIN_ROLES } from "@/lib/roles";
 import { logAudit } from "@/lib/actions/audit";
-import { siteUrl } from "@/lib/site-url";
 import { sendMemberApprovedEmail } from "@/lib/email";
 import { REJECT_REASONS } from "@/lib/constants/team";
+import { inviteMemberForContext, resendInviteForContext, removeMemberForContext } from "@/lib/team-service";
 
 // Mirrors the check inviteMember already did — Team Management is Admin-tier
 // only (owner/admin). Returns the acting profile so callers can guard
@@ -49,23 +48,7 @@ async function assertNotLastOwner(supabase: Awaited<ReturnType<typeof createClie
 
 export async function inviteMember(email: string, role: string, firstName: string, lastName: string, branchId: string) {
   const { orgId, userId, role: actorRole, actorName } = await requireAdminOrgId();
-
-  if (!branchId) throw new Error("Pick a branch for this member.");
-
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    throw new Error(
-      "Invites need the SUPABASE_SERVICE_ROLE_KEY server secret — add it to the deployment's environment (Supabase dashboard → Project Settings → API).",
-    );
-  }
-  const admin = createAdminClient();
-  const { error } = await admin.auth.admin.inviteUserByEmail(email, {
-    data: { org_id: orgId, role, first_name: firstName, last_name: lastName, branch_id: branchId },
-    redirectTo: `${await siteUrl()}/auth/callback?next=/accept-invite`,
-  });
-  if (error) {
-    console.error("[Inventra] inviteMember failed:", { email, orgId, error });
-    throw new Error("Could not send the invite email. Please try again in a moment.");
-  }
+  await inviteMemberForContext({ profile: { id: userId, org_id: orgId }, actorName, actorRole }, { email, role, firstName, lastName, branchId });
 
   revalidatePath("/team");
 
@@ -83,29 +66,16 @@ export async function inviteMember(email: string, role: string, firstName: strin
 }
 
 export async function resendInvite(memberId: string) {
-  const { orgId, userId, role: actorRole, actorName } = await requireAdminOrgId();
-  const supabase = await createClient();
+  const { supabase, orgId, userId, role: actorRole, actorName } = await requireAdminOrgId();
   const { data: member } = await supabase
     .from("profiles")
-    .select("email, role, first_name, last_name, status, branch_id")
+    .select("first_name, last_name, email")
     .eq("id", memberId)
     .eq("org_id", orgId)
     .single();
   if (!member) throw new Error("Member not found.");
-  if (member.status !== "invited") throw new Error("This member has already accepted their invite.");
 
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    throw new Error("Invites need the SUPABASE_SERVICE_ROLE_KEY server secret configured.");
-  }
-  const admin = createAdminClient();
-  const { error } = await admin.auth.admin.inviteUserByEmail(member.email, {
-    data: { org_id: orgId, role: member.role, first_name: member.first_name, last_name: member.last_name, branch_id: member.branch_id },
-    redirectTo: `${await siteUrl()}/auth/callback?next=/accept-invite`,
-  });
-  if (error) {
-    console.error("[Inventra] resendInvite failed:", { memberId, orgId, error });
-    throw new Error("Could not resend the invite email. Please try again in a moment.");
-  }
+  await resendInviteForContext(supabase, { profile: { id: userId, org_id: orgId }, actorName, actorRole }, memberId);
   revalidatePath("/team");
 
   await logAudit({
@@ -212,21 +182,11 @@ export async function reactivateMember(memberId: string) {
 
 export async function removeMember(memberId: string) {
   const { supabase, orgId, userId, role: actorRole, actorName } = await requireAdminOrgId();
-  if (memberId === userId) throw new Error("You can't remove your own account.");
-  await assertNotLastOwner(supabase, orgId, memberId);
 
   const { data: member } = await supabase.from("profiles").select("org_id, first_name, last_name").eq("id", memberId).single();
   if (!member || member.org_id !== orgId) throw new Error("Member not found.");
 
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    throw new Error("Removing members needs the SUPABASE_SERVICE_ROLE_KEY server secret configured.");
-  }
-  const admin = createAdminClient();
-  const { error } = await admin.auth.admin.deleteUser(memberId);
-  if (error) {
-    console.error("[Inventra] removeMember failed:", { memberId, orgId, error });
-    throw new Error("Could not remove this member.");
-  }
+  await removeMemberForContext(supabase, { profile: { id: userId, org_id: orgId }, actorName, actorRole }, memberId);
   revalidatePath("/team");
 
   await logAudit({
