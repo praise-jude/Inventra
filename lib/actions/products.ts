@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { isManagerRole } from "@/lib/roles";
 import { logAudit } from "@/lib/actions/audit";
+import { requirePermission } from "@/lib/permissions";
 import {
   getProductDetail,
   findProductIdByCode,
@@ -31,15 +31,6 @@ async function requireOrgId() {
     role: profile.role as string,
     actorName: `${profile.first_name} ${profile.last_name}`,
   };
-}
-
-// Products are Manager-tier+ to mutate (owner/admin/manager) — matching the
-// `products_insert/update/delete` RLS from 0012_products_manager_rls.sql.
-// This gives a clear error instead of a silent RLS no-op.
-function requireManagerRole(role: string) {
-  if (!isManagerRole(role)) {
-    throw new Error("Only an owner, admin, or manager can manage products.");
-  }
 }
 
 export async function fetchProductDetail(id: string): Promise<ProductDetail | null> {
@@ -74,7 +65,7 @@ export interface CreateProductInput {
 
 export async function createProduct(input: CreateProductInput) {
   const { supabase, orgId, userId, role, actorName } = await requireOrgId();
-  requireManagerRole(role);
+  await requirePermission(supabase, "inventory", "create");
 
   const { data: product, error } = await supabase
     .from("products")
@@ -153,7 +144,7 @@ export interface UpdateProductInput {
 
 export async function updateProduct(id: string, input: UpdateProductInput): Promise<ProductDetail> {
   const { supabase, orgId, userId, role, actorName } = await requireOrgId();
-  requireManagerRole(role);
+  await requirePermission(supabase, "inventory", "edit");
   const name = input.name.trim();
   const sku = input.sku.trim();
   if (!name) throw new Error("Product name is required.");
@@ -233,6 +224,7 @@ export async function updateProduct(id: string, input: UpdateProductInput): Prom
 
 export async function archiveProduct(id: string) {
   const { supabase, orgId, userId, role, actorName } = await requireOrgId();
+  await requirePermission(supabase, "inventory", "edit");
   const { data: product } = await supabase.from("products").select("name").eq("id", id).maybeSingle();
   const { data: archived, error } = await supabase
     .from("products")
@@ -261,7 +253,7 @@ export async function archiveProduct(id: string) {
 
 export async function setProductActive(id: string, isActive: boolean): Promise<ProductDetail> {
   const { supabase, orgId, userId, role, actorName } = await requireOrgId();
-  requireManagerRole(role);
+  await requirePermission(supabase, "inventory", "edit");
   const { data: updated, error } = await supabase
     .from("products")
     .update({ is_active: isActive })
@@ -299,9 +291,7 @@ export async function setProductActive(id: string, isActive: boolean): Promise<P
 
 export async function deleteProduct(id: string) {
   const { supabase, orgId, userId, role, actorName } = await requireOrgId();
-  if (!["owner", "admin", "manager"].includes(role)) {
-    throw new Error("Only an owner, admin, or manager can delete a product.");
-  }
+  await requirePermission(supabase, "inventory", "delete");
 
   const { count } = await supabase
     .from("stock_movements")
@@ -342,8 +332,8 @@ export async function deleteProduct(id: string) {
 }
 
 export async function duplicateProduct(id: string) {
-  const { supabase, role } = await requireOrgId();
-  requireManagerRole(role);
+  const { supabase } = await requireOrgId();
+  await requirePermission(supabase, "inventory", "create");
   const { data: original, error } = await supabase.from("products").select("*").eq("id", id).single();
   if (error) throw error;
 
@@ -452,7 +442,7 @@ export interface ImportResult {
 
 export async function importProductsCsv(rows: ImportProductRow[]): Promise<ImportResult> {
   const { supabase, orgId, userId, role, actorName } = await requireOrgId();
-  requireManagerRole(role);
+  await requirePermission(supabase, "inventory", "create");
   const result: ImportResult = { created: 0, updated: 0, failed: 0, errors: [] };
 
   const [{ data: categories }, { data: suppliers }, { data: warehouses }, { data: existingProducts }] = await Promise.all([

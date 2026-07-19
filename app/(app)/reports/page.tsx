@@ -1,4 +1,4 @@
-import { requireManagerProfile } from "@/lib/queries/session";
+import { requireReportsProfile } from "@/lib/queries/session";
 import { getWarehouseOptions, getProductOptions } from "@/lib/queries/products";
 import {
   getSalesSummary,
@@ -24,7 +24,7 @@ export default async function ReportsPage({
 }: {
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
-  await requireManagerProfile();
+  await requireReportsProfile();
   const params = await searchParams;
 
   const tab = (VALID_TABS as readonly string[]).includes(params.tab ?? "") ? (params.tab as (typeof VALID_TABS)[number]) : "sales";

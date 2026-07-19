@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/actions/audit";
+import { requirePermission } from "@/lib/permissions";
 import { orIlike } from "@/lib/postgrest-filter";
 import type { AdjustmentType } from "@/lib/supabase/database.types";
 
@@ -60,6 +61,7 @@ export async function createAdjustment(input: CreateAdjustmentInput) {
     .eq("id", user.id)
     .single();
   if (!profile) throw new Error("No profile");
+  await requirePermission(supabase, "inventory", "create_movement");
 
   if (!input.productId) throw new Error("Pick a product.");
   if (!Number.isInteger(input.qtyDelta) || input.qtyDelta === 0) {

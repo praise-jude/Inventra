@@ -24,6 +24,7 @@ export default async function TeamPage() {
       seatsUsed={members.length}
       seatsTotal={seatsTotal}
       currentUserId={profile.id}
+      orgId={profile.org_id}
       warehouses={warehouses}
       isAdmin={ADMIN_ROLES.includes(profile.role)}
     />

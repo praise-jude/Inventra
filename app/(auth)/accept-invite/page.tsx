@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { acceptInviteTerms } from "@/lib/actions/auth";
+import { notifyPendingApproval } from "@/lib/actions/notifications";
 import { Field } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 
@@ -38,8 +39,13 @@ export default function AcceptInvitePage() {
       if (userData.user) {
         // Lands in awaiting_approval, not active — an admin must approve
         // before this account can use the app (see requireProfile()).
+        // guard_profile_status_transitions() computes the real target
+        // status server-side (an Admin-invited member skips straight to
+        // active); notifyPendingApproval() checks what actually landed
+        // rather than assuming this write took effect verbatim.
         await supabase.from("profiles").update({ status: "awaiting_approval" }).eq("id", userData.user.id);
         await acceptInviteTerms();
+        void notifyPendingApproval();
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not finish activating your account. Please try signing in — if that fails, ask an admin to resend your invite.");

@@ -59,6 +59,18 @@ export const requireManagerProfile = cache(async (): Promise<{ profile: Profile;
   return result;
 });
 
+// Reports used to be a hardcoded Manager-tier+ gate; now backed by
+// has_permission('reports', 'view') so an org admin can override it per
+// role via Settings > Roles. The RPC's fallback (no override row)
+// reproduces the old MANAGER_ROLES check exactly.
+export const requireReportsProfile = cache(async (): Promise<{ profile: Profile; org: Organization }> => {
+  const result = await requireProfile();
+  const supabase = await createClient();
+  const { data: canView } = await supabase.rpc("has_permission", { p_module: "reports", p_action: "view" });
+  if (!canView) redirect("/dashboard");
+  return result;
+});
+
 // Sales is everyone's job except Warehouse (whose lane is stock
 // movements/receiving, per the existing Team page role legend).
 export const requireSalesProfile = cache(async (): Promise<{ profile: Profile; org: Organization }> => {

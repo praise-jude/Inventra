@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/actions/audit";
+import { requirePermission } from "@/lib/permissions";
 import { getSaleDetail, type SaleDetail } from "@/lib/queries/sales";
 
 async function requireSalesOrgId() {
@@ -47,6 +48,7 @@ export interface RecordSaleInput {
 
 export async function recordSale(input: RecordSaleInput) {
   const { supabase, orgId, userId, role, actorName } = await requireSalesOrgId();
+  await requirePermission(supabase, "sales", "create");
 
   if (input.items.length === 0) throw new Error("Add at least one product to the sale.");
   for (const item of input.items) {
@@ -168,6 +170,7 @@ export interface UpdateSaleInput {
 
 export async function updateSale(id: string, input: UpdateSaleInput) {
   const { supabase, orgId, userId, role, actorName } = await requireSalesOrgId();
+  await requirePermission(supabase, "sales", "edit");
 
   // customerId is only touched when the caller explicitly sends it — the
   // Sales UI no longer collects a customer at all, so leaving it undefined
@@ -231,9 +234,7 @@ export async function updateSale(id: string, input: UpdateSaleInput) {
 
 export async function deleteSale(id: string) {
   const { supabase, orgId, userId, role, actorName } = await requireSalesOrgId();
-  if (!["owner", "admin", "manager"].includes(role)) {
-    throw new Error("Only an owner, admin, or manager can delete a sale.");
-  }
+  await requirePermission(supabase, "sales", "delete");
 
   const { data: sale, error: saleError } = await supabase.from("sales").select("id, total").eq("id", id).maybeSingle();
   if (saleError) {

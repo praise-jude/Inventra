@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
+import { createClient } from "@/lib/supabase/client";
 import { useWorkspace } from "@/components/app/CurrencyProvider";
 import { usePresence } from "@/components/app/PresenceProvider";
 import { useToast } from "@/components/app/ToastProvider";
@@ -75,6 +76,7 @@ export function TeamClient({
   seatsUsed,
   seatsTotal,
   currentUserId,
+  orgId,
   warehouses,
   isAdmin,
 }: {
@@ -82,6 +84,7 @@ export function TeamClient({
   seatsUsed: number;
   seatsTotal: number;
   currentUserId: string;
+  orgId: string;
   warehouses: { id: string; name: string }[];
   // Managers can reach this page too (see app/(app)/team/page.tsx) but only
   // to invite Staff and approve/reject awaiting_approval members — role
@@ -92,6 +95,26 @@ export function TeamClient({
 }) {
   const router = useRouter();
   const flash = useToast();
+
+  // Live sync: another session (a Manager approving someone from mobile,
+  // an Admin changing a role from a different tab) updates this table
+  // without the local actor doing anything — router.refresh() re-runs the
+  // page's server-side getTeamMembers() so the row data here stays honest,
+  // same "postgres_changes filtered to this org" pattern as the
+  // notifications feed.
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`team:org:${orgId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles", filter: `org_id=eq.${orgId}` }, () => {
+        router.refresh();
+      })
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [orgId, router]);
   const [showInvite, setShowInvite] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);

@@ -7,6 +7,7 @@ import { logAudit } from "@/lib/actions/audit";
 import { sendMemberApprovedEmail, sendMemberRejectedEmail } from "@/lib/email";
 import { REJECT_REASONS } from "@/lib/constants/team";
 import { inviteMemberForContext, resendInviteForContext, removeMemberForContext } from "@/lib/team-service";
+import { createNotification } from "@/lib/notifications-service";
 
 async function resolveActor(allowedRoles: readonly string[]) {
   const supabase = await createClient();
@@ -242,6 +243,15 @@ export async function approveMember(memberId: string) {
 
   const { data: org } = await supabase.from("organizations").select("name").eq("id", orgId).single();
   void sendMemberApprovedEmail({ to: member.email, orgName: org?.name ?? "your workspace" }).catch(() => {});
+  void createNotification(supabase, {
+    orgId,
+    userId: memberId,
+    type: "member_approved",
+    title: "Your account has been approved",
+    body: `You now have access to ${org?.name ?? "your workspace"}.`,
+    entityType: "profile",
+    entityId: memberId,
+  });
 
   await logAudit({
     orgId,
@@ -281,6 +291,15 @@ export async function rejectMember(memberId: string, reason: (typeof REJECT_REAS
   revalidatePath("/team");
 
   void sendMemberRejectedEmail({ to: member.email, reason: fullReason }).catch(() => {});
+  void createNotification(supabase, {
+    orgId,
+    userId: memberId,
+    type: "member_rejected",
+    title: "Your account request was not approved",
+    body: fullReason,
+    entityType: "profile",
+    entityId: memberId,
+  });
 
   await logAudit({
     orgId,
