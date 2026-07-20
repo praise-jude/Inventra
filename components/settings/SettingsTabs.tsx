@@ -7,6 +7,7 @@ const TABS = [
   { href: "/settings/general", label: "General" },
   { href: "/settings/branches", label: "Branches" },
   { href: "/settings/roles", label: "Roles" },
+  { href: "/settings/api-keys", label: "API Keys" },
   { href: "/settings/notifications", label: "Notifications" },
   { href: "/settings/integrations", label: "Integrations" },
   { href: "/settings/printing", label: "Printing" },

@@ -10,6 +10,7 @@ const AUTH_ROUTES = [
   "/auth/callback",
   "/terms",
   "/privacy",
+  "/api-docs",
 ];
 
 const ONBOARDING_ROUTE = "/onboarding/complete";
