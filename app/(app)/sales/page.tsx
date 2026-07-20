@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { getSalesPage } from "@/lib/queries/sales";
+import { getSalesPage, type SalesPageFilters } from "@/lib/queries/sales";
 import { getWarehouseOptions } from "@/lib/queries/products";
 import { requireSalesProfile } from "@/lib/queries/session";
 import { SalesClient } from "@/components/sales/SalesClient";
@@ -15,7 +15,17 @@ export default async function SalesPage({
   const page = Math.max(1, Number(params.page) || 1);
   const { profile } = await requireSalesProfile();
   const [{ rows, total }, warehouses] = await Promise.all([
-    getSalesPage({ search: params.q, warehouseId: params.warehouse }, page, PAGE_SIZE),
+    getSalesPage(
+      {
+        search: params.q,
+        warehouseId: params.warehouse,
+        dateFrom: params.dateFrom,
+        dateTo: params.dateTo,
+        paymentMethod: params.payment as SalesPageFilters["paymentMethod"],
+      },
+      page,
+      PAGE_SIZE,
+    ),
     getWarehouseOptions(),
   ]);
   const canDelete = ["owner", "admin", "manager"].includes(profile.role);
@@ -29,7 +39,13 @@ export default async function SalesPage({
         pageSize={PAGE_SIZE}
         warehouses={warehouses}
         canDelete={canDelete}
-        filters={{ q: params.q ?? "", warehouse: params.warehouse ?? "" }}
+        filters={{
+          q: params.q ?? "",
+          warehouse: params.warehouse ?? "",
+          dateFrom: params.dateFrom ?? "",
+          dateTo: params.dateTo ?? "",
+          payment: params.payment ?? "",
+        }}
       />
     </Suspense>
   );

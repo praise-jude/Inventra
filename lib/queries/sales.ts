@@ -24,6 +24,9 @@ const PAYMENT_LABEL: Record<PaymentMethod, string> = {
 export interface SalesPageFilters {
   search?: string;
   warehouseId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  paymentMethod?: PaymentMethod;
 }
 
 // Server-side searched + paginated sales listing, mirroring
@@ -45,6 +48,25 @@ export async function getSalesPage(
     .order("created_at", { ascending: false });
 
   if (filters.warehouseId) query = query.eq("warehouse_id", filters.warehouseId);
+  if (filters.dateFrom) query = query.gte("created_at", filters.dateFrom);
+  // Exclusive upper bound needs a day added since created_at is a
+  // timestamp and dateTo arrives as a bare "YYYY-MM-DD" (midnight) — using
+  // .lte() directly would silently exclude every sale made that day.
+  if (filters.dateTo) {
+    const nextDay = new Date(filters.dateTo);
+    nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+    query = query.lt("created_at", nextDay.toISOString().slice(0, 10));
+  }
+
+  // sale_payments is a separate table (a split payment has several rows
+  // per sale), so "sales paid via X" is resolved as its own id lookup
+  // rather than a single-table filter.
+  if (filters.paymentMethod) {
+    const { data: matchingPayments } = await supabase.from("sale_payments").select("sale_id").eq("method", filters.paymentMethod);
+    const saleIds = (matchingPayments ?? []).map((p) => p.sale_id);
+    if (saleIds.length === 0) return { rows: [], total: 0 };
+    query = query.in("id", saleIds);
+  }
 
   const search = filters.search?.trim();
   if (search) {

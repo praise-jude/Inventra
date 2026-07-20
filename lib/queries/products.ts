@@ -1,6 +1,5 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
-import { orIlike } from "@/lib/postgrest-filter";
 
 export interface ProductListRow {
   id: string;
@@ -68,44 +67,92 @@ export interface ProductsPageFilters {
   search?: string;
   categoryId?: string;
   warehouseId?: string;
+  supplierId?: string;
   status?: "in_stock" | "low_stock" | "out_of_stock";
   active?: "active" | "inactive";
+  minPrice?: number;
+  maxPrice?: number;
+  minMarginPct?: number;
+  maxMarginPct?: number;
+  expiryFrom?: string;
+  expiryTo?: string;
+  createdFrom?: string;
+  createdTo?: string;
 }
 
 // Server-side searched + paginated product listing for the Products admin
 // page — unlike getProducts() above (used by pickers that need the whole
-// catalog in memory), this never loads more than one page of rows, and the
-// search is index-backed (pg_trgm) rather than an in-browser full-catalog scan.
+// catalog in memory), this never loads more than one page of rows. Backed
+// by the search_products() RPC (supabase/migrations/
+// 20260720100100_fix_search_products_word_similarity.sql): index-backed
+// (pg_trgm) typo-tolerant ranking across name/sku/barcode/brand/
+// description/supplier name, plus range filters PostgREST's .or() ilike
+// filter couldn't express (price, margin %, expiry date, date added).
 export async function getProductsPage(
   filters: ProductsPageFilters,
   page = 1,
   pageSize = 25,
 ): Promise<{ rows: ProductListRow[]; total: number }> {
   const supabase = await createClient();
-  const from = (page - 1) * pageSize;
-  const to = from + pageSize - 1;
+  const offset = (page - 1) * pageSize;
 
-  let query = supabase
-    .from("products")
-    .select(PRODUCT_LIST_SELECT, { count: "exact" })
-    .is("archived_at", null)
-    .order("created_at", { ascending: false });
-
-  if (filters.search?.trim()) {
-    query = query.or(orIlike(["name", "sku", "barcode", "brand"], filters.search));
-  }
-  if (filters.categoryId) query = query.eq("category_id", filters.categoryId);
-  if (filters.warehouseId) query = query.eq("warehouse_id", filters.warehouseId);
-  if (filters.status) query = query.eq("status", filters.status);
-  if (filters.active === "active") query = query.eq("is_active", true);
-  if (filters.active === "inactive") query = query.eq("is_active", false);
-
-  const { data, error, count } = await query.range(from, to);
+  const { data, error } = await supabase.rpc("search_products", {
+    p_search: filters.search?.trim() || null,
+    p_category_id: filters.categoryId || null,
+    p_warehouse_id: filters.warehouseId || null,
+    p_supplier_id: filters.supplierId || null,
+    p_status: filters.status || null,
+    p_active: filters.active === "active" ? true : filters.active === "inactive" ? false : null,
+    p_min_price: filters.minPrice ?? null,
+    p_max_price: filters.maxPrice ?? null,
+    p_min_margin_pct: filters.minMarginPct ?? null,
+    p_max_margin_pct: filters.maxMarginPct ?? null,
+    p_expiry_from: filters.expiryFrom || null,
+    p_expiry_to: filters.expiryTo || null,
+    p_created_from: filters.createdFrom || null,
+    p_created_to: filters.createdTo || null,
+    p_limit: pageSize,
+    p_offset: offset,
+  });
   if (error) {
     console.error("[Inventra] getProductsPage failed:", error);
     throw new Error("Could not load products.");
   }
-  return { rows: (data ?? []).map(mapProductRow), total: count ?? 0 };
+
+  const rows = (data ?? []) as unknown as {
+    id: string;
+    sku: string;
+    barcode: string | null;
+    name: string;
+    brand: string | null;
+    emoji: string | null;
+    image_url: string | null;
+    sell_price: number;
+    qty_on_hand: number;
+    status: "in_stock" | "low_stock" | "out_of_stock";
+    is_active: boolean;
+    warehouse_id: string | null;
+    category_name: string | null;
+    total_count: number;
+  }[];
+  return {
+    rows: rows.map((p) => ({
+      id: p.id,
+      sku: p.sku,
+      barcode: p.barcode,
+      name: p.name,
+      brand: p.brand,
+      emoji: p.emoji,
+      imageUrl: p.image_url,
+      price: Number(p.sell_price),
+      qty: p.qty_on_hand,
+      status: p.status,
+      isActive: p.is_active,
+      category: p.category_name,
+      warehouseId: p.warehouse_id,
+    })),
+    total: rows[0]?.total_count ?? 0,
+  };
 }
 
 export interface ProductDetail {

@@ -18,6 +18,7 @@ import { useToast } from "@/components/app/ToastProvider";
 import { useWorkspace } from "@/components/app/CurrencyProvider";
 import { STOCK_STATUS_COLORS as STATUS_STYLE, STOCK_STATUS_LABELS as STATUS_LABEL } from "@/lib/stock-status";
 import { exportToCsv } from "@/lib/export";
+import { parseSmartQuery } from "@/lib/smart-query";
 
 const AddProductModal = dynamic(() => import("@/components/products/AddProductModal").then((m) => m.AddProductModal));
 const BarcodeScannerModal = dynamic(() =>
@@ -54,9 +55,29 @@ interface ProductsFiltersState {
   q: string;
   category: string;
   warehouse: string;
+  supplier: string;
   status: string;
   active: string;
+  minPrice: string;
+  maxPrice: string;
+  minMargin: string;
+  maxMargin: string;
+  expiryFrom: string;
+  expiryTo: string;
+  createdFrom: string;
+  createdTo: string;
 }
+
+const EMPTY_ADVANCED_FILTERS = {
+  minPrice: "",
+  maxPrice: "",
+  minMargin: "",
+  maxMargin: "",
+  expiryFrom: "",
+  expiryTo: "",
+  createdFrom: "",
+  createdTo: "",
+} as const;
 
 export function ProductsClient({
   rows: products,
@@ -84,6 +105,17 @@ export function ProductsClient({
   const { format: formatMoney } = useWorkspace();
   const [search, setSearch] = useState(filters.q);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [advancedDraft, setAdvancedDraft] = useState({
+    minPrice: filters.minPrice,
+    maxPrice: filters.maxPrice,
+    minMargin: filters.minMargin,
+    maxMargin: filters.maxMargin,
+    expiryFrom: filters.expiryFrom,
+    expiryTo: filters.expiryTo,
+    createdFrom: filters.createdFrom,
+    createdTo: filters.createdTo,
+  });
+  const advancedDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showAdd, setShowAdd] = useState(() => searchParams.get("new") === "1");
   const [selected, setSelected] = useState<ProductDetail | null>(null);
   const [showScanner, setShowScanner] = useState(false);
@@ -107,21 +139,78 @@ export function ProductsClient({
     if (merged.q) params.set("q", merged.q);
     if (merged.category) params.set("category", merged.category);
     if (merged.warehouse) params.set("warehouse", merged.warehouse);
+    if (merged.supplier) params.set("supplier", merged.supplier);
     if (merged.status) params.set("status", merged.status);
     if (merged.active) params.set("active", merged.active);
+    if (merged.minPrice) params.set("minPrice", merged.minPrice);
+    if (merged.maxPrice) params.set("maxPrice", merged.maxPrice);
+    if (merged.minMargin) params.set("minMargin", merged.minMargin);
+    if (merged.maxMargin) params.set("maxMargin", merged.maxMargin);
+    if (merged.expiryFrom) params.set("expiryFrom", merged.expiryFrom);
+    if (merged.expiryTo) params.set("expiryTo", merged.expiryTo);
+    if (merged.createdFrom) params.set("createdFrom", merged.createdFrom);
+    if (merged.createdTo) params.set("createdTo", merged.createdTo);
     if (merged.page && merged.page > 1) params.set("page", String(merged.page));
     router.push(`${pathname}?${params.toString()}`);
   }
 
+  const advancedFiltersActive =
+    !!filters.minPrice || !!filters.maxPrice || !!filters.minMargin || !!filters.maxMargin || !!filters.expiryFrom || !!filters.expiryTo || !!filters.createdFrom || !!filters.createdTo;
+  const [showAdvanced, setShowAdvanced] = useState(advancedFiltersActive);
+
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (search === filters.q) return;
-    debounceRef.current = setTimeout(() => pushParams({ q: search }), 300);
+    debounceRef.current = setTimeout(() => {
+      // A handful of common phrases ("low stock", "above 50000", "expired
+      // items"...) map straight to an existing filter instead of being
+      // searched for as literal text — see lib/smart-query.ts for the
+      // fixed pattern list this recognizes.
+      const smart = parseSmartQuery(search);
+      if (smart.matched) {
+        setShowAdvanced(true);
+        const next: Partial<ProductsFiltersState> = { q: "" };
+        if (smart.filters.status) next.status = smart.filters.status;
+        if (smart.filters.active) next.active = smart.filters.active;
+        if (smart.filters.minPrice !== undefined) next.minPrice = String(smart.filters.minPrice);
+        if (smart.filters.maxPrice !== undefined) next.maxPrice = String(smart.filters.maxPrice);
+        if (smart.filters.expiryTo) next.expiryTo = smart.filters.expiryTo;
+        setAdvancedDraft((d) => ({ ...d, ...next }));
+        setSearch("");
+        pushParams(next);
+        return;
+      }
+      pushParams({ q: search });
+    }, 300);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
+
+  // Same debounce-then-navigate pattern as search above — these were
+  // previously bound straight to the server-provided `filters.X` prop,
+  // which visibly reverted to its stale value on every keystroke while the
+  // router.push round trip was in flight (confirmed live: typing into the
+  // price filter showed the input going blank mid-type).
+  useEffect(() => {
+    if (advancedDebounceRef.current) clearTimeout(advancedDebounceRef.current);
+    const unchanged =
+      advancedDraft.minPrice === filters.minPrice &&
+      advancedDraft.maxPrice === filters.maxPrice &&
+      advancedDraft.minMargin === filters.minMargin &&
+      advancedDraft.maxMargin === filters.maxMargin &&
+      advancedDraft.expiryFrom === filters.expiryFrom &&
+      advancedDraft.expiryTo === filters.expiryTo &&
+      advancedDraft.createdFrom === filters.createdFrom &&
+      advancedDraft.createdTo === filters.createdTo;
+    if (unchanged) return;
+    advancedDebounceRef.current = setTimeout(() => pushParams({ ...advancedDraft }), 400);
+    return () => {
+      if (advancedDebounceRef.current) clearTimeout(advancedDebounceRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [advancedDraft]);
 
   function handleProductUpdated(updated: ProductDetail) {
     setSelected(updated);
@@ -425,7 +514,119 @@ export function ProductsClient({
           <option value="active">Active only</option>
           <option value="inactive">Inactive only</option>
         </select>
+        <select
+          value={filters.supplier}
+          onChange={(e) => pushParams({ supplier: e.target.value })}
+          className="h-[37px] rounded-[9px] border border-border bg-surface px-2.5 text-[13px] font-semibold text-text-2 hover:bg-hover"
+        >
+          <option value="">All suppliers</option>
+          {suppliers.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+        <button
+          onClick={() => setShowAdvanced((v) => !v)}
+          className={`h-[37px] rounded-[9px] border px-3 text-[13px] font-semibold ${
+            advancedFiltersActive ? "border-accent bg-accent-weak text-accent-text" : "border-border bg-surface text-text-2 hover:bg-hover"
+          }`}
+        >
+          {showAdvanced ? "▴" : "▾"} More filters{advancedFiltersActive ? " •" : ""}
+        </button>
       </div>
+
+      {showAdvanced && (
+        <div className="mb-3.5 flex flex-wrap items-end gap-3 rounded-[9px] border border-border bg-surface-2 p-3">
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-semibold text-muted">Price range</label>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="number"
+                value={advancedDraft.minPrice}
+                onChange={(e) => setAdvancedDraft((d) => ({ ...d, minPrice: e.target.value }))}
+                placeholder="Min"
+                className="h-[33px] w-[90px] rounded-[7px] border border-border bg-surface px-2 text-[12.5px] text-text outline-none"
+              />
+              <span className="text-muted">–</span>
+              <input
+                type="number"
+                value={advancedDraft.maxPrice}
+                onChange={(e) => setAdvancedDraft((d) => ({ ...d, maxPrice: e.target.value }))}
+                placeholder="Max"
+                className="h-[33px] w-[90px] rounded-[7px] border border-border bg-surface px-2 text-[12.5px] text-text outline-none"
+              />
+            </div>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-semibold text-muted">Margin %</label>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="number"
+                value={advancedDraft.minMargin}
+                onChange={(e) => setAdvancedDraft((d) => ({ ...d, minMargin: e.target.value }))}
+                placeholder="Min"
+                className="h-[33px] w-[80px] rounded-[7px] border border-border bg-surface px-2 text-[12.5px] text-text outline-none"
+              />
+              <span className="text-muted">–</span>
+              <input
+                type="number"
+                value={advancedDraft.maxMargin}
+                onChange={(e) => setAdvancedDraft((d) => ({ ...d, maxMargin: e.target.value }))}
+                placeholder="Max"
+                className="h-[33px] w-[80px] rounded-[7px] border border-border bg-surface px-2 text-[12.5px] text-text outline-none"
+              />
+            </div>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-semibold text-muted">Expiry date</label>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="date"
+                value={advancedDraft.expiryFrom}
+                onChange={(e) => setAdvancedDraft((d) => ({ ...d, expiryFrom: e.target.value }))}
+                className="h-[33px] rounded-[7px] border border-border bg-surface px-2 text-[12.5px] text-text outline-none"
+              />
+              <span className="text-muted">–</span>
+              <input
+                type="date"
+                value={advancedDraft.expiryTo}
+                onChange={(e) => setAdvancedDraft((d) => ({ ...d, expiryTo: e.target.value }))}
+                className="h-[33px] rounded-[7px] border border-border bg-surface px-2 text-[12.5px] text-text outline-none"
+              />
+            </div>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-semibold text-muted">Date added</label>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="date"
+                value={advancedDraft.createdFrom}
+                onChange={(e) => setAdvancedDraft((d) => ({ ...d, createdFrom: e.target.value }))}
+                className="h-[33px] rounded-[7px] border border-border bg-surface px-2 text-[12.5px] text-text outline-none"
+              />
+              <span className="text-muted">–</span>
+              <input
+                type="date"
+                value={advancedDraft.createdTo}
+                onChange={(e) => setAdvancedDraft((d) => ({ ...d, createdTo: e.target.value }))}
+                className="h-[33px] rounded-[7px] border border-border bg-surface px-2 text-[12.5px] text-text outline-none"
+              />
+            </div>
+          </div>
+          {advancedFiltersActive && (
+            <button
+              onClick={() => {
+                setAdvancedDraft({ ...EMPTY_ADVANCED_FILTERS });
+                pushParams({ ...EMPTY_ADVANCED_FILTERS });
+              }}
+              className="h-[33px] rounded-[7px] border border-border bg-surface px-3 text-[12.5px] font-semibold text-text-2 hover:bg-hover"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
 
       <Table
         columns={columns}

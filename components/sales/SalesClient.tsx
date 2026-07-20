@@ -17,7 +17,17 @@ const SaleDetailSlideOver = dynamic(() =>
 interface SalesFiltersState {
   q: string;
   warehouse: string;
+  dateFrom: string;
+  dateTo: string;
+  payment: string;
 }
+
+const PAYMENT_METHOD_OPTIONS = [
+  { value: "cash", label: "Cash" },
+  { value: "card", label: "Card" },
+  { value: "bank_transfer", label: "Bank Transfer" },
+  { value: "mobile_money", label: "Mobile Money" },
+];
 
 export function SalesClient({
   rows,
@@ -43,12 +53,22 @@ export function SalesClient({
   const [search, setSearch] = useState(filters.q);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [detail, setDetail] = useState<SaleDetail | null>(null);
+  // Local draft + debounce, same as `search` above — binding these date
+  // inputs straight to the server-provided `filters.X` prop made the value
+  // visibly revert mid-edit while the router.push round trip was in
+  // flight (the exact bug found and fixed on the Products page's price
+  // filter this same pass).
+  const [dateDraft, setDateDraft] = useState({ dateFrom: filters.dateFrom, dateTo: filters.dateTo });
+  const dateDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function pushParams(next: Partial<SalesFiltersState & { page: number }>) {
     const merged = { ...filters, page: 1, ...next };
     const params = new URLSearchParams();
     if (merged.q) params.set("q", merged.q);
     if (merged.warehouse) params.set("warehouse", merged.warehouse);
+    if (merged.dateFrom) params.set("dateFrom", merged.dateFrom);
+    if (merged.dateTo) params.set("dateTo", merged.dateTo);
+    if (merged.payment) params.set("payment", merged.payment);
     if (merged.page && merged.page > 1) params.set("page", String(merged.page));
     router.push(`${pathname}?${params.toString()}`);
   }
@@ -62,6 +82,16 @@ export function SalesClient({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
+
+  useEffect(() => {
+    if (dateDebounceRef.current) clearTimeout(dateDebounceRef.current);
+    if (dateDraft.dateFrom === filters.dateFrom && dateDraft.dateTo === filters.dateTo) return;
+    dateDebounceRef.current = setTimeout(() => pushParams({ ...dateDraft }), 400);
+    return () => {
+      if (dateDebounceRef.current) clearTimeout(dateDebounceRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateDraft]);
 
   useEffect(() => {
     const openId = searchParams.get("open");
@@ -160,6 +190,33 @@ export function SalesClient({
             ))}
           </select>
         )}
+        <select
+          value={filters.payment}
+          onChange={(e) => pushParams({ payment: e.target.value })}
+          className="h-[37px] rounded-[9px] border border-border bg-surface px-2.5 text-[13px] font-semibold text-text-2 hover:bg-hover"
+        >
+          <option value="">All payment methods</option>
+          {PAYMENT_METHOD_OPTIONS.map((p) => (
+            <option key={p.value} value={p.value}>
+              {p.label}
+            </option>
+          ))}
+        </select>
+        <div className="flex items-center gap-1.5">
+          <input
+            type="date"
+            value={dateDraft.dateFrom}
+            onChange={(e) => setDateDraft((d) => ({ ...d, dateFrom: e.target.value }))}
+            className="h-[37px] rounded-[9px] border border-border bg-surface px-2.5 text-[13px] text-text-2 outline-none"
+          />
+          <span className="text-muted">–</span>
+          <input
+            type="date"
+            value={dateDraft.dateTo}
+            onChange={(e) => setDateDraft((d) => ({ ...d, dateTo: e.target.value }))}
+            className="h-[37px] rounded-[9px] border border-border bg-surface px-2.5 text-[13px] text-text-2 outline-none"
+          />
+        </div>
       </div>
 
       <Table
