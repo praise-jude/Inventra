@@ -94,7 +94,12 @@ export async function createProduct(input: CreateProductInput) {
   }
 
   if (input.openingQty > 0) {
-    await supabase.from("stock_movements").insert({
+    // inventory:create and inventory:create_movement are independently
+    // toggleable (role_permissions) — a role that can create products but
+    // not movements would have this insert silently RLS-filtered to 0 rows
+    // with no error, leaving qty_on_hand at 0 while the product itself
+    // reports success. Surface it instead of failing silently.
+    const { error: movementError } = await supabase.from("stock_movements").insert({
       org_id: orgId,
       product_id: product.id,
       warehouse_id: input.warehouseId || null,
@@ -103,6 +108,9 @@ export async function createProduct(input: CreateProductInput) {
       reason: "Opening stock",
       created_by: userId,
     });
+    if (movementError) {
+      throw new Error("Product was created, but opening stock could not be recorded. Add it from the product page.");
+    }
   }
 
   revalidatePath("/products");
@@ -561,7 +569,7 @@ export async function importProductsCsv(rows: ImportProductRow[]): Promise<Impor
         productIdBySku.set(sku, created.id);
 
         if (qtyOnHand > 0) {
-          await supabase.from("stock_movements").insert({
+          const { error: movementError } = await supabase.from("stock_movements").insert({
             org_id: orgId,
             product_id: created.id,
             warehouse_id: warehouseId,
@@ -570,6 +578,7 @@ export async function importProductsCsv(rows: ImportProductRow[]): Promise<Impor
             reason: "CSV import — opening stock",
             created_by: userId,
           });
+          if (movementError) throw new Error("Product created, but opening stock could not be recorded.");
         }
         result.created++;
       }

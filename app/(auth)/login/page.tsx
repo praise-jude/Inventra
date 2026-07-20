@@ -7,7 +7,7 @@ import { Eye, EyeOff } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { recordLogin } from "@/lib/actions/audit";
 import { checkLoginRateLimit, checkMfaVerifyRateLimit } from "@/lib/actions/auth";
-import { verifyRecoveryCode } from "@/lib/actions/mfa";
+import { disableMfaWithPassword } from "@/lib/actions/mfa";
 import { friendlyAuthErrorMessage, withAuthRetry } from "@/lib/network-retry";
 import { Field } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
@@ -81,8 +81,22 @@ export default function LoginPage() {
       if (!rateLimit.ok) throw new Error(rateLimit.error ?? "Too many attempts. Please try again in a few minutes.");
 
       if (useRecoveryCode) {
-        const ok = await verifyRecoveryCode(mfaCode.trim());
-        if (!ok) throw new Error("Invalid recovery code.");
+        // Supabase's AAL system only ever elevates to aal2 via a real
+        // challenge/verify against an enrolled TOTP/phone factor — there is
+        // no way to grant an aal2 session from a recovery code alone. So a
+        // recovery code can't just "prove the second factor" for this one
+        // login; the only thing that actually gets the user back in is
+        // removing the step-up requirement entirely, i.e. disabling MFA
+        // (which is exactly what disableMfaWithPassword already does,
+        // requiring password + code together). They can re-enroll a new
+        // authenticator from Settings once they're back in.
+        await disableMfaWithPassword({ password, code: mfaCode.trim() });
+        // The factor was deleted server-side via the Admin API, entirely
+        // outside this client's own session — the session's JWT still
+        // embeds the old aal2-required claim until refreshed. Without this,
+        // finishLogin()'s redirect gets immediately bounced right back here
+        // by middleware re-checking the (still-stale) aal claim.
+        await createClient().auth.refreshSession();
         finishLogin();
         return;
       }
@@ -128,7 +142,7 @@ export default function LoginPage() {
         <h1 className="mb-1.5 text-2xl font-bold tracking-tight">Enter authentication code</h1>
         <p className="mb-[26px] text-text-2">
           {useRecoveryCode
-            ? "Enter one of your recovery codes."
+            ? "Enter one of your recovery codes. This will turn off two-factor authentication for your account — you can re-enable it anytime from Settings."
             : "Enter the 6-digit code from your authenticator app."}
         </p>
         <form onSubmit={handleMfaSubmit} className="flex flex-col gap-3.5">
