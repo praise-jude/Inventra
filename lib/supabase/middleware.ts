@@ -51,7 +51,10 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
-  const isAuthRoute = AUTH_ROUTES.some((r) => path.startsWith(r));
+  // Exact match (not startsWith) — "/" is the public marketing landing page
+  // for logged-out visitors (see app/page.tsx), but must not swallow every
+  // other route the way a prefix match would.
+  const isAuthRoute = path === "/" || AUTH_ROUTES.some((r) => path.startsWith(r));
 
   if (!user) {
     if (!isAuthRoute) {

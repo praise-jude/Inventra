@@ -11,6 +11,7 @@ const TABS = [
   { href: "/settings/notifications", label: "Notifications" },
   { href: "/settings/integrations", label: "Integrations" },
   { href: "/settings/printing", label: "Printing" },
+  { href: "/settings/approvals", label: "Approvals" },
 ];
 
 export function SettingsTabs() {

@@ -123,6 +123,51 @@ export async function updatePrintSettings(input: PrintSettingsInput) {
   });
 }
 
+export interface ApprovalSettingsInput {
+  discountApprovalEnabled: boolean;
+  discountThresholdPct: number;
+  voidApprovalEnabled: boolean;
+  voidThresholdAmount: number;
+  priceChangeApprovalEnabled: boolean;
+  priceChangeThresholdPct: number;
+}
+
+export async function updateApprovalSettings(input: ApprovalSettingsInput) {
+  const { supabase, orgId, userId, role, actorName } = await requireAdminOrgId();
+  const { error } = await supabase
+    .from("approval_settings")
+    .update({
+      discount_approval_enabled: input.discountApprovalEnabled,
+      discount_threshold_pct: input.discountThresholdPct,
+      void_approval_enabled: input.voidApprovalEnabled,
+      void_threshold_amount: input.voidThresholdAmount,
+      price_change_approval_enabled: input.priceChangeApprovalEnabled,
+      price_change_threshold_pct: input.priceChangeThresholdPct,
+    })
+    .eq("org_id", orgId);
+  if (error) throw error;
+  revalidatePath("/settings/approvals");
+
+  await logAudit({
+    orgId,
+    actorId: userId,
+    actorName,
+    actorRole: role,
+    action: "settings.updated",
+    module: "Settings",
+    entityType: "approval_settings",
+    entityLabel: "Approval thresholds",
+    newValue: {
+      discountApprovalEnabled: input.discountApprovalEnabled,
+      discountThresholdPct: input.discountThresholdPct,
+      voidApprovalEnabled: input.voidApprovalEnabled,
+      voidThresholdAmount: input.voidThresholdAmount,
+      priceChangeApprovalEnabled: input.priceChangeApprovalEnabled,
+      priceChangeThresholdPct: input.priceChangeThresholdPct,
+    },
+  });
+}
+
 export async function toggleIntegration(provider: string, connect: boolean) {
   const { supabase, orgId, userId, role, actorName } = await requireAdminOrgId();
   const { error } = await supabase

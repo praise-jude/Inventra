@@ -22,6 +22,7 @@ const NAV = [
   { href: "/audit-log", label: "Audit Log", icon: "🛡️", adminOnly: true },
   { href: "/expenses", label: "Expenses", icon: "💸", managerOnly: true },
   { href: "/team", label: "Team", icon: "👥", managerOnly: true },
+  { href: "/approvals", label: "Approvals", icon: "✅", managerOnly: true },
   { href: "/notifications", label: "Notifications", icon: "🔔" },
   { href: "/billing", label: "Billing", icon: "💳", adminOnly: true },
   { href: "/settings", label: "Settings", icon: "⚙️", adminOnly: true },

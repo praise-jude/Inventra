@@ -39,6 +39,38 @@ export async function createNotification(supabase: SupabaseClient, input: Create
   }
 }
 
+// Fans out a notification to every manager/admin/owner in the org except
+// the actor who triggered it — e.g. a cashier's discount request should
+// alert every manager who could approve it, not just one. createNotification
+// has no broadcast concept (user_id is not-null, single-recipient by
+// design), so this just calls it once per approver. Best-effort per
+// recipient — one failed insert/push must never stop the others.
+export async function notifyApprovers(
+  supabase: SupabaseClient,
+  input: { orgId: string; excludeUserId: string; type: string; title: string; body?: string; entityType?: string; entityId?: string },
+): Promise<void> {
+  const { data: approvers } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("org_id", input.orgId)
+    .in("role", ["owner", "admin", "manager"])
+    .neq("id", input.excludeUserId);
+
+  await Promise.all(
+    (approvers ?? []).map((a) =>
+      createNotification(supabase, {
+        orgId: input.orgId,
+        userId: a.id,
+        type: input.type,
+        title: input.title,
+        body: input.body,
+        entityType: input.entityType,
+        entityId: input.entityId,
+      }),
+    ),
+  );
+}
+
 // Expo's push endpoint needs no API key for this volume — just the
 // recipient's push token(s). Never throws; a missing/expired token (the
 // user never opened the mobile app, or uninstalled it) should never break

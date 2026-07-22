@@ -1,12 +1,22 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/actions/audit";
 import { requirePermission } from "@/lib/permissions";
+import { createApprovalRequest, getApprovalSettings } from "@/lib/approval-service";
 import { getSaleDetail, type SaleDetail } from "@/lib/queries/sales";
 
-async function requireSalesOrgId() {
+interface SalesCtx {
+  supabase: SupabaseClient;
+  orgId: string;
+  userId: string;
+  role: string;
+  actorName: string;
+}
+
+async function requireSalesOrgId(): Promise<SalesCtx> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -46,10 +56,16 @@ export interface RecordSaleInput {
   notes?: string;
 }
 
-export async function recordSale(input: RecordSaleInput) {
-  const { supabase, orgId, userId, role, actorName } = await requireSalesOrgId();
-  await requirePermission(supabase, "sales", "create");
+interface ComputedSale {
+  subtotal: number;
+  discountAmount: number;
+  taxAmount: number;
+  total: number;
+  maxDiscountPct: number;
+  lines: { productId: string; qty: number; warehouseId: string | null; unitPrice: number }[];
+}
 
+async function computeSale(supabase: SupabaseClient, orgId: string, input: RecordSaleInput): Promise<ComputedSale> {
   if (input.items.length === 0) throw new Error("Add at least one product to the sale.");
   for (const item of input.items) {
     if (item.qty <= 0) throw new Error("Quantity must be greater than zero.");
@@ -68,7 +84,8 @@ export async function recordSale(input: RecordSaleInput) {
 
   let subtotal = 0;
   let discountAmount = 0;
-  const lines: { productId: string; qty: number; warehouseId: string | null; unitPrice: number }[] = [];
+  let maxDiscountPct = 0;
+  const lines: ComputedSale["lines"] = [];
 
   for (const item of input.items) {
     const product = productById.get(item.productId);
@@ -77,6 +94,7 @@ export async function recordSale(input: RecordSaleInput) {
     if (item.qty > product.qty_on_hand) {
       throw new Error(`Only ${product.qty_on_hand} of "${product.name}" in stock.`);
     }
+    maxDiscountPct = Math.max(maxDiscountPct, item.discountPct);
     const lineSubtotal = Number(product.sell_price) * item.qty;
     const lineDiscount = lineSubtotal * (item.discountPct / 100);
     const lineTotal = lineSubtotal - lineDiscount;
@@ -94,6 +112,21 @@ export async function recordSale(input: RecordSaleInput) {
   const taxAmount = taxableAmount * (Number(org.tax_rate) / 100);
   const total = taxableAmount + taxAmount;
   if (total <= 0) throw new Error("Sale total must be greater than zero.");
+
+  return { subtotal, discountAmount, taxAmount, total, maxDiscountPct, lines };
+}
+
+// The actual writes — shared by the immediate path (recordSale, no approval
+// needed) and the approved-request path (approvals.ts, run with the
+// approving manager's session but attributed to the original requester).
+export async function performRecordSale(
+  supabase: SupabaseClient,
+  ctx: { orgId: string; userId: string; role: string; actorName: string },
+  input: RecordSaleInput,
+  computed: ComputedSale,
+): Promise<string> {
+  const { orgId, userId, role, actorName } = ctx;
+  const { subtotal, discountAmount, taxAmount, total, lines } = computed;
 
   const { data: sale, error: saleError } = await supabase
     .from("sales")
@@ -160,6 +193,39 @@ export async function recordSale(input: RecordSaleInput) {
   });
 
   return sale.id as string;
+}
+
+export interface RecordSaleResult {
+  status: "created" | "pending_approval";
+  saleId?: string;
+  approvalRequestId?: string;
+}
+
+export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResult> {
+  const ctx = await requireSalesOrgId();
+  const { supabase, orgId, userId, role, actorName } = ctx;
+  await requirePermission(supabase, "sales", "create");
+
+  const computed = await computeSale(supabase, orgId, input);
+
+  const settings = await getApprovalSettings(supabase, orgId);
+  const needsApproval =
+    !!settings?.discount_approval_enabled && computed.maxDiscountPct > Number(settings.discount_threshold_pct);
+
+  if (needsApproval) {
+    const requestId = await createApprovalRequest(supabase, {
+      orgId,
+      entityType: "discount",
+      requestedBy: userId,
+      payload: { input, computed },
+      notifyTitle: "Discount needs approval",
+      notifyBody: `${actorName} wants to apply a ${computed.maxDiscountPct}% discount on a sale of ${computed.total.toFixed(2)}.`,
+    });
+    return { status: "pending_approval", approvalRequestId: requestId };
+  }
+
+  const saleId = await performRecordSale(supabase, { orgId, userId, role, actorName }, input, computed);
+  return { status: "created", saleId };
 }
 
 export interface UpdateSaleInput {
@@ -232,16 +298,14 @@ export async function updateSale(id: string, input: UpdateSaleInput) {
   });
 }
 
-export async function deleteSale(id: string) {
-  const { supabase, orgId, userId, role, actorName } = await requireSalesOrgId();
-  await requirePermission(supabase, "sales", "delete");
-
-  const { data: sale, error: saleError } = await supabase.from("sales").select("id, total").eq("id", id).maybeSingle();
-  if (saleError) {
-    console.error("[Inventra] deleteSale (sale fetch) failed:", saleError);
-    throw new Error("Could not load this sale.");
-  }
-  if (!sale) throw new Error("Sale not found.");
+// The actual void — shared by the immediate path (deleteSale, no approval
+// needed) and the approved-request path (approvals.ts).
+export async function performDeleteSale(
+  supabase: SupabaseClient,
+  ctx: { orgId: string; userId: string; role: string; actorName: string },
+  sale: { id: string; total: number },
+): Promise<void> {
+  const { orgId, userId, role, actorName } = ctx;
 
   // Deleting each stock_movements row fires the reverse_stock_movement
   // trigger, which restores qty_on_hand — no manual compensating entry
@@ -255,12 +319,12 @@ export async function deleteSale(id: string) {
   const { count: movementCount } = await supabase
     .from("stock_movements")
     .select("id", { count: "exact", head: true })
-    .eq("sale_id", id);
+    .eq("sale_id", sale.id);
   if ((movementCount ?? 0) > 0) {
     const { data: deletedMovements, error: movementsError } = await supabase
       .from("stock_movements")
       .delete()
-      .eq("sale_id", id)
+      .eq("sale_id", sale.id)
       .select("id");
     if (movementsError) {
       console.error("[Inventra] deleteSale (stock_movements) failed:", movementsError);
@@ -271,7 +335,7 @@ export async function deleteSale(id: string) {
     }
   }
 
-  const { error: deleteError } = await supabase.from("sales").delete().eq("id", id);
+  const { error: deleteError } = await supabase.from("sales").delete().eq("id", sale.id);
   if (deleteError) {
     console.error("[Inventra] deleteSale (sales) failed:", deleteError);
     throw new Error("Could not delete the sale.");
@@ -289,8 +353,53 @@ export async function deleteSale(id: string) {
     action: "sale.voided",
     module: "Sales",
     entityType: "sale",
-    entityId: id,
-    entityLabel: `Sale ${id.slice(0, 8)}`,
+    entityId: sale.id,
+    entityLabel: `Sale ${sale.id.slice(0, 8)}`,
     previousValue: { total: sale.total },
   });
+}
+
+export interface DeleteSaleResult {
+  status: "deleted" | "pending_approval";
+  approvalRequestId?: string;
+}
+
+export async function deleteSale(id: string, reason?: string): Promise<DeleteSaleResult> {
+  const ctx = await requireSalesOrgId();
+  const { supabase, orgId, userId, role, actorName } = ctx;
+  await requirePermission(supabase, "sales", "delete");
+
+  const { data: sale, error: saleError } = await supabase.from("sales").select("id, total").eq("id", id).maybeSingle();
+  if (saleError) {
+    console.error("[Inventra] deleteSale (sale fetch) failed:", saleError);
+    throw new Error("Could not load this sale.");
+  }
+  if (!sale) throw new Error("Sale not found.");
+
+  // Owner/admin are always full-access (has_permission()'s own rule) — a
+  // void threshold is meant to catch a manager's own void, not gate the
+  // people who'd be the ones approving it anyway.
+  const settings = await getApprovalSettings(supabase, orgId);
+  const needsApproval =
+    !!settings?.void_approval_enabled &&
+    Number(sale.total) > Number(settings.void_threshold_amount) &&
+    role !== "owner" &&
+    role !== "admin";
+
+  if (needsApproval) {
+    const requestId = await createApprovalRequest(supabase, {
+      orgId,
+      entityType: "void_sale",
+      entityId: id,
+      requestedBy: userId,
+      payload: { saleId: id, total: sale.total },
+      reason,
+      notifyTitle: "Void needs approval",
+      notifyBody: `${actorName} wants to void a sale worth ${Number(sale.total).toFixed(2)}.`,
+    });
+    return { status: "pending_approval", approvalRequestId: requestId };
+  }
+
+  await performDeleteSale(supabase, { orgId, userId, role, actorName }, sale as { id: string; total: number });
+  return { status: "deleted" };
 }

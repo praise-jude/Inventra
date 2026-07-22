@@ -1,9 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/actions/audit";
 import { requirePermission } from "@/lib/permissions";
+import { createApprovalRequest, getApprovalSettings } from "@/lib/approval-service";
 import {
   getProductDetail,
   findProductIdByCode,
@@ -150,28 +152,35 @@ export interface UpdateProductInput {
   imageUrl?: string;
 }
 
-export async function updateProduct(id: string, input: UpdateProductInput): Promise<ProductDetail> {
-  const { supabase, orgId, userId, role, actorName } = await requireOrgId();
-  await requirePermission(supabase, "inventory", "edit");
+// % change relative to the current value; a move away from a currently-zero
+// price is always treated as needing approval when enabled (an "old value"
+// of 0 makes a percentage meaningless — there's no safe "small change" case).
+function pctChange(before: number, after: number): number {
+  if (before === after) return 0;
+  if (before === 0) return Infinity;
+  return (Math.abs(after - before) / before) * 100;
+}
+
+// The actual write — shared by the immediate path (updateProduct, no
+// approval needed) and the approved-request path (approvals.ts). Splitting
+// "apply just the price fields" from "apply the rest of the form" would add
+// real complexity for little benefit, so a price change over threshold holds
+// the *entire* edit (name, SKU, etc. included) for approval, not just price.
+export async function performUpdateProduct(
+  supabase: SupabaseClient,
+  ctx: { orgId: string; userId: string; role: string; actorName: string },
+  id: string,
+  input: UpdateProductInput,
+): Promise<ProductDetail> {
+  const { orgId, userId, role, actorName } = ctx;
   const name = input.name.trim();
   const sku = input.sku.trim();
-  if (!name) throw new Error("Product name is required.");
-  if (!sku) throw new Error("SKU is required.");
 
   const { data: before } = await supabase
     .from("products")
     .select("name, sku, cost_price, sell_price")
     .eq("id", id)
     .maybeSingle();
-
-  const { data: clash } = await supabase
-    .from("products")
-    .select("id")
-    .eq("org_id", orgId)
-    .eq("sku", sku)
-    .neq("id", id)
-    .maybeSingle();
-  if (clash) throw new Error("Another product already uses this SKU.");
 
   const { data: updated, error } = await supabase
     .from("products")
@@ -228,6 +237,59 @@ export async function updateProduct(id: string, input: UpdateProductInput): Prom
   const fresh = await getProductDetail(id);
   if (!fresh) throw new Error("Product updated, but could not reload its details.");
   return fresh;
+}
+
+export interface UpdateProductResult {
+  status: "updated" | "pending_approval";
+  product?: ProductDetail;
+  approvalRequestId?: string;
+}
+
+export async function updateProduct(id: string, input: UpdateProductInput): Promise<UpdateProductResult> {
+  const ctx = await requireOrgId();
+  const { supabase, orgId, userId, role, actorName } = ctx;
+  await requirePermission(supabase, "inventory", "edit");
+  const name = input.name.trim();
+  const sku = input.sku.trim();
+  if (!name) throw new Error("Product name is required.");
+  if (!sku) throw new Error("SKU is required.");
+
+  const { data: clash } = await supabase
+    .from("products")
+    .select("id")
+    .eq("org_id", orgId)
+    .eq("sku", sku)
+    .neq("id", id)
+    .maybeSingle();
+  if (clash) throw new Error("Another product already uses this SKU.");
+
+  const { data: current } = await supabase.from("products").select("name, cost_price, sell_price").eq("id", id).maybeSingle();
+
+  const settings = await getApprovalSettings(supabase, orgId);
+  const priceChangePct = current
+    ? Math.max(pctChange(Number(current.cost_price), input.costPrice), pctChange(Number(current.sell_price), input.sellPrice))
+    : 0;
+  const needsApproval =
+    !!settings?.price_change_approval_enabled &&
+    priceChangePct > Number(settings.price_change_threshold_pct) &&
+    role !== "owner" &&
+    role !== "admin";
+
+  if (needsApproval) {
+    const requestId = await createApprovalRequest(supabase, {
+      orgId,
+      entityType: "price_change",
+      entityId: id,
+      requestedBy: userId,
+      payload: { productId: id, input, before: current },
+      notifyTitle: "Price change needs approval",
+      notifyBody: `${actorName} wants to change prices on "${current?.name ?? name}" (${priceChangePct === Infinity ? ">100" : priceChangePct.toFixed(0)}% change).`,
+    });
+    return { status: "pending_approval", approvalRequestId: requestId };
+  }
+
+  const product = await performUpdateProduct(supabase, { orgId, userId, role, actorName }, id, input);
+  return { status: "updated", product };
 }
 
 export async function archiveProduct(id: string) {

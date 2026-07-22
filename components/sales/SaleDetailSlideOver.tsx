@@ -39,8 +39,12 @@ export function SaleDetailSlideOver({
     if (!window.confirm("Delete this sale? Stock will be restocked and this can't be undone.")) return;
     setBusy(true);
     try {
-      await deleteSale(sale.id);
-      flash("Sale deleted");
+      const result = await deleteSale(sale.id);
+      if (result.status === "pending_approval") {
+        flash("Void submitted for manager approval");
+      } else {
+        flash("Sale deleted");
+      }
       onClose();
       router.refresh();
     } catch (err) {

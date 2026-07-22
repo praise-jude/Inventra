@@ -11,6 +11,7 @@ import { Field } from "@/components/ui/Field";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 import { ReceiptModal } from "@/components/sales/ReceiptModal";
+import { PendingApprovalWait } from "@/components/sales/PendingApprovalWait";
 
 const BarcodeScannerModal = dynamic(() =>
   import("@/components/products/BarcodeScannerModal").then((m) => m.BarcodeScannerModal),
@@ -55,6 +56,7 @@ export function NewSaleForm({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [receiptSaleId, setReceiptSaleId] = useState<string | null>(null);
+  const [pendingRequestId, setPendingRequestId] = useState<string | null>(null);
 
   const matchingProducts = useMemo(() => {
     const q = productQuery.trim().toLowerCase();
@@ -121,20 +123,44 @@ export function NewSaleForm({
     }
     setSaving(true);
     try {
-      const saleId = await recordSale({
+      const result = await recordSale({
         warehouseId: warehouseId || undefined,
         items: cart.map((l) => ({ productId: l.productId, qty: l.qty, discountPct: l.discountPct })),
         paymentMethod,
         notes,
       });
+      if (result.status === "pending_approval") {
+        setPendingRequestId(result.approvalRequestId ?? null);
+        return;
+      }
       flash("Sale recorded");
       router.refresh();
-      setReceiptSaleId(saleId);
+      setReceiptSaleId(result.saleId ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not record the sale.");
     } finally {
       setSaving(false);
     }
+  }
+
+  function handleApprovalApproved(saleId: string | null) {
+    setPendingRequestId(null);
+    setSaving(false);
+    flash("Approved — sale recorded");
+    router.refresh();
+    if (saleId) setReceiptSaleId(saleId);
+    else setCart([]);
+  }
+
+  function handleApprovalRejected(reason: string | null) {
+    setPendingRequestId(null);
+    setSaving(false);
+    setError(reason ? `Discount request rejected: ${reason}` : "Discount request was rejected.");
+  }
+
+  function handleApprovalCancelled() {
+    setPendingRequestId(null);
+    setSaving(false);
   }
 
   function closeReceipt() {
@@ -293,6 +319,14 @@ export function NewSaleForm({
     </form>
     {showScanner && <BarcodeScannerModal onDetected={handleScanDetected} onClose={() => setShowScanner(false)} />}
     {receiptSaleId && <ReceiptModal saleId={receiptSaleId} onClose={closeReceipt} />}
+    {pendingRequestId && (
+      <PendingApprovalWait
+        requestId={pendingRequestId}
+        onApproved={handleApprovalApproved}
+        onRejected={handleApprovalRejected}
+        onCancelled={handleApprovalCancelled}
+      />
+    )}
     </>
   );
 }

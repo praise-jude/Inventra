@@ -69,7 +69,7 @@ export function EditProductModal({
     if (Object.keys(errs).length > 0) return;
     setSaving(true);
     try {
-      const updated = await updateProduct(product.id, {
+      const result = await updateProduct(product.id, {
         name: form.name,
         description: form.description,
         sku: form.sku,
@@ -85,12 +85,19 @@ export function EditProductModal({
         expiryDate: form.expiryDate,
         imageUrl: form.imageUrl,
       });
+      if (result.status === "pending_approval") {
+        flash("Price change submitted for manager approval");
+        onClose();
+        router.refresh();
+        notifyDataChanged();
+        return;
+      }
       flash("Product updated");
       // Hand the freshly-persisted row back up before closing — the detail
       // panel this modal opened from holds its own copy of the product in
       // React state, and router.refresh() only refreshes server-rendered
       // props, not that client-side snapshot.
-      onSaved(updated);
+      onSaved(result.product!);
       onClose();
       router.refresh();
       notifyDataChanged();

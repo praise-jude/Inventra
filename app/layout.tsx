@@ -20,7 +20,11 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Inventra — Inventory that runs itself",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://inventra.app"),
+  title: {
+    default: "Inventra — Smart Inventory. Smarter Business.",
+    template: "%s | Inventra",
+  },
   description: "Real-time stock, supplier orders, and profit analytics for modern retail.",
   icons: {
     icon: "/inventra-logo.svg",
