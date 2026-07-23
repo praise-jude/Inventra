@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -28,6 +28,7 @@ const ROLE_OPTIONS = [
 
 export function SignupForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -37,6 +38,10 @@ export function SignupForm() {
   const [country, setCountry] = useState("");
   const [state, setState] = useState("");
   const [role, setRole] = useState<(typeof ROLE_OPTIONS)[number]["value"]>("admin");
+  // Supports a shareable referral link (e.g. /signup?ref=ABCD1234) as well
+  // as manual entry — the lazy initializer reads the URL once at mount,
+  // no effect needed to sync it in afterward.
+  const [referralCode, setReferralCode] = useState(() => searchParams.get("ref")?.toUpperCase() ?? "");
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,6 +78,7 @@ export function SignupForm() {
       country,
       state: state || undefined,
       role,
+      referralCode: referralCode.trim() || undefined,
       termsAccepted,
     });
     setLoading(false);
@@ -240,6 +246,15 @@ export function SignupForm() {
             As the creator of a new business, you&apos;ll have full owner access — this just helps us
             tailor your setup.
           </p>
+        </div>
+
+        <div>
+          <Field
+            label="Referral code (optional)"
+            value={referralCode}
+            onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+            placeholder="e.g. ABCD1234"
+          />
         </div>
 
         <label className="flex items-start gap-2 text-[12.5px] text-text-2">

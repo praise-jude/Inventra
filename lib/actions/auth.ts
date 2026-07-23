@@ -100,6 +100,7 @@ export interface RegisterAccountInput {
   country: string;
   state?: string;
   role: "admin" | "manager" | "staff";
+  referralCode?: string;
   termsAccepted: boolean;
 }
 
@@ -153,6 +154,7 @@ export async function registerAccount(input: RegisterAccountInput): Promise<Regi
           currency,
           timezone,
           role: input.role,
+          referral_code: input.referralCode?.trim() || undefined,
           terms_accepted: true,
           terms_version: CURRENT_TERMS_VERSION,
           terms_accepted_ip: ip,

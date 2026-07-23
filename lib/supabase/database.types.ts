@@ -47,6 +47,8 @@ export interface Organization {
   support_email: string | null;
   plan: string;
   trial_ends_at: string;
+  referral_code: string;
+  referred_by_org_id: string | null;
   created_at: string;
   updated_at: string;
 }
