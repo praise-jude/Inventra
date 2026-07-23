@@ -62,7 +62,7 @@ const COLUMNS = [
 ];
 
 const SOCIALS = [
-  { icon: XIcon, label: "X (Twitter)", href: "https://twitter.com" },
+  { icon: XIcon, label: "Follow Royal Inventra on X", href: "https://x.com/royalinventra" },
   { icon: LinkedInIcon, label: "LinkedIn", href: "https://linkedin.com" },
   { icon: InstagramIcon, label: "Instagram", href: "https://instagram.com" },
   { icon: FacebookIcon, label: "Facebook", href: "https://facebook.com" },
@@ -90,7 +90,7 @@ export function Footer() {
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={label}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-surface text-text-2 transition-colors hover:bg-hover hover:text-text"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-surface text-text-2 transition-[color,background-color,transform] duration-200 ease-out hover:scale-110 hover:bg-hover hover:text-accent motion-reduce:hover:scale-100"
                 >
                   <Icon width={15} height={15} />
                 </a>

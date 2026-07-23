@@ -22,6 +22,7 @@ export const metadata: Metadata = {
     description:
       "Track inventory, manage sales, and grow your business with Inventra's AI-powered platform for SMEs.",
     images: ["/inventra-logo.svg"],
+    site: "@royalinventra",
   },
   alternates: { canonical: "/" },
 };
@@ -45,6 +46,10 @@ const jsonLd = {
     ratingValue: "4.8",
     ratingCount: "312",
   },
+  // Only the X profile is real today — the other footer social links are
+  // placeholders, so they're deliberately left out of sameAs rather than
+  // asserting unverified profile URLs to search engines.
+  sameAs: ["https://x.com/royalinventra"],
 };
 
 export default async function RootPage() {
