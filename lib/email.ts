@@ -38,6 +38,14 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
 }
 
+// Only needed here: every other email in this file interpolates
+// server-trusted values (org names, admin-entered reasons); the
+// account-deletion emails below are the first to embed input straight from
+// an unauthenticated public form.
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+}
+
 export async function sendWelcomeEmail(input: { to: string; orgName: string }): Promise<void> {
   await sendEmail({
     to: input.to,
@@ -259,6 +267,45 @@ export async function sendMemberRejectedEmail(input: { to: string; reason: strin
     html: wrap(
       "Account request declined",
       `<p>Your request to join this workspace was not approved.</p><p><strong>Reason:</strong> ${input.reason}</p><p>If you believe this is a mistake, contact whoever invited you.</p>`,
+    ),
+  });
+}
+
+// Notifies the privacy inbox of a deletion request submitted via the public
+// /delete-account page (app/delete-account/page.tsx) — there's no self-serve
+// deletion flow in-app yet, so a human on the team actions this manually,
+// same as the process already described in the Privacy Policy.
+export async function sendAccountDeletionRequestEmail(input: {
+  requesterEmail: string;
+  businessName: string;
+  details: string;
+}): Promise<void> {
+  const inbox = process.env.PRIVACY_CONTACT_EMAIL ?? "privacy@royalinventra.com.ng";
+  await sendEmail({
+    to: inbox,
+    subject: `Account deletion request — ${input.requesterEmail}`,
+    html: wrap(
+      "Account deletion request",
+      `<p>Requester email: <strong>${escapeHtml(input.requesterEmail)}</strong></p>
+       <p>Business/organization: ${input.businessName ? escapeHtml(input.businessName) : "(not provided)"}</p>
+       <p>Details: ${input.details ? escapeHtml(input.details) : "(none provided)"}</p>
+       <p>Submitted via the public account-deletion page.</p>`,
+    ),
+  });
+}
+
+// Sent straight back to whatever address the requester typed in, so they
+// have their own record that the request went through even if the team
+// hasn't actioned it yet.
+export async function sendAccountDeletionAckEmail(input: { to: string }): Promise<void> {
+  await sendEmail({
+    to: input.to,
+    subject: "We've received your account deletion request",
+    html: wrap(
+      "Request received",
+      `<p>We've received your request to delete your Royal Inventra account and associated data.</p>
+       <p>We'll verify the request and complete the deletion within 30 days, then send a final confirmation to this email address. Some records (e.g. billing history) may be retained longer where required for legal or accounting purposes.</p>
+       <p>If you didn't make this request, please reply to this email immediately.</p>`,
     ),
   });
 }

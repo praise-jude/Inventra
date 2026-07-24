@@ -91,7 +91,11 @@ export default function PrivacyPage() {
             We retain your data for as long as your account is active. If you close your account
             or request deletion, we delete your personal account data within a reasonable period,
             except where we&apos;re required to retain records (e.g. billing history) for legal or
-            accounting purposes. To request deletion, contact us using the details below.
+            accounting purposes. To request deletion, use our{" "}
+            <a href="/delete-account" className="font-semibold text-accent-text">
+              account deletion page
+            </a>{" "}
+            or contact us using the details below.
           </p>
         </section>
 

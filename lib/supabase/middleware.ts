@@ -11,6 +11,10 @@ const AUTH_ROUTES = [
   "/terms",
   "/privacy",
   "/api-docs",
+  // Must stay reachable regardless of auth/onboarding/subscription state —
+  // Google Play requires the account-deletion link to work for logged-out
+  // visitors and blocked/unpaid accounts alike, not just fully onboarded ones.
+  "/delete-account",
 ];
 
 const ONBOARDING_ROUTE = "/onboarding/complete";
