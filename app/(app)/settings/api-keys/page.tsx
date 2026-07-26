@@ -1,7 +1,10 @@
 import { listApiKeys } from "@/lib/actions/api-keys";
 import { ApiKeysClient } from "@/components/settings/ApiKeysClient";
+import { canUseApi } from "@/lib/entitlements";
+import { PremiumLockedState } from "@/components/billing/PremiumLockedState";
 
 export default async function ApiKeysSettingsPage() {
+  if (!(await canUseApi())) return <PremiumLockedState feature="API access" />;
   const keys = await listApiKeys();
 
   return (

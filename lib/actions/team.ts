@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { ADMIN_ROLES, MANAGER_ROLES } from "@/lib/roles";
+import { canManageTeam, UpgradeRequiredError } from "@/lib/entitlements";
 import { logAudit } from "@/lib/actions/audit";
 import { sendMemberApprovedEmail, sendMemberRejectedEmail } from "@/lib/email";
 import { REJECT_REASONS } from "@/lib/constants/team";
@@ -64,6 +65,7 @@ async function assertNotLastOwner(supabase: Awaited<ReturnType<typeof createClie
 
 export async function inviteMember(email: string, role: string, firstName: string, lastName: string, branchId: string) {
   const { orgId, userId, role: actorRole, actorName } = await requireAdminOrManagerOrgId();
+  if (!(await canManageTeam())) throw new UpgradeRequiredError("Inviting team members requires a Premium subscription.");
   await inviteMemberForContext({ profile: { id: userId, org_id: orgId }, actorName, actorRole }, { email, role, firstName, lastName, branchId });
 
   revalidatePath("/team");

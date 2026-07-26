@@ -1,9 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminProfile } from "@/lib/queries/session";
 import { IntegrationsClient } from "@/components/settings/IntegrationsClient";
+import { canManageIntegrations } from "@/lib/entitlements";
+import { PremiumLockedState } from "@/components/billing/PremiumLockedState";
 
 export default async function IntegrationsSettingsPage() {
   const { org } = await requireAdminProfile();
+  if (!(await canManageIntegrations())) return <PremiumLockedState feature="Integrations" />;
   const supabase = await createClient();
   const [{ data }, { data: subscription }] = await Promise.all([
     supabase.from("integrations").select("provider, status").eq("org_id", org.id),

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/actions/audit";
+import { canUseApprovalWorkflows, UpgradeRequiredError } from "@/lib/entitlements";
 
 // Settings mutations are Admin-tier only. `organizations_update` RLS already
 // enforces this at the database layer, but checking here first gives a clear
@@ -134,6 +135,7 @@ export interface ApprovalSettingsInput {
 
 export async function updateApprovalSettings(input: ApprovalSettingsInput) {
   const { supabase, orgId, userId, role, actorName } = await requireAdminOrgId();
+  if (!(await canUseApprovalWorkflows())) throw new UpgradeRequiredError("Approval workflows require a Premium subscription.");
   const { error } = await supabase
     .from("approval_settings")
     .update({

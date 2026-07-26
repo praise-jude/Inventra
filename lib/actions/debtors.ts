@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { canAddDebtor, UpgradeRequiredError } from "@/lib/entitlements";
 import { getDebtorDetail, type DebtorDetail } from "@/lib/queries/debtors";
 
 async function requireOrgId() {
@@ -30,6 +31,9 @@ export async function fetchDebtorDetail(id: string): Promise<DebtorDetail | null
 
 export async function createDebtor(input: DebtorInput) {
   const { supabase, orgId } = await requireOrgId();
+  if (!(await canAddDebtor())) {
+    throw new UpgradeRequiredError("You've reached your Free Plan limit of 100 debt records. Upgrade to Premium for unlimited records.");
+  }
   const customerName = input.customerName.trim();
   if (!customerName) throw new Error("Customer name is required.");
   if (input.amountOwed < 0) throw new Error("Amount owed can't be negative.");

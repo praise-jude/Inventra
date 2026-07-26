@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { isAdminRole, isManagerRole } from "@/lib/roles";
+import { canManageBranches, UpgradeRequiredError } from "@/lib/entitlements";
 import { logAudit } from "@/lib/actions/audit";
 import { getProductsInWarehouse, type WarehouseProductOption } from "@/lib/queries/inventory";
 
@@ -89,6 +90,7 @@ function normalize(input: WarehouseInput) {
 
 export async function createWarehouse(input: WarehouseInput) {
   const { supabase, orgId, userId, role, actorName } = await requireAdminOrgId();
+  if (!(await canManageBranches())) throw new UpgradeRequiredError("Managing branches requires a Premium subscription.");
   const values = normalize(input);
   if (!values.name) throw new Error("Branch name is required.");
 
@@ -125,6 +127,7 @@ export async function createWarehouse(input: WarehouseInput) {
 
 export async function updateWarehouse(id: string, input: WarehouseInput) {
   const { supabase, orgId, userId, role, actorName } = await requireAdminOrgId();
+  if (!(await canManageBranches())) throw new UpgradeRequiredError("Managing branches requires a Premium subscription.");
   const values = normalize(input);
   if (!values.name) throw new Error("Branch name is required.");
 

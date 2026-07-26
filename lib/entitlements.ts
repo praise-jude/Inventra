@@ -88,6 +88,9 @@ export const PREMIUM_FEATURES = [
   "advancedSettings",
   "multiLocationInventory",
   "approvalWorkflows",
+  "bulkImportExport",
+  "salesEdit",
+  "salesVoid",
 ] as const;
 
 export type PremiumFeature = (typeof PREMIUM_FEATURES)[number];
@@ -139,6 +142,9 @@ export const canViewAuditLog = () => canUseFeature("auditLog");
 export const canUseAdvancedSettings = () => canUseFeature("advancedSettings");
 export const canUseMultiLocationInventory = () => canUseFeature("multiLocationInventory");
 export const canUseApprovalWorkflows = () => canUseFeature("approvalWorkflows");
+export const canBulkImportExport = () => canUseFeature("bulkImportExport");
+export const canEditSale = () => canUseFeature("salesEdit");
+export const canVoidSale = () => canUseFeature("salesVoid");
 
 // PREMIUM_UPGRADE_ERROR — thrown from Server Actions when a can*() check
 // fails, so client code can distinguish "needs upgrade" from any other

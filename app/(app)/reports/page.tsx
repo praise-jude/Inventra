@@ -11,6 +11,8 @@ import {
   type Granularity,
 } from "@/lib/queries/reports";
 import { ReportsClient } from "@/components/reports/ReportsClient";
+import { canViewReports } from "@/lib/entitlements";
+import { PremiumLockedState } from "@/components/billing/PremiumLockedState";
 
 function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -25,6 +27,18 @@ export default async function ReportsPage({
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
   await requireReportsProfile();
+
+  if (!(await canViewReports())) {
+    return (
+      <div className="animate-fade-up">
+        <div className="mb-5">
+          <div className="text-[22px] font-bold tracking-tight">Reports</div>
+        </div>
+        <PremiumLockedState feature="Reports" />
+      </div>
+    );
+  }
+
   const params = await searchParams;
 
   const tab = (VALID_TABS as readonly string[]).includes(params.tab ?? "") ? (params.tab as (typeof VALID_TABS)[number]) : "sales";

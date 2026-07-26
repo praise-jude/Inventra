@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/actions/audit";
 import { requirePermission } from "@/lib/permissions";
+import { canAddProduct, canBulkImportExport, canDeleteProduct, canEditProduct, UpgradeRequiredError } from "@/lib/entitlements";
 import { createApprovalRequest, getApprovalSettings } from "@/lib/approval-service";
 import {
   getProductDetail,
@@ -46,6 +47,7 @@ export async function lookupProductByCode(code: string): Promise<ProductDetail |
 }
 
 export async function exportProductsCsv(): Promise<ProductExportRow[]> {
+  if (!(await canBulkImportExport())) throw new UpgradeRequiredError("Exporting your inventory requires a Premium subscription.");
   return getProductsForExport();
 }
 
@@ -68,6 +70,9 @@ export interface CreateProductInput {
 export async function createProduct(input: CreateProductInput) {
   const { supabase, orgId, userId, role, actorName } = await requireOrgId();
   await requirePermission(supabase, "inventory", "create");
+  if (!(await canAddProduct())) {
+    throw new UpgradeRequiredError("You've reached your Free Plan limit of 50 products. Upgrade to Premium for unlimited products.");
+  }
 
   const { data: product, error } = await supabase
     .from("products")
@@ -249,6 +254,7 @@ export async function updateProduct(id: string, input: UpdateProductInput): Prom
   const ctx = await requireOrgId();
   const { supabase, orgId, userId, role, actorName } = ctx;
   await requirePermission(supabase, "inventory", "edit");
+  if (!(await canEditProduct())) throw new UpgradeRequiredError("Editing inventory requires a Premium subscription.");
   const name = input.name.trim();
   const sku = input.sku.trim();
   if (!name) throw new Error("Product name is required.");
@@ -295,6 +301,7 @@ export async function updateProduct(id: string, input: UpdateProductInput): Prom
 export async function archiveProduct(id: string) {
   const { supabase, orgId, userId, role, actorName } = await requireOrgId();
   await requirePermission(supabase, "inventory", "edit");
+  if (!(await canEditProduct())) throw new UpgradeRequiredError("Archiving inventory requires a Premium subscription.");
   const { data: product } = await supabase.from("products").select("name").eq("id", id).maybeSingle();
   const { data: archived, error } = await supabase
     .from("products")
@@ -362,6 +369,7 @@ export async function setProductActive(id: string, isActive: boolean): Promise<P
 export async function deleteProduct(id: string) {
   const { supabase, orgId, userId, role, actorName } = await requireOrgId();
   await requirePermission(supabase, "inventory", "delete");
+  if (!(await canDeleteProduct())) throw new UpgradeRequiredError("Deleting inventory requires a Premium subscription.");
 
   const { count } = await supabase
     .from("stock_movements")
@@ -404,6 +412,9 @@ export async function deleteProduct(id: string) {
 export async function duplicateProduct(id: string) {
   const { supabase } = await requireOrgId();
   await requirePermission(supabase, "inventory", "create");
+  if (!(await canAddProduct())) {
+    throw new UpgradeRequiredError("You've reached your Free Plan limit of 50 products. Upgrade to Premium for unlimited products.");
+  }
   const { data: original, error } = await supabase.from("products").select("*").eq("id", id).single();
   if (error) throw error;
 
@@ -523,6 +534,7 @@ export interface ImportResult {
 export async function importProductsCsv(rows: ImportProductRow[]): Promise<ImportResult> {
   const { supabase, orgId, userId, role, actorName } = await requireOrgId();
   await requirePermission(supabase, "inventory", "create");
+  if (!(await canBulkImportExport())) throw new UpgradeRequiredError("Bulk importing products requires a Premium subscription.");
   const result: ImportResult = { created: 0, updated: 0, failed: 0, errors: [] };
 
   const [{ data: categories }, { data: suppliers }, { data: warehouses }, { data: existingProducts }] = await Promise.all([

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/actions/audit";
+import { canManageStaffRoles, UpgradeRequiredError } from "@/lib/entitlements";
 import type { CustomizableRole } from "@/lib/permissions";
 
 // Roles are Admin-tier only to edit — role_permissions_write_admin RLS
@@ -34,6 +35,7 @@ async function requireAdminOrgId() {
 
 export async function updateRolePermission(role: CustomizableRole, module: string, action: string, allowed: boolean) {
   const { supabase, orgId, userId, role: actorRole, actorName } = await requireAdminOrgId();
+  if (!(await canManageStaffRoles())) throw new UpgradeRequiredError("Customizing staff roles requires a Premium subscription.");
 
   const { error } = await supabase.from("role_permissions").upsert(
     {

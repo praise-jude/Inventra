@@ -2,6 +2,8 @@ import { requireAdminProfile } from "@/lib/queries/session";
 import { getAuditLogs, getAuditModules, type AuditLogFilters } from "@/lib/queries/audit";
 import { getWarehouseOptions } from "@/lib/queries/products";
 import { AuditLogClient } from "@/components/audit/AuditLogClient";
+import { canViewAuditLog } from "@/lib/entitlements";
+import { PremiumLockedState } from "@/components/billing/PremiumLockedState";
 
 const PAGE_SIZE = 25;
 
@@ -11,6 +13,19 @@ export default async function AuditLogPage({
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
   await requireAdminProfile();
+
+  if (!(await canViewAuditLog())) {
+    return (
+      <div className="animate-fade-up">
+        <div className="mb-5">
+          <div className="text-[22px] font-bold tracking-tight">Audit Log</div>
+          <div className="mt-[3px] text-text-2">Every important action taken across your workspace, with a full before/after trail.</div>
+        </div>
+        <PremiumLockedState feature="The audit log" />
+      </div>
+    );
+  }
+
   const params = await searchParams;
 
   const filters: AuditLogFilters = {

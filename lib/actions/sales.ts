@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/actions/audit";
 import { requirePermission } from "@/lib/permissions";
+import { canCreateSale, canEditSale, canVoidSale, UpgradeRequiredError } from "@/lib/entitlements";
 import { createApprovalRequest, getApprovalSettings } from "@/lib/approval-service";
 import { getSaleDetail, type SaleDetail } from "@/lib/queries/sales";
 
@@ -205,6 +206,9 @@ export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResu
   const ctx = await requireSalesOrgId();
   const { supabase, orgId, userId, role, actorName } = ctx;
   await requirePermission(supabase, "sales", "create");
+  if (!(await canCreateSale())) {
+    throw new UpgradeRequiredError("You've reached your Free Plan limit of 500 sales. Upgrade to Premium for unlimited sales.");
+  }
 
   const computed = await computeSale(supabase, orgId, input);
 
@@ -237,6 +241,7 @@ export interface UpdateSaleInput {
 export async function updateSale(id: string, input: UpdateSaleInput) {
   const { supabase, orgId, userId, role, actorName } = await requireSalesOrgId();
   await requirePermission(supabase, "sales", "edit");
+  if (!(await canEditSale())) throw new UpgradeRequiredError("Editing sales requires a Premium subscription.");
 
   // customerId is only touched when the caller explicitly sends it — the
   // Sales UI no longer collects a customer at all, so leaving it undefined
@@ -368,6 +373,7 @@ export async function deleteSale(id: string, reason?: string): Promise<DeleteSal
   const ctx = await requireSalesOrgId();
   const { supabase, orgId, userId, role, actorName } = ctx;
   await requirePermission(supabase, "sales", "delete");
+  if (!(await canVoidSale())) throw new UpgradeRequiredError("Voiding sales requires a Premium subscription.");
 
   const { data: sale, error: saleError } = await supabase.from("sales").select("id, total").eq("id", id).maybeSingle();
   if (saleError) {

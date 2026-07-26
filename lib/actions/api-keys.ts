@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/actions/audit";
 import { generateApiKey, type ApiKeyRow } from "@/lib/api-keys-service";
 import { ALL_API_SCOPES, type ApiScope } from "@/lib/api-auth";
+import { canUseApi, UpgradeRequiredError } from "@/lib/entitlements";
 
 // API keys are Admin-tier only to manage — api_keys_write_admin RLS
 // already enforces this, but checking here first gives a clear error
@@ -54,6 +55,7 @@ export async function listApiKeys(): Promise<ApiKeyRow[]> {
 
 export async function createApiKey(name: string, scopes: ApiScope[]): Promise<{ id: string; rawKey: string }> {
   const { supabase, orgId, userId, role, actorName } = await requireAdminOrgId();
+  if (!(await canUseApi())) throw new UpgradeRequiredError("API access requires a Premium subscription.");
   const trimmedName = name.trim();
   if (!trimmedName) throw new Error("Give this key a name so you can identify it later.");
   const validScopes = scopes.filter((s) => ALL_API_SCOPES.includes(s));
