@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { isAdminRole, isManagerRole } from "@/lib/roles";
-import { canManageBranches, UpgradeRequiredError } from "@/lib/entitlements";
+import { canManageBranches, canTransferProduct, UpgradeRequiredError } from "@/lib/entitlements";
 import { logAudit } from "@/lib/actions/audit";
 import { getProductsInWarehouse, type WarehouseProductOption } from "@/lib/queries/inventory";
 
@@ -237,6 +237,7 @@ export async function deleteWarehouse(id: string) {
 
 export async function transferWarehouseStock(productId: string, toWarehouseId: string, reason?: string) {
   const { supabase, orgId, userId, role, actorName } = await requireManagerOrgId();
+  if (!(await canTransferProduct())) throw new UpgradeRequiredError("Transferring stock between branches requires a Premium subscription.");
 
   const { data: product, error: productError } = await supabase
     .from("products")
