@@ -207,7 +207,7 @@ export async function recordSale(input: RecordSaleInput): Promise<RecordSaleResu
   const { supabase, orgId, userId, role, actorName } = ctx;
   await requirePermission(supabase, "sales", "create");
   if (!(await canCreateSale())) {
-    throw new UpgradeRequiredError("You've reached your Free Plan limit of 500 sales. Upgrade to Premium for unlimited sales.");
+    throw new UpgradeRequiredError("You've reached your Free Plan limit of 300 sales. Upgrade to Premium for unlimited sales.");
   }
 
   const computed = await computeSale(supabase, orgId, input);

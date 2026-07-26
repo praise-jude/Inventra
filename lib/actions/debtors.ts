@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { canAddDebtor, UpgradeRequiredError } from "@/lib/entitlements";
+import { canManageCustomers, UpgradeRequiredError } from "@/lib/entitlements";
 import { getDebtorDetail, type DebtorDetail } from "@/lib/queries/debtors";
 
 async function requireOrgId() {
@@ -31,8 +31,8 @@ export async function fetchDebtorDetail(id: string): Promise<DebtorDetail | null
 
 export async function createDebtor(input: DebtorInput) {
   const { supabase, orgId } = await requireOrgId();
-  if (!(await canAddDebtor())) {
-    throw new UpgradeRequiredError("You've reached your Free Plan limit of 100 debt records. Upgrade to Premium for unlimited records.");
+  if (!(await canManageCustomers())) {
+    throw new UpgradeRequiredError("Customer management is a Premium feature. Upgrade to Premium to track customer credit.");
   }
   const customerName = input.customerName.trim();
   if (!customerName) throw new Error("Customer name is required.");
@@ -56,6 +56,9 @@ export async function createDebtor(input: DebtorInput) {
 
 export async function updateDebtor(id: string, input: DebtorInput & { status?: string }) {
   const { supabase } = await requireOrgId();
+  if (!(await canManageCustomers())) {
+    throw new UpgradeRequiredError("Customer management is a Premium feature. Upgrade to Premium to track customer credit.");
+  }
   const customerName = input.customerName.trim();
   if (!customerName) throw new Error("Customer name is required.");
 
@@ -78,6 +81,9 @@ export async function updateDebtor(id: string, input: DebtorInput & { status?: s
 
 export async function updateDebtorStatus(id: string, status: string) {
   const { supabase } = await requireOrgId();
+  if (!(await canManageCustomers())) {
+    throw new UpgradeRequiredError("Customer management is a Premium feature. Upgrade to Premium to track customer credit.");
+  }
   const { error } = await supabase.from("debtors").update({ status }).eq("id", id);
   if (error) {
     console.error("[Inventra] updateDebtorStatus failed:", error);
@@ -88,6 +94,9 @@ export async function updateDebtorStatus(id: string, status: string) {
 
 export async function deleteDebtor(id: string) {
   const { supabase, role } = await requireOrgId();
+  if (!(await canManageCustomers())) {
+    throw new UpgradeRequiredError("Customer management is a Premium feature. Upgrade to Premium to track customer credit.");
+  }
   if (!["owner", "admin"].includes(role)) {
     throw new Error("Only an owner or admin can delete a debtor.");
   }
@@ -102,6 +111,9 @@ export async function deleteDebtor(id: string) {
 
 export async function recordPayment(debtorId: string, amount: number, note?: string) {
   const { supabase, orgId } = await requireOrgId();
+  if (!(await canManageCustomers())) {
+    throw new UpgradeRequiredError("Customer management is a Premium feature. Upgrade to Premium to track customer credit.");
+  }
   if (amount <= 0) throw new Error("Payment amount must be greater than zero.");
 
   const { data: debtor } = await supabase.from("debtors").select("amount_owed").eq("id", debtorId).single();

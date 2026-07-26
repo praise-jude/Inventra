@@ -1,8 +1,13 @@
 import type { Entitlements } from "@/lib/entitlements";
 
+function barColor(pct: number): string {
+  if (pct >= 90) return "var(--red)";
+  if (pct >= 70) return "var(--amber)";
+  return "var(--green)";
+}
+
 function UsageBar({ label, used, limit }: { label: string; used: number; limit: number }) {
   const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
-  const nearLimit = pct >= 90;
   return (
     <div>
       <div className="mb-1.5 flex items-baseline justify-between text-[12.5px]">
@@ -12,10 +17,7 @@ function UsageBar({ label, used, limit }: { label: string; used: number; limit: 
         </span>
       </div>
       <div className="h-2 w-full overflow-hidden rounded-full bg-border-2">
-        <div
-          className="h-full rounded-full transition-[width]"
-          style={{ width: `${pct}%`, background: nearLimit ? "var(--red)" : "var(--accent)" }}
-        />
+        <div className="h-full rounded-full transition-[width]" style={{ width: `${pct}%`, background: barColor(pct) }} />
       </div>
     </div>
   );
@@ -46,7 +48,6 @@ export function UsageDashboard({ entitlements }: { entitlements: Entitlements })
           <UsageBar label="Products Used" used={entitlements.productCount} limit={entitlements.productLimit} />
           <UsageBar label="Sales Used" used={entitlements.salesCount} limit={entitlements.salesLimit} />
           <UsageBar label="Expenses Used" used={entitlements.expenseCount} limit={entitlements.expenseLimit} />
-          <UsageBar label="Debt Records Used" used={entitlements.debtorCount} limit={entitlements.debtorLimit} />
           <UsageBar label="Invoices Used" used={entitlements.invoiceCount} limit={entitlements.invoiceLimit} />
         </div>
       )}

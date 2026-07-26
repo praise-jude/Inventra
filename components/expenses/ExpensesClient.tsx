@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useToast } from "@/components/app/ToastProvider";
 import { useWorkspace } from "@/components/app/CurrencyProvider";
+import { useEntitlementsContext } from "@/components/billing/EntitlementsProvider";
 import { deleteExpense } from "@/lib/actions/expenses";
 import { ExpenseTrendChart } from "@/components/expenses/ExpenseTrendChart";
 import { Table, type TableColumn } from "@/components/ui/Table";
@@ -27,6 +28,7 @@ export function ExpensesClient({ overview }: { overview: ExpensesOverview }) {
   const router = useRouter();
   const flash = useToast();
   const { format: formatMoney, formatShortDate } = useWorkspace();
+  const { isPremium, openUpgradeModal } = useEntitlementsContext();
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [modalExpense, setModalExpense] = useState<ExpenseRow | null | undefined>(undefined);
@@ -166,8 +168,25 @@ export function ExpensesClient({ overview }: { overview: ExpensesOverview }) {
 
       <div className="mb-[18px] rounded-2xl border border-border bg-surface p-[18px_20px] shadow-[var(--shadow-sm)]">
         <div className="mb-1 text-[15px] font-bold">Expense trend</div>
-        <div className="mb-1.5 text-[12.5px] text-muted">Last {overview.trend.length} days with recorded spend</div>
-        <ExpenseTrendChart data={overview.trend.slice(-30)} />
+        {isPremium ? (
+          <>
+            <div className="mb-1.5 text-[12.5px] text-muted">Last {overview.trend.length} days with recorded spend</div>
+            <ExpenseTrendChart data={overview.trend.slice(-30)} />
+          </>
+        ) : (
+          <div className="flex flex-col items-center justify-center gap-2.5 py-10 text-center">
+            <span className="rounded-full bg-accent-weak px-3 py-1 text-[11px] font-bold text-accent-text">⭐ PREMIUM</span>
+            <p className="max-w-sm text-[13px] leading-relaxed text-text-2">
+              Expense trend analytics are a Premium feature. Upgrade to Premium to unlock this chart.
+            </p>
+            <button
+              onClick={openUpgradeModal}
+              className="mt-1 h-9 rounded-[8px] bg-accent px-4 text-[13px] font-semibold text-white"
+            >
+              Upgrade Now
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="mb-3.5 flex flex-wrap items-center gap-2.5">

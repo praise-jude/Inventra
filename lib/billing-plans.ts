@@ -37,7 +37,7 @@ export const PLANS: PlanDef[] = [
     price: 0,
     interval: null,
     desc: "No card, no trial — just sign up and start selling.",
-    features: ["Up to 50 products", "Up to 500 sales records", "Core inventory & sales, no card required"],
+    features: ["Up to 20 products", "Up to 300 sales records", "Core inventory & sales, no card required"],
     cta: "Included with signup",
     selectable: false,
   },

@@ -71,7 +71,7 @@ export async function createProduct(input: CreateProductInput) {
   const { supabase, orgId, userId, role, actorName } = await requireOrgId();
   await requirePermission(supabase, "inventory", "create");
   if (!(await canAddProduct())) {
-    throw new UpgradeRequiredError("You've reached your Free Plan limit of 50 products. Upgrade to Premium for unlimited products.");
+    throw new UpgradeRequiredError("You've reached your Free Plan limit of 20 products. Upgrade to Premium for unlimited products.");
   }
 
   const { data: product, error } = await supabase
@@ -413,7 +413,7 @@ export async function duplicateProduct(id: string) {
   const { supabase } = await requireOrgId();
   await requirePermission(supabase, "inventory", "create");
   if (!(await canAddProduct())) {
-    throw new UpgradeRequiredError("You've reached your Free Plan limit of 50 products. Upgrade to Premium for unlimited products.");
+    throw new UpgradeRequiredError("You've reached your Free Plan limit of 20 products. Upgrade to Premium for unlimited products.");
   }
   const { data: original, error } = await supabase.from("products").select("*").eq("id", id).single();
   if (error) throw error;
