@@ -18,26 +18,26 @@ const MONTHLY_PRICE = Number(process.env.NEXT_PUBLIC_PLAN_PRICE_MONTHLY ?? 5000)
 const YEARLY_PRICE = Number(process.env.NEXT_PUBLIC_PLAN_PRICE_YEARLY ?? 50000);
 
 export interface PlanDef {
-  key: "trial" | "monthly" | "yearly";
+  key: "free" | "monthly" | "yearly";
   name: string;
-  price: number; // naira; 0 for the trial
-  interval: BillingInterval | null; // null for the trial (not a recurring interval itself)
+  price: number; // naira; 0 for Free
+  interval: BillingInterval | null; // null for Free (not a recurring interval)
   desc: string;
   features: string[];
   cta: string;
   badge?: string;
   highlight?: boolean;
-  selectable: boolean; // the trial tile is informational only, not a checkout target
+  selectable: boolean; // the Free tile is informational only, not a checkout target — signup itself grants it
 }
 
 export const PLANS: PlanDef[] = [
   {
-    key: "trial",
-    name: "Free Trial",
+    key: "free",
+    name: "Free",
     price: 0,
     interval: null,
-    desc: "6 days, full access, no charge until it ends.",
-    features: ["Full access to every feature", "A card is required to activate it", "Cancel anytime before it ends"],
+    desc: "No card, no trial — just sign up and start selling.",
+    features: ["Up to 50 products", "Up to 500 sales records", "Core inventory & sales, no card required"],
     cta: "Included with signup",
     selectable: false,
   },

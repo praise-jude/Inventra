@@ -67,7 +67,7 @@ export function Pricing() {
                   : "border border-border bg-surface text-text hover:bg-hover"
               }`}
             >
-              {plan.key === "trial" ? "Start Free Trial" : plan.cta}
+              {plan.key === "free" ? "Sign up free" : plan.cta}
             </Link>
           </motion.div>
         ))}

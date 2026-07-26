@@ -92,11 +92,16 @@ export async function initiateAddCardForContext(
     customerCode = customer.customer_code;
   }
 
-  // Distinguishes a brand-new trial (no trial_ends_at yet) from swapping the
-  // card on an already-running trial/subscription — the webhook must not
-  // reset an active paying org back into a fresh trial just because they
-  // updated their card.
-  const mode = subscription.trial_ends_at ? "update" : "initial";
+  // Distinguishes a Free-tier org's first-ever upgrade from swapping the
+  // card on an already-Premium org — the webhook must not re-run initial
+  // activation (which creates a brand-new Paystack subscription and resets
+  // the current period) just because someone updated their card. Keyed off
+  // paystack_subscription_code (do they already have a real recurring
+  // subscription), not trial_ends_at — Phase F retired trials, so
+  // trial_ends_at is null for every org (Free orgs never had one,
+  // grandfathered orgs never went through Paystack at all) and can no
+  // longer distinguish these two cases.
+  const mode = subscription.paystack_subscription_code ? "update" : "initial";
 
   const reference = `verify_${profile.org_id}_${crypto.randomUUID()}`;
   const origin = await siteUrl();

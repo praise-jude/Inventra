@@ -59,6 +59,25 @@ export async function sendWelcomeEmail(input: { to: string; orgName: string }): 
   });
 }
 
+// Phase F: upgrading from Free to Premium activates immediately (no more
+// 6-day trial) — this replaces sendTrialStartedEmail for that flow.
+// sendTrialStartedEmail/sendTrialEndingEmail are left in place (unused by
+// any reachable code path post-Phase-F, since no org can enter 'trialing'
+// anymore) rather than deleted, in case grandfathered-era data or the
+// billing-sweep cron still references their shape.
+export async function sendPremiumActivatedEmail(input: { to: string; orgName: string; periodEndsAt: string }): Promise<void> {
+  await sendEmail({
+    to: input.to,
+    subject: "You're on Inventra Premium",
+    html: wrap(
+      "Welcome to Premium",
+      `<p>Hi ${input.orgName},</p>
+       <p>Your card has been charged and Premium is active now — unlimited products, sales, receipt printing, inventory editing, reports, AI tools, team management, and every other Premium feature are unlocked immediately.</p>
+       <p>Your subscription renews on <strong>${formatDate(input.periodEndsAt)}</strong>. You can manage your plan and payment method anytime from Settings → Billing &amp; Subscription.</p>`,
+    ),
+  });
+}
+
 export async function sendTrialStartedEmail(input: { to: string; orgName: string; trialEndsAt: string }): Promise<void> {
   await sendEmail({
     to: input.to,

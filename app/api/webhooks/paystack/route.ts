@@ -2,10 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyWebhookSignature, refundTransaction, createSubscription, disableSubscription } from "@/lib/paystack";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { planByKey } from "@/lib/billing-plans";
-import { sendTrialStartedEmail, sendSubscriptionCancelledEmail, sendPaymentMethodUpdatedEmail } from "@/lib/email";
-import { addDays, recordSuccessfulCharge, recordFailedCharge, resolveOrgIdFromWebhookData } from "@/lib/billing-engine";
-
-const TRIAL_DAYS = 6;
+import { sendPremiumActivatedEmail, sendSubscriptionCancelledEmail, sendPaymentMethodUpdatedEmail } from "@/lib/email";
+import { addInterval, recordSuccessfulCharge, recordFailedCharge, resolveOrgIdFromWebhookData } from "@/lib/billing-engine";
 
 // Paystack signs every webhook with HMAC-SHA512 of the raw body — this is
 // the only thing that authorizes a state change here. Client-side payment
@@ -116,16 +114,24 @@ async function handleChargeSuccess(admin: ReturnType<typeof createAdminClient>, 
   });
 }
 
-// First-ever card verification for this org — starts the 6-day trial and
-// creates the Paystack subscription (deferred to fire at trial end).
+// First-ever card verification for a Free-tier org upgrading to Premium.
+// Phase F retired the 6-day trial — Premium activates immediately (the
+// prompt's "Unlock Premium features immediately" requirement) and the real
+// Paystack subscription is created to start now, not deferred. That
+// subscription's own first charge fires its own separate charge.success
+// webhook shortly after (handled by the generic recurring-charge branch in
+// handleChargeSuccess below via recordSuccessfulCharge, which is what
+// actually creates the paid invoice row) — this handler's job is just to
+// get the org into 'active'/the chosen plan and the subscription created,
+// using the SAME authorization that was just verified.
 async function handleInitialCardVerification(admin: ReturnType<typeof createAdminClient>, orgId: string, data: Record<string, any>) {
   const planKey = (data.metadata?.plan_key as string) ?? "monthly";
   const plan = planByKey(planKey);
   const auth = data.authorization ?? {};
   const customerCode = data.customer?.customer_code ?? data.metadata?.customer_code;
 
-  const trialStartedAt = new Date();
-  const trialEndsAt = addDays(trialStartedAt, TRIAL_DAYS);
+  const now = new Date();
+  const periodEnd = addInterval(now, plan?.interval ?? "monthly");
 
   let subscriptionCode: string | null = null;
   let emailToken: string | null = null;
@@ -136,7 +142,7 @@ async function handleInitialCardVerification(admin: ReturnType<typeof createAdmi
         customerCode,
         planCode,
         authorizationCode: auth.authorization_code,
-        startDate: trialEndsAt,
+        startDate: now,
       }).catch((err) => {
         console.error("[Inventra] Failed to create Paystack subscription after card verification:", err);
         return null;
@@ -151,13 +157,14 @@ async function handleInitialCardVerification(admin: ReturnType<typeof createAdmi
   await admin
     .from("subscriptions")
     .update({
-      status: "trialing",
+      status: "active",
       plan_key: planKey,
       billing_interval: plan?.interval ?? null,
       amount: plan?.price ?? null,
       currency: "NGN",
-      trial_started_at: trialStartedAt.toISOString(),
-      trial_ends_at: trialEndsAt.toISOString(),
+      current_period_start: now.toISOString(),
+      current_period_end: periodEnd.toISOString(),
+      cancel_at_period_end: false,
       paystack_customer_code: customerCode ?? undefined,
       paystack_subscription_code: subscriptionCode,
       paystack_email_token: emailToken,
@@ -171,7 +178,7 @@ async function handleInitialCardVerification(admin: ReturnType<typeof createAdmi
     .eq("org_id", orgId);
 
   const email = data.customer?.email;
-  if (email) await sendTrialStartedEmail({ to: email, orgName: "there", trialEndsAt: trialEndsAt.toISOString() });
+  if (email) await sendPremiumActivatedEmail({ to: email, orgName: "there", periodEndsAt: periodEnd.toISOString() });
 }
 
 // Card swapped on an already-running trial/subscription — must NOT reset
