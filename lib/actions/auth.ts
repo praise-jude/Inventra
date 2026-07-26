@@ -138,7 +138,10 @@ export async function registerAccount(input: RegisterAccountInput): Promise<Regi
   const timezone = timezoneFor(country, state);
 
   const supabase = await createClient();
-  const emailRedirectTo = `${await siteUrl()}/dashboard`;
+  // Route through /auth/callback (not straight to /dashboard) so the
+  // confirmation link's code actually gets exchanged for a session —
+  // matches how password-reset and Google OAuth both already do this.
+  const emailRedirectTo = `${await siteUrl()}/auth/callback?next=/dashboard`;
   const { data, error } = await withAuthRetry(() =>
     supabase.auth.signUp({
       email,
