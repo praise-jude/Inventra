@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ADMIN_ROLES, MANAGER_ROLES } from "@/lib/roles";
+import { canManageTeam, UpgradeRequiredError } from "@/lib/entitlements";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { siteUrl } from "@/lib/site-url";
 
@@ -64,6 +65,10 @@ export async function inviteMemberForContext(
   { profile, actorRole }: AdminTeamContext,
   input: { email: string; role: string; firstName: string; lastName: string; branchId: string },
 ): Promise<void> {
+  // The real, only enforcement point for both web and mobile — this uses
+  // the Supabase Admin Auth API (inviteUserByEmail), which RLS can't gate
+  // at all, unlike the profiles/products/etc. tables.
+  if (!(await canManageTeam())) throw new UpgradeRequiredError("Inviting team members requires a Premium subscription.");
   if (!input.branchId) throw new Error("Pick a branch for this member.");
   if (actorRole === "manager" && !MANAGER_INVITABLE_ROLES.includes(input.role)) {
     throw new Error("Managers can only invite Staff members (Cashier or Warehouse).");
