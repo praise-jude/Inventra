@@ -50,8 +50,7 @@ function timeAgo(iso: string): string {
 }
 
 export default async function DashboardPage() {
-  const { profile, org } = await requireProfile();
-  const entitlements = await getEntitlements();
+  const [{ profile, org }, entitlements] = await Promise.all([requireProfile(), getEntitlements()]);
   const isPremium = entitlements.tier === "premium";
   const isAdminTier = isManagerRole(profile.role);
   // Free plan keeps the basic KPI cards (Total Products, Today's Revenue,
