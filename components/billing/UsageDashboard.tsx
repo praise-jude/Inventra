@@ -40,13 +40,14 @@ export function UsageDashboard({ entitlements }: { entitlements: Entitlements })
       </div>
 
       {isPremium ? (
-        <p className="text-[13px] text-text-2">Unlimited products, sales, expenses, and customer credit records.</p>
+        <p className="text-[13px] text-text-2">Unlimited products, sales, expenses, invoices, and customer credit records.</p>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
           <UsageBar label="Products Used" used={entitlements.productCount} limit={entitlements.productLimit} />
           <UsageBar label="Sales Used" used={entitlements.salesCount} limit={entitlements.salesLimit} />
           <UsageBar label="Expenses Used" used={entitlements.expenseCount} limit={entitlements.expenseLimit} />
           <UsageBar label="Debt Records Used" used={entitlements.debtorCount} limit={entitlements.debtorLimit} />
+          <UsageBar label="Invoices Used" used={entitlements.invoiceCount} limit={entitlements.invoiceLimit} />
         </div>
       )}
     </div>

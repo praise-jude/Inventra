@@ -11,6 +11,7 @@ const NAV = [
   { href: "/products", label: "Products", icon: "📦" },
   { href: "/inventory", label: "Inventory", icon: "🗃️" },
   { href: "/sales", label: "Sales", icon: "🧾", hideForWarehouse: true },
+  { href: "/invoices", label: "Invoices", icon: "📄", hideForWarehouse: true },
   { href: "/debtors", label: "Customers", icon: "💵", managerOnly: true },
   { href: "/inventory/suppliers", label: "Suppliers", icon: "🚚" },
   { href: "/inventory/warehouses", label: "Warehouses", icon: "🏬" },

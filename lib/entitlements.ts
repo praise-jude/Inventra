@@ -25,6 +25,8 @@ export interface Entitlements {
   expenseLimit: number;
   debtorCount: number;
   debtorLimit: number;
+  invoiceCount: number;
+  invoiceLimit: number;
 }
 
 const FAIL_SAFE_FREE: Entitlements = {
@@ -40,6 +42,8 @@ const FAIL_SAFE_FREE: Entitlements = {
   expenseLimit: 100,
   debtorCount: 0,
   debtorLimit: 100,
+  invoiceCount: 0,
+  invoiceLimit: 20,
 };
 
 // One request-scoped round trip to get_org_entitlements() (see
@@ -65,6 +69,8 @@ export const getEntitlements = cache(async (): Promise<Entitlements> => {
     expenseLimit: Number(d.expense_limit ?? FAIL_SAFE_FREE.expenseLimit),
     debtorCount: Number(d.debtor_count ?? 0),
     debtorLimit: Number(d.debtor_limit ?? FAIL_SAFE_FREE.debtorLimit),
+    invoiceCount: Number(d.invoice_count ?? 0),
+    invoiceLimit: Number(d.invoice_limit ?? FAIL_SAFE_FREE.invoiceLimit),
   };
 });
 
@@ -122,6 +128,10 @@ export async function canAddExpense(): Promise<boolean> {
 export async function canAddDebtor(): Promise<boolean> {
   const e = await getEntitlements();
   return e.tier === "premium" || e.debtorCount < e.debtorLimit;
+}
+export async function canAddInvoice(): Promise<boolean> {
+  const e = await getEntitlements();
+  return e.tier === "premium" || e.invoiceCount < e.invoiceLimit;
 }
 
 // Named per-feature checks — thin wrappers over canUseFeature(), all

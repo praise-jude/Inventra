@@ -215,6 +215,92 @@ export async function exportInvoicePdf(data: InvoicePdfData) {
   doc.save(`${data.invoiceNumber}.pdf`);
 }
 
+export interface CustomerInvoicePdfData {
+  orgName: string;
+  invoiceNumber: string;
+  issueDate: string;
+  dueDate: string | null;
+  status: string;
+  customerName: string;
+  customerEmail: string | null;
+  customerPhone: string | null;
+  items: { description: string; quantity: number; unitPrice: number; lineTotal: number }[];
+  subtotal: number;
+  discountAmount: number;
+  taxAmount: number;
+  total: number;
+  notes: string | null;
+  formatMoney: (n: number) => string;
+}
+
+// Customer-facing invoice PDF — separate from exportInvoicePdf above
+// (Paystack billing receipts), same dynamic-import jsPDF+autoTable
+// convention.
+export async function exportCustomerInvoicePdf(data: CustomerInvoicePdfData) {
+  const { default: jsPDF } = await import("jspdf");
+  const { default: autoTable } = await import("jspdf-autotable");
+
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  let y = 20;
+  doc.setFontSize(18);
+  doc.text(data.orgName, 14, y);
+  doc.setFontSize(11);
+  doc.text("Invoice", 196, y, { align: "right" });
+  y += 10;
+  doc.setFontSize(9.5);
+  doc.text(`Invoice number: ${data.invoiceNumber}`, 14, y);
+  doc.text(`Status: ${data.status.toUpperCase()}`, 196, y, { align: "right" });
+  y += 5;
+  doc.text(`Issued: ${data.issueDate}`, 14, y);
+  if (data.dueDate) doc.text(`Due: ${data.dueDate}`, 196, y, { align: "right" });
+  y += 8;
+  doc.text(`Bill to: ${data.customerName}`, 14, y);
+  y += 5;
+  if (data.customerEmail) {
+    doc.text(data.customerEmail, 14, y);
+    y += 5;
+  }
+  if (data.customerPhone) {
+    doc.text(data.customerPhone, 14, y);
+    y += 5;
+  }
+  y += 5;
+
+  autoTable(doc, {
+    startY: y,
+    margin: { left: 14, right: 14 },
+    head: [["Description", "Qty", "Unit price", "Line total"]],
+    body: data.items.map((i) => [i.description, String(i.quantity), data.formatMoney(i.unitPrice), data.formatMoney(i.lineTotal)]),
+    styles: { fontSize: 9.5, cellPadding: 3 },
+    headStyles: { fillColor: [37, 99, 235] },
+    theme: "grid",
+  });
+
+  y = (doc as any).lastAutoTable.finalY + 8;
+  doc.setFontSize(9.5);
+  doc.text(`Subtotal: ${data.formatMoney(data.subtotal)}`, 196, y, { align: "right" });
+  if (data.discountAmount > 0) {
+    y += 5;
+    doc.text(`Discount: -${data.formatMoney(data.discountAmount)}`, 196, y, { align: "right" });
+  }
+  if (data.taxAmount > 0) {
+    y += 5;
+    doc.text(`Tax: ${data.formatMoney(data.taxAmount)}`, 196, y, { align: "right" });
+  }
+  y += 7;
+  doc.setFontSize(12);
+  doc.text(`Total: ${data.formatMoney(data.total)}`, 196, y, { align: "right" });
+  y += 12;
+  doc.setFontSize(9.5);
+  if (data.notes) {
+    doc.text(data.notes, 14, y);
+    y += 8;
+  }
+  doc.text("Thank you for your business.", 14, y);
+
+  doc.save(`${data.invoiceNumber}.pdf`);
+}
+
 export async function exportToPdf<T>(title: string, rows: T[], columns: ExportColumn<T>[], filename: string) {
   const { default: jsPDF } = await import("jspdf");
   const { default: autoTable } = await import("jspdf-autotable");

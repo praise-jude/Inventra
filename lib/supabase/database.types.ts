@@ -2,6 +2,9 @@ export type UserRole = "owner" | "admin" | "manager" | "cashier" | "warehouse";
 export type MemberStatus = "active" | "invited" | "awaiting_approval";
 export type MovementType = "received" | "sale" | "adjustment" | "transfer" | "return" | "expired";
 export type InvoiceStatus = "paid" | "pending" | "failed";
+// Customer-facing invoices (customer_invoices table) — separate from
+// InvoiceStatus above, which is Paystack billing receipts.
+export type CustomerInvoiceStatus = "draft" | "sent" | "paid" | "overdue" | "void";
 export type IntegrationProvider =
   | "stripe"
   | "paystack"
