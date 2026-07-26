@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createClient } from "@/lib/supabase/client";
 import type { Entitlements } from "@/lib/entitlements";
 
 interface EntitlementsContextValue {
@@ -20,6 +22,29 @@ const EntitlementsContext = createContext<EntitlementsContextValue | undefined>(
 // Upgrade modal without prop-drilling through every intermediate layer.
 export function EntitlementsProvider({ entitlements, children }: { entitlements: Entitlements; children: ReactNode }) {
   const [modalOpen, setModalOpen] = useState(false);
+  const router = useRouter();
+
+  // Phase F8 — another device/tab upgrading (or a payment lapsing) flips
+  // this org's subscriptions row; router.refresh() re-runs getEntitlements()
+  // server-side so Premium unlocks (or Free limits re-apply) here
+  // immediately, same "postgres_changes filtered to this org" pattern
+  // TeamClient.tsx already uses for live team-roster sync.
+  useEffect(() => {
+    if (!entitlements.orgId) return;
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`subscriptions:org:${entitlements.orgId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "subscriptions", filter: `org_id=eq.${entitlements.orgId}` },
+        () => router.refresh(),
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [entitlements.orgId, router]);
 
   const value = useMemo<EntitlementsContextValue>(
     () => ({

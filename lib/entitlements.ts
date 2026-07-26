@@ -13,6 +13,7 @@ import { createClient } from "@/lib/supabase/server";
 export type PlanTier = "free" | "premium";
 
 export interface Entitlements {
+  orgId: string | null;
   tier: PlanTier;
   planKey: string | null;
   status: string | null;
@@ -27,6 +28,7 @@ export interface Entitlements {
 }
 
 const FAIL_SAFE_FREE: Entitlements = {
+  orgId: null,
   tier: "free",
   planKey: null,
   status: null,
@@ -51,6 +53,7 @@ export const getEntitlements = cache(async (): Promise<Entitlements> => {
 
   const d = data as Record<string, unknown>;
   return {
+    orgId: (d.org_id as string | null) ?? null,
     tier: d.tier === "premium" ? "premium" : "free",
     planKey: (d.plan_key as string | null) ?? null,
     status: (d.status as string | null) ?? null,
