@@ -18,15 +18,10 @@ const AUTH_ROUTES = [
 ];
 
 const ONBOARDING_ROUTE = "/onboarding/complete";
-const ONBOARDING_PLAN_ROUTE = "/onboarding/plan";
-const BILLING_ROUTE = "/billing";
-const SUBSCRIPTION_REQUIRED_ROUTE = "/subscription-required";
 // Platform-admin dashboard (requirePlatformAdmin() in lib/queries/session.ts
 // does the real, server-side authorization check) — exempt from org-scoped
-// onboarding/subscription gating entirely, since it's cross-org and must
-// stay reachable regardless of the admin's own org's billing state.
+// onboarding gating entirely, since it's cross-org.
 const ADMIN_ROUTE = "/admin";
-const BLOCKED_STATUSES = ["past_due", "payment_failed", "cancelled", "expired", "suspended"];
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -91,15 +86,19 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (!isAuthRoute) {
-    // One round trip instead of three (profiles -> organizations ->
-    // subscriptions) — get_access_gate_state() left-joins all three so this
-    // check, which runs on every single authenticated navigation, doesn't
-    // chain sequential requests. See supabase/migrations/20260711090000_access_gate_rpc.sql.
+    // get_access_gate_state() left-joins profiles/organizations/
+    // subscriptions in one round trip. See
+    // supabase/migrations/20260711090000_access_gate_rpc.sql.
     const { data: gate } = await supabase.rpc("get_access_gate_state");
 
     // Make sure signup/OAuth onboarding gaps (business country/currency,
     // terms acceptance) are filled in before letting the user any further
-    // into the app.
+    // into the app. This is the only forced gate left — Phase F retired
+    // the mandatory card/trial/subscription-block gate that used to sit
+    // here: every org now has full app access on the Free plan the moment
+    // onboarding is complete, and Premium (lib/entitlements.ts) is a pure
+    // opt-in upgrade with no forced redirect of its own. A lapsed Premium
+    // subscription falls back to Free limits, it doesn't lock anyone out.
     let needsOnboarding = !gate?.profile_exists || !gate.terms_accepted;
     if (gate?.profile_exists && gate.terms_accepted) {
       needsOnboarding = !gate.country;
@@ -114,49 +113,6 @@ export async function updateSession(request: NextRequest) {
       const url = request.nextUrl.clone();
       url.pathname = "/dashboard";
       return NextResponse.redirect(url);
-    }
-
-    // Subscription gate — only once the terms/country onboarding above has
-    // passed. Three states: still needs to add a card (new trial signups),
-    // blocked (trial/subscription expired or in a failed-payment state), or
-    // neither (normal access).
-    if (!needsOnboarding) {
-      const isOnboardingPlanCallback = path === `${ONBOARDING_PLAN_ROUTE}/callback`;
-      const isOnboardingPlanRoute = path.startsWith(ONBOARDING_PLAN_ROUTE) && !isOnboardingPlanCallback;
-      const isExemptFromBlock = path.startsWith(BILLING_ROUTE) || path === SUBSCRIPTION_REQUIRED_ROUTE;
-      const awaitingCard = gate?.subscription_status === "trialing" && !gate.trial_ends_at;
-
-      if (isOnboardingPlanCallback) {
-        // Always let this through — it's the Paystack redirect target for
-        // both the initial trial setup and later "update card" calls from
-        // an already-onboarded org, and it redirects itself once done.
-      } else if (awaitingCard) {
-        if (!isOnboardingPlanRoute) {
-          const url = request.nextUrl.clone();
-          url.pathname = ONBOARDING_PLAN_ROUTE;
-          return NextResponse.redirect(url);
-        }
-      } else if (isOnboardingPlanRoute) {
-        // Card already on file — nothing left to do on this route.
-        const url = request.nextUrl.clone();
-        url.pathname = "/dashboard";
-        return NextResponse.redirect(url);
-      } else {
-        const trialExpired =
-          gate?.subscription_status === "trialing" && !!gate.trial_ends_at && new Date(gate.trial_ends_at) < new Date();
-        const blocked = trialExpired || (!!gate?.subscription_status && BLOCKED_STATUSES.includes(gate.subscription_status));
-
-        if (blocked && !isExemptFromBlock) {
-          const url = request.nextUrl.clone();
-          url.pathname = SUBSCRIPTION_REQUIRED_ROUTE;
-          return NextResponse.redirect(url);
-        }
-        if (!blocked && path === SUBSCRIPTION_REQUIRED_ROUTE) {
-          const url = request.nextUrl.clone();
-          url.pathname = "/dashboard";
-          return NextResponse.redirect(url);
-        }
-      }
     }
   } else if ((path === "/login" || path === "/signup") && !needsMfaStepUp) {
     // Already fully authenticated — bounce to the app. Skipped while an
