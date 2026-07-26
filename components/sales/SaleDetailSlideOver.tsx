@@ -9,6 +9,7 @@ import { deleteSale } from "@/lib/actions/sales";
 import type { SaleDetail } from "@/lib/queries/sales";
 import type { PaymentMethod } from "@/lib/supabase/database.types";
 import { ReceiptModal } from "@/components/sales/ReceiptModal";
+import { useEntitlementsContext } from "@/components/billing/EntitlementsProvider";
 
 const SaleEditModal = dynamic(() => import("@/components/sales/SaleEditModal").then((m) => m.SaleEditModal));
 
@@ -31,6 +32,7 @@ export function SaleDetailSlideOver({
   const router = useRouter();
   const flash = useToast();
   const { format: formatMoney, formatDateTime } = useWorkspace();
+  const { isPremium, openUpgradeModal } = useEntitlementsContext();
   const [showEdit, setShowEdit] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -71,24 +73,27 @@ export function SaleDetailSlideOver({
         <div className="px-[22px] py-5">
           <div className="mb-5 flex gap-2">
             <button
-              onClick={() => setShowEdit(true)}
-              className="h-[38px] flex-1 rounded-[9px] bg-accent text-[13px] font-semibold text-white"
+              onClick={() => (isPremium ? setShowEdit(true) : openUpgradeModal())}
+              className="flex h-[38px] flex-1 items-center justify-center gap-1.5 rounded-[9px] bg-accent text-[13px] font-semibold text-white"
             >
               Edit
+              {!isPremium && <span className="rounded-full bg-white/25 px-1.5 py-px text-[9.5px] font-bold">PRO</span>}
             </button>
             <button
-              onClick={() => setShowReceipt(true)}
-              className="h-[38px] rounded-[9px] border border-border bg-surface px-3.5 text-[13px] font-semibold text-text hover:bg-hover"
+              onClick={() => (isPremium ? setShowReceipt(true) : openUpgradeModal())}
+              className="flex h-[38px] items-center gap-1.5 rounded-[9px] border border-border bg-surface px-3.5 text-[13px] font-semibold text-text hover:bg-hover"
             >
               🧾 Receipt
+              {!isPremium && <span className="rounded-full bg-accent-weak px-1.5 py-px text-[9.5px] font-bold text-accent-text">PRO</span>}
             </button>
             {canDelete && (
               <button
-                onClick={handleDelete}
+                onClick={() => (isPremium ? handleDelete() : openUpgradeModal())}
                 disabled={busy}
-                className="h-[38px] rounded-[9px] border border-border bg-surface px-3.5 text-[13px] font-semibold text-red"
+                className="flex h-[38px] items-center gap-1.5 rounded-[9px] border border-border bg-surface px-3.5 text-[13px] font-semibold text-red"
               >
                 Delete
+                {!isPremium && <span className="rounded-full bg-accent-weak px-1.5 py-px text-[9.5px] font-bold text-accent-text">PRO</span>}
               </button>
             )}
           </div>

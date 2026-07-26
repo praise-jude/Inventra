@@ -1,9 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminProfile } from "@/lib/queries/session";
 import { ApprovalSettingsForm } from "@/components/settings/ApprovalSettingsForm";
+import { canUseApprovalWorkflows } from "@/lib/entitlements";
+import { PremiumLockedState } from "@/components/billing/PremiumLockedState";
 
 export default async function ApprovalSettingsPage() {
   const { org } = await requireAdminProfile();
+  if (!(await canUseApprovalWorkflows())) return <PremiumLockedState feature="Approval workflows" />;
   const supabase = await createClient();
   const { data } = await supabase.from("approval_settings").select("*").eq("org_id", org.id).single();
 

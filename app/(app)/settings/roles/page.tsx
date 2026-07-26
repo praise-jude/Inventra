@@ -10,9 +10,12 @@ import {
   type CustomizableRole,
 } from "@/lib/permissions";
 import { RolesClient, type RoleMatrixModule } from "@/components/settings/RolesClient";
+import { canManageStaffRoles } from "@/lib/entitlements";
+import { PremiumLockedState } from "@/components/billing/PremiumLockedState";
 
 export default async function RolesSettingsPage() {
   const { profile } = await requireAdminProfile();
+  if (!(await canManageStaffRoles())) return <PremiumLockedState feature="Customizing staff roles" />;
   const supabase = await createClient();
 
   const { data: overrides } = await supabase
