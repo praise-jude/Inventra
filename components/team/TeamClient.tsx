@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useWorkspace } from "@/components/app/CurrencyProvider";
 import { usePresence } from "@/components/app/PresenceProvider";
 import { useToast } from "@/components/app/ToastProvider";
+import { useEntitlementsContext } from "@/components/billing/EntitlementsProvider";
 import {
   approveMember,
   rejectMember,
@@ -95,6 +96,7 @@ export function TeamClient({
 }) {
   const router = useRouter();
   const flash = useToast();
+  const { isPremium, openUpgradeModal } = useEntitlementsContext();
 
   // Live sync: another session (a Manager approving someone from mobile,
   // an Admin changing a role from a different tab) updates this table
@@ -393,10 +395,11 @@ export function TeamClient({
           </div>
         </div>
         <button
-          onClick={() => setShowInvite(true)}
-          className="h-[37px] rounded-[9px] bg-accent px-[15px] text-[13px] font-semibold text-white shadow-[var(--shadow-sm)]"
+          onClick={() => (isPremium ? setShowInvite(true) : openUpgradeModal())}
+          className="flex h-[37px] items-center gap-1.5 rounded-[9px] bg-accent px-[15px] text-[13px] font-semibold text-white shadow-[var(--shadow-sm)]"
         >
           + Invite member
+          {!isPremium && <span className="rounded-full bg-white/25 px-1.5 py-px text-[9.5px] font-bold">PRO</span>}
         </button>
       </div>
 

@@ -10,6 +10,7 @@ import { createAdjustment } from "@/lib/actions/inventory";
 import { notifyDataChanged } from "@/lib/client-events";
 import type { ProductDetail } from "@/lib/queries/products";
 import { useWorkspace } from "@/components/app/CurrencyProvider";
+import { useEntitlementsContext } from "@/components/billing/EntitlementsProvider";
 
 const EditProductModal = dynamic(() => import("@/components/products/EditProductModal").then((m) => m.EditProductModal));
 const BarcodePreview = dynamic(() => import("@/components/products/BarcodePreview").then((m) => m.BarcodePreview));
@@ -37,6 +38,7 @@ export function ProductDetailSlideOver({
   const router = useRouter();
   const flash = useToast();
   const { format: formatMoney } = useWorkspace();
+  const { isPremium, openUpgradeModal } = useEntitlementsContext();
   const [busy, setBusy] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [showAdjust, setShowAdjust] = useState(false);
@@ -180,10 +182,11 @@ export function ProductDetailSlideOver({
         <div className="px-[22px] py-5">
           <div className="mb-5 flex gap-2">
             <button
-              onClick={() => setShowEdit(true)}
-              className="h-[38px] flex-1 rounded-[9px] bg-accent text-[13px] font-semibold text-white"
+              onClick={() => (isPremium ? setShowEdit(true) : openUpgradeModal())}
+              className="flex h-[38px] flex-1 items-center justify-center gap-1.5 rounded-[9px] bg-accent text-[13px] font-semibold text-white"
             >
               Edit
+              {!isPremium && <span className="rounded-full bg-white/25 px-1.5 py-px text-[9.5px] font-bold">PRO</span>}
             </button>
             <button
               onClick={handleToggleActive}
@@ -200,23 +203,30 @@ export function ProductDetailSlideOver({
               Duplicate
             </button>
             <button
-              onClick={handleArchive}
+              onClick={() => (isPremium ? handleArchive() : openUpgradeModal())}
               disabled={busy}
-              className="h-[38px] rounded-[9px] border border-border bg-surface px-3.5 text-[13px] font-semibold text-text"
+              className="flex h-[38px] items-center gap-1.5 rounded-[9px] border border-border bg-surface px-3.5 text-[13px] font-semibold text-text"
             >
               Archive
+              {!isPremium && <span className="rounded-full bg-accent-weak px-1.5 py-px text-[9.5px] font-bold text-accent-text">PRO</span>}
             </button>
             <button
-              onClick={handleDelete}
+              onClick={() => (isPremium ? handleDelete() : openUpgradeModal())}
               disabled={busy}
-              className="h-[38px] rounded-[9px] border border-border bg-surface px-3.5 text-[13px] font-semibold text-red"
+              className="flex h-[38px] items-center gap-1.5 rounded-[9px] border border-border bg-surface px-3.5 text-[13px] font-semibold text-red"
             >
               Delete
+              {!isPremium && <span className="rounded-full bg-accent-weak px-1.5 py-px text-[9.5px] font-bold text-accent-text">PRO</span>}
             </button>
           </div>
 
           <div className="mb-5 flex justify-center rounded-[11px] border border-border bg-white p-3">
-            {product.barcode || product.sku ? (
+            {!isPremium ? (
+              <button onClick={openUpgradeModal} className="flex flex-col items-center gap-1 py-2">
+                <span className="rounded-full bg-accent-weak px-2.5 py-1 text-[10.5px] font-bold text-accent-text">PREMIUM</span>
+                <span className="text-[12px] text-muted">Upgrade to generate a barcode</span>
+              </button>
+            ) : product.barcode || product.sku ? (
               <BarcodePreview value={product.barcode || product.sku} />
             ) : (
               <span className="text-[12.5px] text-muted">No barcode set</span>

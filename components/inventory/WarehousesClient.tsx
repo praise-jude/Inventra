@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useToast } from "@/components/app/ToastProvider";
+import { useEntitlementsContext } from "@/components/billing/EntitlementsProvider";
 import { archiveWarehouse, deleteWarehouse, reactivateWarehouse } from "@/lib/actions/warehouses";
 import type { WarehouseOverview } from "@/lib/queries/inventory";
 import { formatMoney, formatNumber } from "@/lib/format";
@@ -36,6 +37,7 @@ export function WarehousesClient({
 }) {
   const router = useRouter();
   const flash = useToast();
+  const { isPremium, openUpgradeModal } = useEntitlementsContext();
   const [modalWarehouse, setModalWarehouse] = useState<WarehouseOverview | null | undefined>(undefined);
   const [transferFrom, setTransferFrom] = useState<WarehouseOverview | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -86,10 +88,11 @@ export function WarehousesClient({
       {canManage && (
         <div className="mb-3.5 flex justify-end">
           <button
-            onClick={() => setModalWarehouse(null)}
-            className="h-[37px] rounded-[9px] bg-accent px-[15px] text-[13px] font-semibold text-white shadow-[var(--shadow-sm)]"
+            onClick={() => (isPremium ? setModalWarehouse(null) : openUpgradeModal())}
+            className="flex h-[37px] items-center gap-1.5 rounded-[9px] bg-accent px-[15px] text-[13px] font-semibold text-white shadow-[var(--shadow-sm)]"
           >
             + New branch
+            {!isPremium && <span className="rounded-full bg-white/25 px-1.5 py-px text-[9.5px] font-bold">PRO</span>}
           </button>
         </div>
       )}
@@ -100,7 +103,7 @@ export function WarehousesClient({
             icon="🏬"
             title="No branches yet"
             description="Add a branch to start tracking stock by location."
-            action={canManage ? { label: "New branch", onClick: () => setModalWarehouse(null) } : undefined}
+            action={canManage ? { label: "New branch", onClick: () => (isPremium ? setModalWarehouse(null) : openUpgradeModal()) } : undefined}
           />
         </div>
       ) : (
