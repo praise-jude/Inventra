@@ -67,7 +67,8 @@ export const getEntitlements = cache(async (): Promise<Entitlements> => {
 
 // Boolean-locked features (not count-based) — Premium unlocks all of them,
 // Free unlocks none. Matches the prompt's "locked premium features" list.
-const PREMIUM_FEATURES = [
+// Exported for the lock/badge UI to enumerate.
+export const PREMIUM_FEATURES = [
   "receiptPrinting",
   "inventoryEdit",
   "inventoryDelete",
