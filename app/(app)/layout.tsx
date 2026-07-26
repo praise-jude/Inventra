@@ -1,21 +1,16 @@
 import { cookies } from "next/headers";
 import { requireProfile } from "@/lib/queries/session";
 import { getKpis } from "@/lib/queries/dashboard";
-import { createClient } from "@/lib/supabase/server";
+import { getEntitlements } from "@/lib/entitlements";
 import { ToastProvider } from "@/components/app/ToastProvider";
 import { WorkspaceProvider } from "@/components/app/CurrencyProvider";
 import { PresenceProvider } from "@/components/app/PresenceProvider";
+import { EntitlementsProvider } from "@/components/billing/EntitlementsProvider";
 import { Shell } from "@/components/app/Shell";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { profile, org } = await requireProfile();
-  const kpis = await getKpis();
-  const supabase = await createClient();
-  const { data: subscription } = await supabase
-    .from("subscriptions")
-    .select("status, trial_ends_at")
-    .eq("org_id", profile.org_id)
-    .single();
+  const [kpis, entitlements] = await Promise.all([getKpis(), getEntitlements()]);
   const cookieStore = await cookies();
   const initialTheme = cookieStore.get("theme")?.value === "dark" ? "dark" : "light";
 
@@ -24,28 +19,29 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <WorkspaceProvider currency={org.currency} timezone={org.timezone}>
-      <ToastProvider>
-        <PresenceProvider
-          userId={profile.id}
-          orgId={profile.org_id}
-          name={`${profile.first_name} ${profile.last_name}`}
-          role={profile.role}
-        >
-          <Shell
-            orgName={org.name}
-            plan={org.plan}
-            trialStatus={subscription?.status ?? null}
-            trialEndsAt={subscription?.trial_ends_at ?? null}
-            inventoryBadge={inventoryBadge}
-            initials={initials}
-            firstName={profile.first_name}
-            initialTheme={initialTheme}
+      <EntitlementsProvider entitlements={entitlements}>
+        <ToastProvider>
+          <PresenceProvider
+            userId={profile.id}
+            orgId={profile.org_id}
+            name={`${profile.first_name} ${profile.last_name}`}
             role={profile.role}
           >
-            {children}
-          </Shell>
-        </PresenceProvider>
-      </ToastProvider>
+            <Shell
+              orgName={org.name}
+              plan={org.plan}
+              tier={entitlements.tier}
+              inventoryBadge={inventoryBadge}
+              initials={initials}
+              firstName={profile.first_name}
+              initialTheme={initialTheme}
+              role={profile.role}
+            >
+              {children}
+            </Shell>
+          </PresenceProvider>
+        </ToastProvider>
+      </EntitlementsProvider>
     </WorkspaceProvider>
   );
 }

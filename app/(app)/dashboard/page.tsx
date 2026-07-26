@@ -13,6 +13,8 @@ import type { ActivityRow } from "@/lib/queries/dashboard";
 import { getExpenseCategoryBreakdown } from "@/lib/queries/expenses";
 import { requireProfile } from "@/lib/queries/session";
 import { getTeamMembers } from "@/lib/queries/team";
+import { getEntitlements } from "@/lib/entitlements";
+import { FreePlanBanner } from "@/components/billing/FreePlanBanner";
 import { AreaChart } from "@/components/charts/AreaChart";
 import { DonutChart } from "@/components/charts/DonutChart";
 import { TeamPresenceCard } from "@/components/team/TeamPresenceCard";
@@ -49,19 +51,26 @@ function timeAgo(iso: string): string {
 
 export default async function DashboardPage() {
   const { profile, org } = await requireProfile();
+  const entitlements = await getEntitlements();
+  const isPremium = entitlements.tier === "premium";
   const isAdminTier = isManagerRole(profile.role);
+  // Free plan keeps the basic KPI cards (Total Products, Today's Revenue,
+  // Low Stock, etc. — role-gated only, unchanged) but loses the actual
+  // charts/trends/breakdowns: category mix, revenue/profit trend, sales
+  // volume, expense breakdown, daily profit table, team presence.
+  const showAnalytics = isAdminTier && isPremium;
   const [kpis, categoryMix, topSellers, stockHealth, revenueProfit, salesVolume, expenseBreakdown, activity, dailyProfit, teamMembers] =
     await Promise.all([
       getKpis(),
-      isAdminTier ? getCategoryMix() : Promise.resolve([]),
+      showAnalytics ? getCategoryMix() : Promise.resolve([]),
       getTopSellers(5),
       getStockHealth(),
-      isAdminTier ? getMonthlyRevenueProfit() : Promise.resolve([]),
-      isAdminTier ? getMonthlySalesVolume() : Promise.resolve([]),
-      isAdminTier ? getExpenseCategoryBreakdown(org.timezone) : Promise.resolve([]),
+      showAnalytics ? getMonthlyRevenueProfit() : Promise.resolve([]),
+      showAnalytics ? getMonthlySalesVolume() : Promise.resolve([]),
+      showAnalytics ? getExpenseCategoryBreakdown(org.timezone) : Promise.resolve([]),
       getRecentActivity(5),
-      isAdminTier ? getDailyProductProfit() : Promise.resolve([]),
-      isAdminTier ? getTeamMembers() : Promise.resolve([]),
+      showAnalytics ? getDailyProductProfit() : Promise.resolve([]),
+      showAnalytics ? getTeamMembers() : Promise.resolve([]),
     ]);
   const todaysProfit = dailyProfit.reduce((sum, p) => sum + (Number(p.profit) || 0), 0);
 
@@ -169,6 +178,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="animate-fade-up">
+      {!isPremium && <FreePlanBanner />}
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3.5">
         <div>
           <div className="text-[22px] font-bold tracking-tight">
@@ -227,7 +237,7 @@ export default async function DashboardPage() {
       )}
 
       {/* TREND ROW */}
-      {isAdminTier && (
+      {showAnalytics && (
       <div className="chart-row mb-4 grid gap-4" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
         <div className="rounded-2xl border border-border bg-surface p-[18px_20px] shadow-[var(--shadow-sm)]">
           <div className="text-[15px] font-bold">Sales trend</div>
@@ -269,7 +279,7 @@ export default async function DashboardPage() {
       )}
 
       {/* BREAKDOWN ROW */}
-      {isAdminTier && (
+      {showAnalytics && (
       <div className="chart-row mb-4 grid gap-4" style={{ gridTemplateColumns: "1fr 1fr" }}>
         <div className="flex flex-col rounded-2xl border border-border bg-surface p-[18px_20px] shadow-[var(--shadow-sm)]">
           <div className="text-[15px] font-bold">Category mix</div>
@@ -418,14 +428,14 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {isAdminTier && (
+      {showAnalytics && (
         <div className="mt-4">
           <TeamPresenceCard members={teamMembers} showRoleBreakdown />
         </div>
       )}
 
       {/* DAILY PROFIT */}
-      {isAdminTier && (
+      {showAnalytics && (
       <div className="mt-4 rounded-2xl border border-border bg-surface p-[18px_20px] shadow-[var(--shadow-sm)]">
         <div className="mb-3.5 flex items-center justify-between">
           <div>
