@@ -111,7 +111,6 @@ export interface Debtor {
   amount_owed: number;
   due_date: string | null;
   status: DebtorStatus;
-  date_of_birth: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
