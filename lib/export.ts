@@ -235,8 +235,10 @@ export interface CustomerInvoicePdfData {
 
 // Customer-facing invoice PDF — separate from exportInvoicePdf above
 // (Paystack billing receipts), same dynamic-import jsPDF+autoTable
-// convention.
-export async function exportCustomerInvoicePdf(data: CustomerInvoicePdfData) {
+// convention. Returns the generated blob (in addition to still
+// triggering the browser download below, unchanged) so the caller can
+// optionally archive the same PDF to Cloud Storage.
+export async function exportCustomerInvoicePdf(data: CustomerInvoicePdfData): Promise<Blob> {
   const { default: jsPDF } = await import("jspdf");
   const { default: autoTable } = await import("jspdf-autotable");
 
@@ -299,6 +301,7 @@ export async function exportCustomerInvoicePdf(data: CustomerInvoicePdfData) {
   doc.text("Thank you for your business.", 14, y);
 
   doc.save(`${data.invoiceNumber}.pdf`);
+  return doc.output("blob");
 }
 
 export async function exportToPdf<T>(title: string, rows: T[], columns: ExportColumn<T>[], filename: string) {

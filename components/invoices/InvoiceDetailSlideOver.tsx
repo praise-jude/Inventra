@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useToast } from "@/components/app/ToastProvider";
 import { useWorkspace } from "@/components/app/CurrencyProvider";
 import { useEntitlementsContext } from "@/components/billing/EntitlementsProvider";
-import { updateInvoiceStatus, deleteInvoice } from "@/lib/actions/invoices";
+import { archiveInvoicePdf, deleteInvoice, getInvoicePdfArchiveUrl, updateInvoiceStatus } from "@/lib/actions/invoices";
 import { exportCustomerInvoicePdf } from "@/lib/export";
 import type { InvoiceDetail } from "@/lib/queries/invoices";
 import type { CustomerInvoiceStatus } from "@/lib/supabase/database.types";
@@ -42,6 +42,7 @@ export function InvoiceDetailSlideOver({
   const { isPremium, openUpgradeModal } = useEntitlementsContext();
   const [statusBusy, setStatusBusy] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [cloudBusy, setCloudBusy] = useState(false);
 
   async function handleStatusChange(status: string) {
     setStatusBusy(true);
@@ -76,7 +77,7 @@ export function InvoiceDetailSlideOver({
       openUpgradeModal();
       return;
     }
-    await exportCustomerInvoicePdf({
+    const blob = await exportCustomerInvoicePdf({
       orgName,
       invoiceNumber: invoice.invoiceNumber,
       issueDate: formatShortDate(invoice.issueDate),
@@ -93,6 +94,30 @@ export function InvoiceDetailSlideOver({
       notes: invoice.notes,
       formatMoney,
     });
+
+    // Best-effort cloud archive — the download above already happened;
+    // this just also keeps a durable copy so it can be re-fetched later
+    // without regenerating in the browser. Never blocks or surfaces an
+    // error for the download itself if this fails.
+    const formData = new FormData();
+    formData.append("file", blob, `${invoice.invoiceNumber}.pdf`);
+    archiveInvoicePdf(invoice.id, formData).catch(() => {});
+  }
+
+  async function handleViewCloudCopy() {
+    setCloudBusy(true);
+    try {
+      const url = await getInvoicePdfArchiveUrl(invoice.id);
+      if (!url) {
+        flash("No cloud copy yet — download the PDF first to create one.");
+        return;
+      }
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch {
+      flash("Could not reach the cloud copy right now.");
+    } finally {
+      setCloudBusy(false);
+    }
   }
 
   const facts = [
@@ -201,6 +226,14 @@ export function InvoiceDetailSlideOver({
             >
               Download PDF
               {!isPremium && <span className="rounded-full bg-white/25 px-1.5 py-px text-[9.5px] font-bold">PRO</span>}
+            </button>
+            <button
+              onClick={handleViewCloudCopy}
+              disabled={cloudBusy}
+              title="View the last downloaded copy archived to Cloud Storage"
+              className="h-9 rounded-[8px] border border-border bg-surface px-3.5 text-[13px] font-semibold text-text-2 hover:bg-hover disabled:opacity-60"
+            >
+              ☁️
             </button>
             {canManage && (
               <button

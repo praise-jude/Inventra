@@ -84,6 +84,22 @@ export async function getSignedReadUrl(path: string, expiresInMinutes = 15): Pro
   }
 }
 
+// getSignedUrl() signs a URL for a path regardless of whether an object
+// actually exists there yet — callers that offer a "view the archived
+// copy" action need this to tell "never archived" apart from "archived,
+// here's the link" before handing the user a URL that would 404.
+export async function fileExists(path: string): Promise<boolean> {
+  const config = getGoogleCloudConfig();
+  try {
+    const bucket = getClient().bucket(config.bucketName);
+    const [exists] = await withRetry(() => bucket.file(path).exists());
+    return exists;
+  } catch (err) {
+    console.error("[Inventra] fileExists (Google Cloud Storage) failed:", err);
+    throw new GoogleCloudStorageError("Could not check the file.");
+  }
+}
+
 export async function deleteFile(path: string): Promise<void> {
   const config = getGoogleCloudConfig();
   try {

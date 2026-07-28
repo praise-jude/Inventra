@@ -7,9 +7,10 @@
 // GOOGLE_CLOUD_STORAGE_BUCKET / GOOGLE_APPLICATION_CREDENTIALS are set in
 // .env.local, to confirm the bucket + service account are wired up
 // correctly before any real feature depends on it.
-import "dotenv/config";
-
+import dotenv from "dotenv";
 import { Storage } from "@google-cloud/storage";
+
+dotenv.config({ path: ".env.local" });
 
 async function main() {
   const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID;

@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/actions/audit";
 import { canAddInvoice, UpgradeRequiredError } from "@/lib/entitlements";
+import { isGoogleCloudConfigured } from "@/lib/google-cloud/config";
+import { fileExists, getSignedReadUrl, uploadFile } from "@/lib/google-cloud/storage";
 import { getInvoiceDetail, type InvoiceDetail } from "@/lib/queries/invoices";
 import type { CustomerInvoiceStatus } from "@/lib/supabase/database.types";
 
@@ -183,4 +185,39 @@ export async function deleteInvoice(id: string): Promise<void> {
     entityId: id,
     entityLabel: invoice?.invoice_number ?? id,
   });
+}
+
+function invoicePdfStoragePath(orgId: string, invoiceId: string): string {
+  return `${orgId}/invoices/${invoiceId}.pdf`;
+}
+
+// Best-effort archival of the client-generated invoice PDF to Cloud
+// Storage — called after the existing instant browser download
+// (InvoiceDetailSlideOver's handleDownload), never instead of it. If
+// Google Cloud isn't configured, or the upload fails, this throws and the
+// caller is expected to swallow the error: the download the user already
+// has is the real deliverable, archival is a bonus.
+export async function archiveInvoicePdf(invoiceId: string, formData: FormData): Promise<void> {
+  const { orgId } = await requireOrgId();
+  const file = formData.get("file");
+  if (!(file instanceof Blob)) throw new Error("No file provided.");
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  await uploadFile({ path: invoicePdfStoragePath(orgId, invoiceId), data: buffer, contentType: "application/pdf" });
+}
+
+// Returns null (never throws) when there's no archived copy yet or Cloud
+// Storage isn't configured — this is a "bonus" retrieval path, so the UI
+// should treat null as "nothing to show" rather than an error.
+export async function getInvoicePdfArchiveUrl(invoiceId: string): Promise<string | null> {
+  if (!isGoogleCloudConfigured()) return null;
+  const { orgId } = await requireOrgId();
+  const path = invoicePdfStoragePath(orgId, invoiceId);
+  try {
+    if (!(await fileExists(path))) return null;
+    return await getSignedReadUrl(path, 10);
+  } catch (err) {
+    console.error("[Inventra] getInvoicePdfArchiveUrl failed:", err);
+    return null;
+  }
 }
