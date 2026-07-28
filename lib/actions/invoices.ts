@@ -6,6 +6,7 @@ import { logAudit } from "@/lib/actions/audit";
 import { canAddInvoice, UpgradeRequiredError } from "@/lib/entitlements";
 import { isGoogleCloudConfigured } from "@/lib/google-cloud/config";
 import { fileExists, getSignedReadUrl, uploadFile } from "@/lib/google-cloud/storage";
+import { invoicePdfStoragePath } from "@/lib/invoice-pdf-storage-path";
 import { getInvoiceDetail, type InvoiceDetail } from "@/lib/queries/invoices";
 import type { CustomerInvoiceStatus } from "@/lib/supabase/database.types";
 
@@ -185,10 +186,6 @@ export async function deleteInvoice(id: string): Promise<void> {
     entityId: id,
     entityLabel: invoice?.invoice_number ?? id,
   });
-}
-
-function invoicePdfStoragePath(orgId: string, invoiceId: string): string {
-  return `${orgId}/invoices/${invoiceId}.pdf`;
 }
 
 // Best-effort archival of the client-generated invoice PDF to Cloud
