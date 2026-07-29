@@ -13,7 +13,7 @@ import type { ActivityRow } from "@/lib/queries/dashboard";
 import { getExpenseCategoryBreakdown } from "@/lib/queries/expenses";
 import { requireProfile } from "@/lib/queries/session";
 import { getTeamMembers } from "@/lib/queries/team";
-import { getWarehouseOptions } from "@/lib/queries/products";
+import { getWarehouseOptions, getProductsPage } from "@/lib/queries/products";
 import { getTodaysCashRegister } from "@/lib/queries/cash-register";
 import { getEntitlements } from "@/lib/entitlements";
 import { FreePlanBanner } from "@/components/billing/FreePlanBanner";
@@ -64,7 +64,7 @@ export default async function DashboardPage() {
   // reconciliation is core daily operations, not an analytics upsell.
   const defaultWarehouse = isAdminTier ? (await getWarehouseOptions())[0] : undefined;
 
-  const [kpis, categoryMix, topSellers, stockHealth, revenueProfit, salesVolume, expenseBreakdown, activity, dailyProfit, teamMembers, cashRegister] =
+  const [kpis, categoryMix, topSellers, stockHealth, revenueProfit, salesVolume, expenseBreakdown, activity, dailyProfit, teamMembers, cashRegister, outOfStock] =
     await Promise.all([
       getKpis(),
       showAnalytics ? getCategoryMix() : Promise.resolve([]),
@@ -77,6 +77,7 @@ export default async function DashboardPage() {
       showAnalytics ? getDailyProductProfit() : Promise.resolve([]),
       showAnalytics ? getTeamMembers() : Promise.resolve([]),
       defaultWarehouse ? getTodaysCashRegister(defaultWarehouse.id) : Promise.resolve(null),
+      getProductsPage({ status: "out_of_stock", active: "active" }, 1, 6),
     ]);
   const todaysProfit = dailyProfit.reduce((sum, p) => sum + (Number(p.profit) || 0), 0);
 
@@ -277,6 +278,43 @@ export default async function DashboardPage() {
           )}
         </Link>
       )}
+
+      {/* OUT OF STOCK */}
+      <div className="mb-4 rounded-2xl border border-border bg-surface p-[18px_20px] shadow-[var(--shadow-sm)]">
+        <div className="mb-3.5 flex items-center justify-between">
+          <div>
+            <div className="text-[15px] font-bold">Out of Stock ({formatNumber(kpis.out_of_stock_count)})</div>
+            <div className="text-[12.5px] text-muted">Products with zero units on hand</div>
+          </div>
+          {kpis.out_of_stock_count > 0 && (
+            <Link href="/products?status=out_of_stock" className="text-[12.5px] font-semibold text-accent-text">
+              View all
+            </Link>
+          )}
+        </div>
+        {kpis.out_of_stock_count === 0 ? (
+          <EmptyState compact icon="🎉" title="No products are currently out of stock" />
+        ) : (
+          <div className="flex flex-col gap-2">
+            {outOfStock.rows.map((p) => (
+              <Link
+                key={p.id}
+                href={`/products?open=${p.id}`}
+                className="flex items-center justify-between rounded-[10px] border border-border-2 bg-surface-2 px-3 py-2 hover:bg-hover"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[13px] font-semibold">{p.name}</div>
+                  <div className="text-[11px] text-muted">
+                    {p.sku}
+                    {p.category ? ` · ${p.category}` : ""}
+                  </div>
+                </div>
+                <span className="rounded-[6px] bg-red-weak px-1.5 py-px text-[11px] font-bold text-red">0 in stock</span>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* TREND ROW */}
       {showAnalytics && (
