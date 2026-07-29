@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useToast } from "@/components/app/ToastProvider";
 import { useWorkspace } from "@/components/app/CurrencyProvider";
@@ -30,17 +30,54 @@ const STATUS_LABEL: Record<string, string> = {
   cancelled: "Cancelled",
 };
 
-export function DebtorsClient({ overview, canDelete }: { overview: DebtorsOverview; canDelete: boolean }) {
+interface DebtorsFiltersState {
+  q: string;
+  status: string;
+}
+
+export function DebtorsClient({
+  overview,
+  page,
+  pageSize,
+  canDelete,
+  filters,
+}: {
+  overview: DebtorsOverview;
+  page: number;
+  pageSize: number;
+  canDelete: boolean;
+  filters: DebtorsFiltersState;
+}) {
   const router = useRouter();
+  const pathname = usePathname();
   const flash = useToast();
   const { format: formatMoney, formatShortDate } = useWorkspace();
-  const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [search, setSearch] = useState(filters.q);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [modalDebtor, setModalDebtor] = useState<DebtorRow | null | undefined>(undefined);
   const [detail, setDetail] = useState<DebtorDetail | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [statusBusyId, setStatusBusyId] = useState<string | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
+
+  function pushParams(next: Partial<DebtorsFiltersState & { page: number }>) {
+    const merged = { ...filters, page: 1, ...next };
+    const params = new URLSearchParams();
+    if (merged.q) params.set("q", merged.q);
+    if (merged.status) params.set("status", merged.status);
+    if (merged.page && merged.page > 1) params.set("page", String(merged.page));
+    router.push(`${pathname}?${params.toString()}`);
+  }
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (search === filters.q) return;
+    debounceRef.current = setTimeout(() => pushParams({ q: search }), 300);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
 
   const handleStatusChange = useCallback(
     async (debtor: DebtorRow, status: string) => {
@@ -57,15 +94,6 @@ export function DebtorsClient({ overview, canDelete }: { overview: DebtorsOvervi
     },
     [flash, router],
   );
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return overview.debtors.filter((d) => {
-      if (statusFilter && d.status !== statusFilter) return false;
-      if (!q) return true;
-      return d.customerName.toLowerCase().includes(q) || (d.phone ?? "").includes(q) || (d.email ?? "").toLowerCase().includes(q);
-    });
-  }, [overview.debtors, query, statusFilter]);
 
   const cards = [
     { label: "Total Outstanding", value: formatMoney(overview.totalOutstanding), icon: "💰", bg: "var(--accent-weak)" },
@@ -114,12 +142,10 @@ export function DebtorsClient({ overview, canDelete }: { overview: DebtorsOvervi
     router.refresh();
   }
 
-  const columns: TableColumn<DebtorRow>[] = useMemo(() => [
+  const columns: TableColumn<DebtorRow>[] = [
     {
       key: "customer",
       header: "Customer",
-      sortable: true,
-      sortValue: (d) => d.customerName,
       render: (d) => (
         <div>
           <div className="text-[13.5px] font-semibold">{d.customerName}</div>
@@ -131,22 +157,16 @@ export function DebtorsClient({ overview, canDelete }: { overview: DebtorsOvervi
       key: "amount",
       header: "Amount owed",
       align: "right",
-      sortable: true,
-      sortValue: (d) => d.amountOwed,
       render: (d) => <span className="font-mono text-[13px] font-bold">{formatMoney(d.amountOwed)}</span>,
     },
     {
       key: "dueDate",
       header: "Due date",
-      sortable: true,
-      sortValue: (d) => d.dueDate ?? "",
       render: (d) => <span className="text-[12.5px] text-text-2">{d.dueDate ? formatShortDate(d.dueDate) : "—"}</span>,
     },
     {
       key: "status",
       header: "Status",
-      sortable: true,
-      sortValue: (d) => d.status,
       render: (d) => (
         <select
           value={d.status}
@@ -192,7 +212,9 @@ export function DebtorsClient({ overview, canDelete }: { overview: DebtorsOvervi
         </div>
       ),
     },
-  ], [formatMoney, formatShortDate, statusBusyId, handleStatusChange, busyId, canDelete, handleDelete]);
+  ];
+
+  const pageCount = Math.max(1, Math.ceil(overview.total / pageSize));
 
   return (
     <div className="animate-fade-up">
@@ -227,15 +249,15 @@ export function DebtorsClient({ overview, canDelete }: { overview: DebtorsOvervi
         <div className="flex h-[37px] min-w-[200px] flex-1 items-center gap-2 rounded-[9px] border border-border bg-surface px-3 text-muted">
           <span>⌕</span>
           <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by name, phone, email…"
             className="flex-1 border-none bg-transparent text-[13px] text-text outline-none"
           />
         </div>
         <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          value={filters.status}
+          onChange={(e) => pushParams({ status: e.target.value })}
           className="h-[37px] rounded-[9px] border border-border bg-surface px-3 text-[13px] text-text-2"
         >
           <option value="">All statuses</option>
@@ -249,10 +271,10 @@ export function DebtorsClient({ overview, canDelete }: { overview: DebtorsOvervi
 
       <Table
         columns={columns}
-        rows={filtered}
+        rows={overview.rows}
         rowKey={(d) => d.id}
         onRowClick={(d) => openDetail(d.id)}
-        pageSize={20}
+        pageSize={Math.max(pageSize, overview.rows.length)}
         selectable={canDelete}
         bulkActions={
           canDelete
@@ -269,6 +291,30 @@ export function DebtorsClient({ overview, canDelete }: { overview: DebtorsOvervi
         }
         emptyState={<EmptyState compact icon="💵" title="No debtors match your search" description="Try adjusting your search or filters." />}
       />
+
+      {pageCount > 1 && (
+        <div className="mt-3 flex items-center justify-between text-[12.5px] text-muted">
+          <span>
+            Page {page} of {pageCount} · {overview.total} total
+          </span>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => pushParams({ page: page - 1 })}
+              disabled={page <= 1}
+              className="flex h-8 items-center justify-center rounded-[7px] border border-border bg-surface px-3 disabled:cursor-not-allowed disabled:opacity-40 hover:bg-hover"
+            >
+              ‹ Prev
+            </button>
+            <button
+              onClick={() => pushParams({ page: page + 1 })}
+              disabled={page >= pageCount}
+              className="flex h-8 items-center justify-center rounded-[7px] border border-border bg-surface px-3 disabled:cursor-not-allowed disabled:opacity-40 hover:bg-hover"
+            >
+              Next ›
+            </button>
+          </div>
+        </div>
+      )}
 
       {modalDebtor !== undefined && <DebtorModal debtor={modalDebtor ?? undefined} onClose={() => setModalDebtor(undefined)} />}
       {detail && <DebtorDetailSlideOver debtor={detail} onClose={() => setDetail(null)} />}

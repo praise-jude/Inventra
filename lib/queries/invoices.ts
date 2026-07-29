@@ -12,40 +12,72 @@ export interface InvoiceRow {
   total: number;
 }
 
+export interface InvoicesPageFilters {
+  search?: string;
+  status?: CustomerInvoiceStatus;
+}
+
 export interface InvoicesOverview {
   totalOutstanding: number;
   totalPaid: number;
   overdueCount: number;
   invoiceCount: number;
-  invoices: InvoiceRow[];
+  rows: InvoiceRow[];
+  total: number;
 }
 
 const OUTSTANDING_STATUSES: CustomerInvoiceStatus[] = ["sent", "overdue"];
 
-export async function getInvoicesOverview(): Promise<InvoicesOverview> {
+// Was an unbounded `.select()` with no limit, same issue as
+// getDebtorsOverview. Summary cards (Total Outstanding, overdue count,
+// invoice count) come from a lightweight full-table scan of just
+// status/total, independent of the paginated/filtered row list below —
+// otherwise "Total Outstanding" would silently only reflect whatever
+// page happens to be showing.
+export async function getInvoicesOverview(
+  filters: InvoicesPageFilters,
+  page = 1,
+  pageSize = 20,
+): Promise<InvoicesOverview> {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("customer_invoices")
-    .select("id, invoice_number, customer_name, status, issue_date, due_date, total")
-    .order("created_at", { ascending: false });
-  if (error) {
-    console.error("[Inventra] getInvoicesOverview failed:", error);
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  const { data: allForTotals, error: totalsError } = await supabase.from("customer_invoices").select("status, total");
+  if (totalsError) {
+    console.error("[Inventra] getInvoicesOverview (totals) failed:", totalsError);
     throw new Error("Could not load invoices.");
   }
-
-  const rows = data ?? [];
-  const totalOutstanding = rows
+  const totalsRows = allForTotals ?? [];
+  const totalOutstanding = totalsRows
     .filter((r) => OUTSTANDING_STATUSES.includes(r.status as CustomerInvoiceStatus))
     .reduce((sum, r) => sum + Number(r.total), 0);
-  const totalPaid = rows.filter((r) => r.status === "paid").reduce((sum, r) => sum + Number(r.total), 0);
-  const overdueCount = rows.filter((r) => r.status === "overdue").length;
+  const totalPaid = totalsRows.filter((r) => r.status === "paid").reduce((sum, r) => sum + Number(r.total), 0);
+  const overdueCount = totalsRows.filter((r) => r.status === "overdue").length;
+
+  let query = supabase
+    .from("customer_invoices")
+    .select("id, invoice_number, customer_name, status, issue_date, due_date, total", { count: "exact" })
+    .order("created_at", { ascending: false });
+  if (filters.search?.trim()) {
+    const q = filters.search.trim().replace(/[%_]/g, "");
+    query = query.or(`invoice_number.ilike.%${q}%,customer_name.ilike.%${q}%`);
+  }
+  if (filters.status) query = query.eq("status", filters.status);
+
+  const { data, error, count } = await query.range(from, to);
+  if (error) {
+    console.error("[Inventra] getInvoicesOverview (page) failed:", error);
+    throw new Error("Could not load invoices.");
+  }
 
   return {
     totalOutstanding,
     totalPaid,
     overdueCount,
-    invoiceCount: rows.length,
-    invoices: rows.map((r) => ({
+    invoiceCount: totalsRows.length,
+    total: count ?? 0,
+    rows: (data ?? []).map((r) => ({
       id: r.id,
       invoiceNumber: r.invoice_number,
       customerName: r.customer_name,

@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useToast } from "@/components/app/ToastProvider";
 import { useWorkspace } from "@/components/app/CurrencyProvider";
@@ -29,32 +30,55 @@ const STATUS_LABEL: Record<string, string> = {
   void: "Void",
 };
 
+interface InvoicesFiltersState {
+  q: string;
+  status: string;
+}
+
 export function InvoicesClient({
   overview,
   products,
   orgName,
   canManage,
+  page,
+  pageSize,
+  filters,
 }: {
   overview: InvoicesOverview;
   products: InvoiceProductOption[];
   orgName: string;
   canManage: boolean;
+  page: number;
+  pageSize: number;
+  filters: InvoicesFiltersState;
 }) {
+  const router = useRouter();
+  const pathname = usePathname();
   const flash = useToast();
   const { format: formatMoney, formatShortDate } = useWorkspace();
-  const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [search, setSearch] = useState(filters.q);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [detail, setDetail] = useState<InvoiceDetail | null>(null);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return overview.invoices.filter((i) => {
-      if (statusFilter && i.status !== statusFilter) return false;
-      if (!q) return true;
-      return i.customerName.toLowerCase().includes(q) || i.invoiceNumber.toLowerCase().includes(q);
-    });
-  }, [overview.invoices, query, statusFilter]);
+  function pushParams(next: Partial<InvoicesFiltersState & { page: number }>) {
+    const merged = { ...filters, page: 1, ...next };
+    const params = new URLSearchParams();
+    if (merged.q) params.set("q", merged.q);
+    if (merged.status) params.set("status", merged.status);
+    if (merged.page && merged.page > 1) params.set("page", String(merged.page));
+    router.push(`${pathname}?${params.toString()}`);
+  }
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (search === filters.q) return;
+    debounceRef.current = setTimeout(() => pushParams({ q: search }), 300);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
 
   const cards = [
     { label: "Total Outstanding", value: formatMoney(overview.totalOutstanding), icon: "💰", bg: "var(--accent-weak)" },
@@ -72,52 +96,43 @@ export function InvoicesClient({
     }
   }
 
-  const columns: TableColumn<InvoiceRow>[] = useMemo(
-    () => [
-      {
-        key: "customer",
-        header: "Customer",
-        sortable: true,
-        sortValue: (i) => i.customerName,
-        render: (i) => (
-          <div>
-            <div className="text-[13.5px] font-semibold">{i.customerName}</div>
-            <div className="font-mono text-[11.5px] text-muted">{i.invoiceNumber}</div>
-          </div>
-        ),
-      },
-      {
-        key: "total",
-        header: "Total",
-        align: "right",
-        sortable: true,
-        sortValue: (i) => i.total,
-        render: (i) => <span className="font-mono text-[13px] font-bold">{formatMoney(i.total)}</span>,
-      },
-      {
-        key: "dueDate",
-        header: "Due date",
-        sortable: true,
-        sortValue: (i) => i.dueDate ?? "",
-        render: (i) => <span className="text-[12.5px] text-text-2">{i.dueDate ? formatShortDate(i.dueDate) : "—"}</span>,
-      },
-      {
-        key: "status",
-        header: "Status",
-        sortable: true,
-        sortValue: (i) => i.status,
-        render: (i) => (
-          <span
-            className="inline-flex items-center gap-1.5 rounded-[20px] px-[9px] py-px text-[11.5px] font-bold"
-            style={STATUS_STYLE[i.status]}
-          >
-            {STATUS_LABEL[i.status]}
-          </span>
-        ),
-      },
-    ],
-    [formatMoney, formatShortDate],
-  );
+  const columns: TableColumn<InvoiceRow>[] = [
+    {
+      key: "customer",
+      header: "Customer",
+      render: (i) => (
+        <div>
+          <div className="text-[13.5px] font-semibold">{i.customerName}</div>
+          <div className="font-mono text-[11.5px] text-muted">{i.invoiceNumber}</div>
+        </div>
+      ),
+    },
+    {
+      key: "total",
+      header: "Total",
+      align: "right",
+      render: (i) => <span className="font-mono text-[13px] font-bold">{formatMoney(i.total)}</span>,
+    },
+    {
+      key: "dueDate",
+      header: "Due date",
+      render: (i) => <span className="text-[12.5px] text-text-2">{i.dueDate ? formatShortDate(i.dueDate) : "—"}</span>,
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (i) => (
+        <span
+          className="inline-flex items-center gap-1.5 rounded-[20px] px-[9px] py-px text-[11.5px] font-bold"
+          style={STATUS_STYLE[i.status]}
+        >
+          {STATUS_LABEL[i.status]}
+        </span>
+      ),
+    },
+  ];
+
+  const pageCount = Math.max(1, Math.ceil(overview.total / pageSize));
 
   return (
     <div className="animate-fade-up">
@@ -152,15 +167,15 @@ export function InvoicesClient({
         <div className="flex h-[37px] min-w-[200px] flex-1 items-center gap-2 rounded-[9px] border border-border bg-surface px-3 text-muted">
           <span>⌕</span>
           <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by customer or invoice number…"
             className="flex-1 border-none bg-transparent text-[13px] text-text outline-none"
           />
         </div>
         <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          value={filters.status}
+          onChange={(e) => pushParams({ status: e.target.value })}
           className="h-[37px] rounded-[9px] border border-border bg-surface px-3 text-[13px] text-text-2"
         >
           <option value="">All statuses</option>
@@ -174,12 +189,36 @@ export function InvoicesClient({
 
       <Table
         columns={columns}
-        rows={filtered}
+        rows={overview.rows}
         rowKey={(i) => i.id}
         onRowClick={(i) => openDetail(i.id)}
-        pageSize={20}
+        pageSize={Math.max(pageSize, overview.rows.length)}
         emptyState={<EmptyState compact icon="📄" title="No invoices match your search" description="Try adjusting your search or filters." />}
       />
+
+      {pageCount > 1 && (
+        <div className="mt-3 flex items-center justify-between text-[12.5px] text-muted">
+          <span>
+            Page {page} of {pageCount} · {overview.total} total
+          </span>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => pushParams({ page: page - 1 })}
+              disabled={page <= 1}
+              className="flex h-8 items-center justify-center rounded-[7px] border border-border bg-surface px-3 disabled:cursor-not-allowed disabled:opacity-40 hover:bg-hover"
+            >
+              ‹ Prev
+            </button>
+            <button
+              onClick={() => pushParams({ page: page + 1 })}
+              disabled={page >= pageCount}
+              className="flex h-8 items-center justify-center rounded-[7px] border border-border bg-surface px-3 disabled:cursor-not-allowed disabled:opacity-40 hover:bg-hover"
+            >
+              Next ›
+            </button>
+          </div>
+        </div>
+      )}
 
       {showCreate && <InvoiceModal products={products} onClose={() => setShowCreate(false)} />}
       {detail && <InvoiceDetailSlideOver invoice={detail} orgName={orgName} canManage={canManage} onClose={() => setDetail(null)} />}

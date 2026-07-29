@@ -22,43 +22,83 @@ export interface DebtorRow {
   status: DebtorStatus;
 }
 
+export interface DebtorsPageFilters {
+  search?: string;
+  status?: DebtorStatus;
+}
+
 export interface DebtorsOverview {
   totalOutstanding: number;
   totalPaid: number;
   overdueAmount: number;
   debtorCount: number;
-  debtors: DebtorRow[];
+  rows: DebtorRow[];
+  total: number;
 }
 
-export async function getDebtorsOverview(): Promise<DebtorsOverview> {
+// Was an unbounded `.select()` with no limit — fine while every org had a
+// handful of debtors, not fine at real scale. Now server-paginated like
+// getSalesPage/getAuditLogs. The summary cards (Total Outstanding, Overdue
+// Amount, debtor count) still need to reflect *every* debtor, not just the
+// current page, so they're computed from a separate lightweight scan
+// (amount_owed/status/due_date only, not the full row) rather than derived
+// from the paginated rows.
+export async function getDebtorsOverview(
+  filters: DebtorsPageFilters,
+  page = 1,
+  pageSize = 20,
+): Promise<DebtorsOverview> {
   const supabase = await createClient();
-  const [{ data: debtors, error: debError }, { data: totalPaidRaw, error: payError }] = await Promise.all([
-    supabase
-      .from("debtors")
-      .select("id, customer_name, phone, email, notes, amount_owed, due_date, status")
-      .order("created_at", { ascending: false }),
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  const [{ data: allForTotals, error: totalsError }, { data: totalPaidRaw, error: payError }] = await Promise.all([
+    supabase.from("debtors").select("amount_owed, status, due_date"),
     supabase.rpc("get_debtor_payments_total"),
   ]);
-  if (debError) {
-    console.error("[Inventra] getDebtorsOverview (debtors) failed:", debError);
+  if (totalsError) {
+    console.error("[Inventra] getDebtorsOverview (totals) failed:", totalsError);
     throw new Error("Could not load debtors.");
   }
   if (payError) {
     console.error("[Inventra] getDebtorsOverview (payments) failed:", payError);
     throw new Error("Could not load debtors.");
   }
+  const withStatus = (allForTotals ?? []).map((d) => ({ ...d, status: effectiveStatus(d.status, d.due_date) }));
+  const totalOutstanding = withStatus.filter((d) => d.status !== "cancelled").reduce((s, d) => s + Number(d.amount_owed), 0);
+  const overdueAmount = withStatus.filter((d) => d.status === "overdue").reduce((s, d) => s + Number(d.amount_owed), 0);
 
-  const rows = (debtors ?? []).map((d) => ({ ...d, status: effectiveStatus(d.status, d.due_date) }));
-  const totalOutstanding = rows.filter((d) => d.status !== "cancelled").reduce((s, d) => s + Number(d.amount_owed), 0);
-  const overdueAmount = rows.filter((d) => d.status === "overdue").reduce((s, d) => s + Number(d.amount_owed), 0);
-  const totalPaid = Number(totalPaidRaw ?? 0);
+  let query = supabase
+    .from("debtors")
+    .select("id, customer_name, phone, email, notes, amount_owed, due_date, status", { count: "exact" })
+    .order("created_at", { ascending: false });
+  if (filters.search?.trim()) {
+    const q = filters.search.trim().replace(/[%_]/g, "");
+    query = query.or(`customer_name.ilike.%${q}%,phone.ilike.%${q}%,email.ilike.%${q}%`);
+  }
+  if (filters.status === "overdue") {
+    // "overdue" isn't a stored value — it's pending/partially_paid past
+    // due_date, derived at read time (effectiveStatus above) so nothing
+    // has to flip it via a cron. Matches that same rule as a query filter.
+    const today = new Date().toISOString().slice(0, 10);
+    query = query.in("status", ["pending", "partially_paid"]).lt("due_date", today);
+  } else if (filters.status) {
+    query = query.eq("status", filters.status);
+  }
+
+  const { data, error, count } = await query.range(from, to);
+  if (error) {
+    console.error("[Inventra] getDebtorsOverview (page) failed:", error);
+    throw new Error("Could not load debtors.");
+  }
 
   return {
     totalOutstanding,
-    totalPaid,
+    totalPaid: Number(totalPaidRaw ?? 0),
     overdueAmount,
-    debtorCount: rows.length,
-    debtors: rows.map((d) => ({
+    debtorCount: withStatus.length,
+    total: count ?? 0,
+    rows: (data ?? []).map((d) => ({
       id: d.id,
       customerName: d.customer_name,
       phone: d.phone,
@@ -66,7 +106,7 @@ export async function getDebtorsOverview(): Promise<DebtorsOverview> {
       notes: d.notes,
       amountOwed: Number(d.amount_owed),
       dueDate: d.due_date,
-      status: d.status,
+      status: effectiveStatus(d.status, d.due_date),
     })),
   };
 }
