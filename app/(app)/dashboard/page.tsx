@@ -13,6 +13,8 @@ import type { ActivityRow } from "@/lib/queries/dashboard";
 import { getExpenseCategoryBreakdown } from "@/lib/queries/expenses";
 import { requireProfile } from "@/lib/queries/session";
 import { getTeamMembers } from "@/lib/queries/team";
+import { getWarehouseOptions } from "@/lib/queries/products";
+import { getTodaysCashRegister } from "@/lib/queries/cash-register";
 import { getEntitlements } from "@/lib/entitlements";
 import { FreePlanBanner } from "@/components/billing/FreePlanBanner";
 import { AreaChart } from "@/components/charts/AreaChart";
@@ -58,7 +60,11 @@ export default async function DashboardPage() {
   // charts/trends/breakdowns: category mix, revenue/profit trend, sales
   // volume, expense breakdown, daily profit table, team presence.
   const showAnalytics = isAdminTier && isPremium;
-  const [kpis, categoryMix, topSellers, stockHealth, revenueProfit, salesVolume, expenseBreakdown, activity, dailyProfit, teamMembers] =
+  // Not premium-gated (unlike showAnalytics's other sections) — cash
+  // reconciliation is core daily operations, not an analytics upsell.
+  const defaultWarehouse = isAdminTier ? (await getWarehouseOptions())[0] : undefined;
+
+  const [kpis, categoryMix, topSellers, stockHealth, revenueProfit, salesVolume, expenseBreakdown, activity, dailyProfit, teamMembers, cashRegister] =
     await Promise.all([
       getKpis(),
       showAnalytics ? getCategoryMix() : Promise.resolve([]),
@@ -70,6 +76,7 @@ export default async function DashboardPage() {
       getRecentActivity(5),
       showAnalytics ? getDailyProductProfit() : Promise.resolve([]),
       showAnalytics ? getTeamMembers() : Promise.resolve([]),
+      defaultWarehouse ? getTodaysCashRegister(defaultWarehouse.id) : Promise.resolve(null),
     ]);
   const todaysProfit = dailyProfit.reduce((sum, p) => sum + (Number(p.profit) || 0), 0);
 
@@ -233,6 +240,42 @@ export default async function DashboardPage() {
             </div>
           ))}
         </div>
+      )}
+
+      {/* CASH REGISTER */}
+      {isAdminTier && defaultWarehouse && (
+        <Link
+          href="/cash-register"
+          className="mb-4 flex items-center justify-between rounded-2xl border border-border bg-surface p-[15px_18px] shadow-[var(--shadow-sm)] hover:bg-hover"
+        >
+          <div className="flex items-center gap-3">
+            <span
+              aria-hidden="true"
+              className="flex h-9 w-9 items-center justify-center rounded-[9px] text-[16px]"
+              style={{ background: cashRegister?.register?.status === "open" ? "var(--green-weak)" : "var(--red-weak)" }}
+            >
+              🧮
+            </span>
+            <div>
+              <div className="text-[13.5px] font-bold">
+                {cashRegister?.register?.status === "open" ? "🟢 Business day open" : cashRegister?.register?.status === "closed" ? "🔴 Business day closed" : "🔴 Business day not opened"}
+              </div>
+              <div className="text-[11.5px] text-muted">{defaultWarehouse.name} · Cash Register</div>
+            </div>
+          </div>
+          {cashRegister?.register && (
+            <div className="text-right">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted">
+                {cashRegister.register.status === "open" ? "Expected now" : "Difference"}
+              </div>
+              <div className="font-mono text-[15px] font-bold">
+                {cashRegister.register.status === "open"
+                  ? formatMoney(cashRegister.register.openingBalance + cashRegister.cashSalesSoFar, org.currency)
+                  : formatMoney(cashRegister.register.difference ?? 0, org.currency)}
+              </div>
+            </div>
+          )}
+        </Link>
       )}
 
       {/* TREND ROW */}
