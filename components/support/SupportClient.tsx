@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Mail, MessageCircle, Copy, Check } from "lucide-react";
 import { useToast } from "@/components/app/ToastProvider";
+import { logSupportContact } from "@/lib/actions/support";
 
 const CONTACTS = [
   {
@@ -23,10 +24,11 @@ export function SupportClient() {
   const flash = useToast();
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  async function handleCopy(id: string, value: string) {
+  async function handleCopy(id: string, value: string, label: string) {
     await navigator.clipboard.writeText(value);
     setCopiedId(id);
     flash("Copied to clipboard");
+    void logSupportContact(label);
     setTimeout(() => setCopiedId((current) => (current === id ? null : current)), 2000);
   }
 
@@ -49,7 +51,7 @@ export function SupportClient() {
               <div className="mb-3.5 break-all font-mono text-[14px] font-semibold text-text">{contact.value}</div>
               <button
                 type="button"
-                onClick={() => handleCopy(contact.id, contact.value)}
+                onClick={() => handleCopy(contact.id, contact.value, contact.label)}
                 className="flex h-9 items-center gap-1.5 rounded-[9px] border border-border bg-surface px-3 text-[12.5px] font-semibold text-text hover:bg-hover"
               >
                 {copied ? <Check size={14} /> : <Copy size={14} />}
