@@ -11,7 +11,7 @@ const LINKS = [
   { href: "#dashboard", label: "Product" },
   { href: "#pricing", label: "Pricing" },
   { href: "#faq", label: "FAQ" },
-  { href: "/download", label: "Download App" },
+  { href: "/download", label: "Downloads" },
 ];
 
 export function Navbar({ initialTheme }: { initialTheme: "light" | "dark" }) {
