@@ -29,8 +29,7 @@ const TESTIMONIALS = [
   {
     name: "Daniel Osei",
     role: "Operations Lead, Osei Electronics",
-    quote:
-      "Barcode scanning and the offline POS mean we never stop selling, even when the network drops.",
+    quote: "Barcode scanning makes checkout so much faster — we've cut our average sale time in half.",
     rating: 4,
   },
 ];
@@ -52,7 +51,8 @@ export function Testimonials() {
           <h2 className="text-[32px] font-extrabold tracking-tight text-text sm:text-[40px]">
             Loved by business owners
           </h2>
-          <p className="mt-4 text-[16px] text-text-2">Real results from teams running on Inventra.</p>
+          <p className="mt-4 text-[16px] text-text-2">What running your business on Inventra looks like.</p>
+          <p className="mt-1 text-[12px] text-faint">Illustrative examples — not verified customer quotes.</p>
         </div>
 
         <div className="relative mt-12">

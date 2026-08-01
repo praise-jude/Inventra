@@ -50,8 +50,8 @@ export function MobileShowcase() {
             Your business, in your pocket
           </h2>
           <p className="mt-4 max-w-md text-[16px] leading-relaxed text-text-2">
-            Ring up sales, scan barcodes, and check stock from anywhere with the Inventra mobile
-            app — online or offline.
+            Ring up sales, scan barcodes, and check stock from anywhere with the Royal Inventra
+            mobile app for Android.
           </p>
           <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3">
             {FEATURE_CHIPS.map(({ icon: Icon, label }) => (

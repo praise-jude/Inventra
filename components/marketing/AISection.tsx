@@ -1,4 +1,4 @@
-import { Sparkles, TrendingUp, Boxes, Lightbulb, LineChart, PackageSearch, MessageSquareText } from "lucide-react";
+import { Sparkles, TrendingUp, Boxes, Lightbulb, LineChart, PackageSearch, Gauge } from "lucide-react";
 import { MotionSection } from "./MotionSection";
 
 const AI_FEATURES = [
@@ -7,7 +7,7 @@ const AI_FEATURES = [
   { icon: Lightbulb, title: "Business insights", desc: "Plain-language summaries of what's driving your numbers." },
   { icon: LineChart, title: "Profit recommendations", desc: "Get suggestions on pricing and slow-moving stock." },
   { icon: PackageSearch, title: "Demand forecasting", desc: "Plan purchasing around seasonal and local demand shifts." },
-  { icon: MessageSquareText, title: "Natural language reports", desc: "Ask \"how did we do this month?\" and get a real answer." },
+  { icon: Gauge, title: "Business health score", desc: "A single score that tracks inventory, profit, sales growth, and cash flow." },
 ];
 
 export function AISection() {
