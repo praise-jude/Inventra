@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Star, ChevronLeft, ChevronRight, Quote } from "lucide-react";
+import { MotionSection } from "./MotionSection";
 
 const TESTIMONIALS = [
   {
@@ -55,8 +56,8 @@ export function Testimonials() {
           <p className="mt-1 text-[12px] text-faint">Illustrative examples — not verified customer quotes.</p>
         </div>
 
-        <div className="relative mt-12">
-          <div className="overflow-hidden rounded-2xl border border-border bg-surface p-8 shadow-[var(--shadow)] sm:p-10">
+        <MotionSection className="relative mt-12">
+          <div className="overflow-hidden rounded-2xl border border-border bg-surface/70 p-8 shadow-[var(--shadow)] backdrop-blur transition-shadow duration-300 hover:shadow-lg sm:p-10">
             <Quote className="text-accent/25" size={36} aria-hidden="true" />
             <AnimatePresence mode="wait">
               <motion.div
@@ -118,7 +119,7 @@ export function Testimonials() {
               <ChevronRight size={16} />
             </button>
           </div>
-        </div>
+        </MotionSection>
       </div>
     </section>
   );

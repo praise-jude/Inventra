@@ -7,6 +7,11 @@ import {
   Cpu,
   Shirt,
   Printer,
+  BedDouble,
+  Factory,
+  GraduationCap,
+  HeartPulse,
+  Boxes,
 } from "lucide-react";
 
 const INDUSTRIES = [
@@ -18,6 +23,11 @@ const INDUSTRIES = [
   { label: "Electronics", icon: Cpu },
   { label: "Fashion", icon: Shirt },
   { label: "Printing", icon: Printer },
+  { label: "Hotels", icon: BedDouble },
+  { label: "Manufacturing", icon: Factory },
+  { label: "Schools", icon: GraduationCap },
+  { label: "Hospitals", icon: HeartPulse },
+  { label: "Wholesale", icon: Boxes },
 ];
 
 export function TrustedBy() {

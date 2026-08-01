@@ -1,7 +1,20 @@
-import Link from "next/link";
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { ArrowRight, CalendarCheck } from "lucide-react";
+import { ConfettiBurst } from "./ConfettiBurst";
 
 export function CTA() {
+  const router = useRouter();
+  const [confettiActive, setConfettiActive] = useState(false);
+
+  function handleStartFree(e: React.MouseEvent<HTMLAnchorElement>) {
+    e.preventDefault();
+    setConfettiActive(true);
+    setTimeout(() => router.push("/signup"), 550);
+  }
+
   return (
     <section className="relative mx-auto max-w-7xl overflow-hidden px-5 py-20 sm:px-8">
       <div className="relative isolate overflow-hidden rounded-[28px] px-6 py-16 text-center sm:px-16 sm:py-20">
@@ -24,18 +37,20 @@ export function CTA() {
           Ready to Grow Your Business?
         </h2>
         <p className="mx-auto mt-4 max-w-lg text-[16px] leading-relaxed text-white/85">
-          Join thousands of businesses already running smarter with Inventra. Get started in
-          minutes — no credit card required.
+          Join the businesses already running smarter with Inventra. Get started in minutes — no
+          credit card required.
         </p>
-        <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
-          <Link
+        <div className="relative mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <ConfettiBurst active={confettiActive} />
+          <a
             href="/signup"
+            onClick={handleStartFree}
             className="inline-flex h-[52px] items-center justify-center gap-2 rounded-[10px] bg-white px-6 text-[15px] font-bold shadow-[var(--shadow-lg)] transition-transform hover:-translate-y-0.5"
             style={{ color: "#0f766e" }}
           >
             Start Free Trial
             <ArrowRight size={17} />
-          </Link>
+          </a>
           <a
             href="#dashboard"
             className="inline-flex h-[52px] items-center justify-center gap-2 rounded-[10px] border border-white/30 bg-white/10 px-6 text-[15px] font-semibold text-white backdrop-blur transition-transform hover:-translate-y-0.5"

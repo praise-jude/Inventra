@@ -10,14 +10,16 @@ import { WhyInventra } from "./WhyInventra";
 import { AISection } from "./AISection";
 import { CTA } from "./CTA";
 import { Footer } from "./Footer";
+import { getPublicPlatformStats } from "@/lib/queries/platform-stats";
 
 const Pricing = dynamic(() => import("./Pricing").then((m) => m.Pricing));
 const Testimonials = dynamic(() => import("./Testimonials").then((m) => m.Testimonials));
+const SuccessStories = dynamic(() => import("./SuccessStories").then((m) => m.SuccessStories));
 const Stats = dynamic(() => import("./Stats").then((m) => m.Stats));
 const FAQ = dynamic(() => import("./FAQ").then((m) => m.FAQ));
 
 export async function LandingPage() {
-  const cookieStore = await cookies();
+  const [cookieStore, stats] = await Promise.all([cookies(), getPublicPlatformStats()]);
   const initialTheme = cookieStore.get("theme")?.value === "dark" ? "dark" : "light";
 
   return (
@@ -31,9 +33,10 @@ export async function LandingPage() {
         <MobileShowcase />
         <WhyInventra />
         <AISection />
-        <Stats />
+        <Stats stats={stats} />
         <Pricing />
         <Testimonials />
+        <SuccessStories />
         <FAQ />
         <CTA />
       </main>
