@@ -3,6 +3,7 @@ import { requireProfile } from "@/lib/queries/session";
 import { getKpis } from "@/lib/queries/dashboard";
 import { getPendingApprovalsCount } from "@/lib/queries/team";
 import { getEntitlements } from "@/lib/entitlements";
+import { createClient } from "@/lib/supabase/server";
 import { ToastProvider } from "@/components/app/ToastProvider";
 import { WorkspaceProvider } from "@/components/app/CurrencyProvider";
 import { PresenceProvider } from "@/components/app/PresenceProvider";
@@ -11,10 +12,12 @@ import { Shell } from "@/components/app/Shell";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { profile, org } = await requireProfile();
-  const [kpis, entitlements, teamBadge] = await Promise.all([
+  const supabase = await createClient();
+  const [kpis, entitlements, teamBadge, canViewSupplyRecords] = await Promise.all([
     getKpis(),
     getEntitlements(),
     getPendingApprovalsCount(profile.role, profile.branch_id),
+    supabase.rpc("has_permission", { p_module: "supply_records", p_action: "view" }).then((r) => r.data === true),
   ]);
   const cookieStore = await cookies();
   const initialTheme = cookieStore.get("theme")?.value === "dark" ? "dark" : "light";
@@ -38,6 +41,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               tier={entitlements.tier}
               inventoryBadge={inventoryBadge}
               teamBadge={teamBadge}
+              canViewSupplyRecords={canViewSupplyRecords}
               initials={initials}
               firstName={profile.first_name}
               initialTheme={initialTheme}

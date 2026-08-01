@@ -39,6 +39,28 @@ export function SupplierDetailSlideOver({ supplier, onClose }: { supplier: Suppl
             ))}
           </div>
 
+          <div className="mb-2.5 text-[14px] font-bold">Supply Records</div>
+          <div className="mb-5 grid grid-cols-2 gap-3">
+            <div className="rounded-[10px] border border-border bg-surface-2 p-[11px_13px]">
+              <div className="text-[11px] font-semibold text-muted">Total supplies</div>
+              <div className="mt-0.5 font-mono text-[15px] font-bold">{supplier.supplyStats.totalSupplies}</div>
+            </div>
+            <div className="rounded-[10px] border border-border bg-surface-2 p-[11px_13px]">
+              <div className="text-[11px] font-semibold text-muted">Total amount</div>
+              <div className="mt-0.5 font-mono text-[15px] font-bold">{formatMoney(supplier.supplyStats.totalAmount)}</div>
+            </div>
+            <div className="rounded-[10px] border border-border bg-surface-2 p-[11px_13px]">
+              <div className="text-[11px] font-semibold text-muted">Last supply</div>
+              <div className="mt-0.5 text-[13.5px] font-semibold">
+                {supplier.supplyStats.lastSupplyDate ? formatShortDate(supplier.supplyStats.lastSupplyDate) : "—"}
+              </div>
+            </div>
+            <div className="rounded-[10px] border border-border bg-surface-2 p-[11px_13px]">
+              <div className="text-[11px] font-semibold text-muted">Average supply value</div>
+              <div className="mt-0.5 font-mono text-[15px] font-bold">{formatMoney(supplier.supplyStats.averageSupplyValue)}</div>
+            </div>
+          </div>
+
           <div className="mb-2.5 text-[14px] font-bold">Products supplied</div>
           <div className="mb-5 flex flex-col gap-2">
             {supplier.products.length === 0 && (

@@ -12,6 +12,7 @@ export function Shell({
   tier,
   inventoryBadge,
   teamBadge,
+  canViewSupplyRecords,
   initials,
   firstName,
   initialTheme,
@@ -23,6 +24,7 @@ export function Shell({
   tier: "free" | "premium";
   inventoryBadge: number;
   teamBadge: number;
+  canViewSupplyRecords: boolean;
   initials: string;
   firstName: string;
   initialTheme: "light" | "dark";
@@ -68,6 +70,7 @@ export function Shell({
         tier={tier}
         inventoryBadge={inventoryBadge}
         teamBadge={teamBadge}
+        canViewSupplyRecords={canViewSupplyRecords}
         role={role}
         open={sidebarOpen}
         onNavigate={() => setSidebarOpen(false)}

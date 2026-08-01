@@ -15,6 +15,7 @@ const NAV = [
   { href: "/debtors", label: "Customers", icon: "💵", managerOnly: true },
   { href: "/cash-register", label: "Cash Register", icon: "🧮" },
   { href: "/inventory/suppliers", label: "Suppliers", icon: "🚚" },
+  { href: "/inventory/supply-records", label: "Supply Records", icon: "🚛", requiresSupplyView: true },
   { href: "/inventory/warehouses", label: "Warehouses", icon: "🏬" },
   { href: "/reports", label: "Reports", icon: "📈", managerOnly: true },
   { href: "/audit-log", label: "Audit Log", icon: "🛡️", adminOnly: true },
@@ -32,6 +33,7 @@ export function Sidebar({
   tier,
   inventoryBadge,
   teamBadge,
+  canViewSupplyRecords,
   role,
   open,
   onNavigate,
@@ -45,6 +47,11 @@ export function Sidebar({
   tier: "free" | "premium";
   inventoryBadge: number;
   teamBadge: number;
+  // has_permission('supply_records','view') — unlike the other *Only flags
+  // (role-tier-derived), this is a real per-org override lookup (Manager
+  // true by default, Staff only if an admin granted it), so it comes in as
+  // a prop rather than being computed here from `role` alone.
+  canViewSupplyRecords: boolean;
   role: string;
   open: boolean;
   onNavigate: () => void;
@@ -59,7 +66,11 @@ export function Sidebar({
   }
 
   const nav = NAV.filter(
-    (item) => (!item.adminOnly || isAdmin) && (!item.managerOnly || isManagerUp) && (!item.hideForWarehouse || role !== "warehouse"),
+    (item) =>
+      (!item.adminOnly || isAdmin) &&
+      (!item.managerOnly || isManagerUp) &&
+      (!item.hideForWarehouse || role !== "warehouse") &&
+      (!item.requiresSupplyView || canViewSupplyRecords),
   );
   const activeHref = [...nav].sort((a, b) => b.href.length - a.href.length).find((item) => pathname.startsWith(item.href))?.href;
 

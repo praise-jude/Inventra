@@ -1,5 +1,6 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import { getSupplierSupplyStats, type SupplierSupplyStats } from "@/lib/queries/supply-records";
 
 export interface SupplierRow {
   id: string;
@@ -60,6 +61,12 @@ export interface SupplierDetail extends SupplierRow {
   products: { id: string; name: string; sku: string; emoji: string | null }[];
   purchases: SupplierPurchase[];
   totalPurchases: number;
+  // Real, directly-attributed stats from supply_records — see
+  // getSupplierSupplyStats. The `purchases`/`totalPurchases` fields above
+  // are kept as-is (a derived stock_movements join, predates Supply
+  // Records) since not every product's stock history necessarily has a
+  // supply record behind it.
+  supplyStats: SupplierSupplyStats;
 }
 
 export async function getSupplierDetail(id: string): Promise<SupplierDetail | null> {
@@ -70,6 +77,8 @@ export async function getSupplierDetail(id: string): Promise<SupplierDetail | nu
     .eq("id", id)
     .single();
   if (supError || !supplier) return null;
+
+  const supplyStats = await getSupplierSupplyStats(id);
 
   const { data: products, error: prodError } = await supabase
     .from("products")
@@ -123,5 +132,6 @@ export async function getSupplierDetail(id: string): Promise<SupplierDetail | nu
     products: (products ?? []).map((p) => ({ id: p.id, name: p.name, sku: p.sku, emoji: p.emoji })),
     purchases,
     totalPurchases,
+    supplyStats,
   };
 }

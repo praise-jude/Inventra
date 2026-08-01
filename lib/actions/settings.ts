@@ -92,6 +92,25 @@ export async function toggleNotification(field: string, value: boolean) {
   });
 }
 
+export async function updateLargeSupplyThreshold(amount: number | null) {
+  const { supabase, orgId, userId, role, actorName } = await requireAdminOrgId();
+  const { error } = await supabase.from("notification_settings").update({ large_supply_threshold_amount: amount }).eq("org_id", orgId);
+  if (error) throw error;
+  revalidatePath("/settings/notifications");
+
+  await logAudit({
+    orgId,
+    actorId: userId,
+    actorName,
+    actorRole: role,
+    action: "settings.updated",
+    module: "Settings",
+    entityType: "notification_settings",
+    entityLabel: "Large supply notification threshold",
+    newValue: { large_supply_threshold_amount: amount },
+  });
+}
+
 export interface PrintSettingsInput {
   paperSize: string;
   autoPrint: boolean;

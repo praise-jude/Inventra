@@ -15,5 +15,5 @@ export default async function NotificationsSettingsPage() {
     weekly_digest: data?.weekly_digest ?? false,
   };
 
-  return <NotificationsClient initial={initial} />;
+  return <NotificationsClient initial={initial} initialLargeSupplyThreshold={data?.large_supply_threshold_amount ?? null} />;
 }

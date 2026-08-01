@@ -1,18 +1,31 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { toggleNotification } from "@/lib/actions/settings";
+import { toggleNotification, updateLargeSupplyThreshold } from "@/lib/actions/settings";
 
 const META = [
   { field: "low_stock", title: "Low stock alerts", desc: "When a product drops below reorder level", icon: "⚠️", bg: "var(--amber-weak)" },
   { field: "out_of_stock", title: "Out of stock", desc: "When a product hits zero units", icon: "⛔", bg: "var(--red-weak)" },
   { field: "expiring_products", title: "Expiring products", desc: "7 days before batch expiry", icon: "⏳", bg: "var(--sky-weak)" },
-  { field: "new_purchase_orders", title: "New purchase orders", desc: "When a PO is created or received", icon: "📥", bg: "var(--green-weak)" },
+  {
+    field: "new_purchase_orders",
+    title: "Supply records",
+    desc: "New, received, verified, or cancelled supply deliveries",
+    icon: "📥",
+    bg: "var(--green-weak)",
+  },
   { field: "weekly_digest", title: "Weekly digest", desc: "Sales & profit summary every Monday", icon: "📊", bg: "var(--accent-weak)" },
 ] as const;
 
-export function NotificationsClient({ initial }: { initial: Record<string, boolean> }) {
+export function NotificationsClient({
+  initial,
+  initialLargeSupplyThreshold,
+}: {
+  initial: Record<string, boolean>;
+  initialLargeSupplyThreshold: number | null;
+}) {
   const [state, setState] = useState(initial);
+  const [threshold, setThreshold] = useState(initialLargeSupplyThreshold != null ? String(initialLargeSupplyThreshold) : "");
   const [, startTransition] = useTransition();
 
   function toggle(field: string) {
@@ -23,16 +36,19 @@ export function NotificationsClient({ initial }: { initial: Record<string, boole
     });
   }
 
+  function saveThreshold() {
+    const amount = threshold.trim() === "" ? null : Number(threshold);
+    startTransition(() => {
+      updateLargeSupplyThreshold(amount !== null && !Number.isNaN(amount) ? amount : null);
+    });
+  }
+
   return (
     <div className="rounded-2xl border border-border bg-surface px-5 shadow-[var(--shadow-sm)]">
-      {META.map((n, i) => {
+      {META.map((n) => {
         const on = state[n.field];
         return (
-          <div
-            key={n.field}
-            className="flex items-center gap-3.5 py-[15px]"
-            style={{ borderBottom: i < META.length - 1 ? "1px solid var(--border-2)" : "none" }}
-          >
+          <div key={n.field} className="flex items-center gap-3.5 py-[15px]" style={{ borderBottom: "1px solid var(--border-2)" }}>
             <span className="flex h-[34px] w-[34px] items-center justify-center rounded-[9px] text-[15px]" style={{ background: n.bg }}>
               {n.icon}
             </span>
@@ -53,6 +69,26 @@ export function NotificationsClient({ initial }: { initial: Record<string, boole
           </div>
         );
       })}
+      {state.new_purchase_orders && (
+        <div className="flex items-center gap-3.5 py-[15px]">
+          <span className="flex h-[34px] w-[34px] items-center justify-center rounded-[9px] text-[15px]" style={{ background: "var(--amber-weak)" }}>
+            🔔
+          </span>
+          <div className="flex-1">
+            <div className="text-[13.5px] font-semibold">Large supply alert threshold</div>
+            <div className="text-[12px] text-muted">Also notify on any supply over this amount (leave blank to disable)</div>
+          </div>
+          <input
+            type="number"
+            min={0}
+            value={threshold}
+            onChange={(e) => setThreshold(e.target.value)}
+            onBlur={saveThreshold}
+            placeholder="e.g. 500000"
+            className="h-[36px] w-[130px] rounded-[8px] border border-border bg-surface px-2.5 text-right text-[13px] outline-none focus:border-accent"
+          />
+        </div>
+      )}
     </div>
   );
 }
