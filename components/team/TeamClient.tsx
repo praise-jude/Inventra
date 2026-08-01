@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { createClient } from "@/lib/supabase/client";
 import { useWorkspace } from "@/components/app/CurrencyProvider";
@@ -18,7 +18,7 @@ import {
   updateMemberRole,
 } from "@/lib/actions/team";
 import type { REJECT_REASONS } from "@/lib/constants/team";
-import type { TeamMemberRow } from "@/lib/queries/team";
+import type { TeamMemberRow, TeamSummary } from "@/lib/queries/team";
 import { Table, type TableColumn } from "@/components/ui/Table";
 
 const InviteMemberModal = dynamic(() => import("@/components/team/InviteMemberModal").then((m) => m.InviteMemberModal));
@@ -72,16 +72,33 @@ const ROLE_LEGEND = [
   { role: "Warehouse", perms: "Stock movements, receiving, transfers — no pricing" },
 ];
 
+const STATUS_KEYS = ["all", "invited", "awaiting_approval", "active", "suspended", "rejected"] as const;
+type StatusKey = (typeof STATUS_KEYS)[number];
+
+interface TeamFiltersState {
+  q: string;
+  status: string;
+}
+
 export function TeamClient({
-  members,
+  rows,
+  total,
+  page,
+  pageSize,
+  summary,
   seatsUsed,
   seatsTotal,
   currentUserId,
   orgId,
   warehouses,
   isAdmin,
+  filters,
 }: {
-  members: TeamMemberRow[];
+  rows: TeamMemberRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+  summary: TeamSummary;
   seatsUsed: number;
   seatsTotal: number;
   currentUserId: string;
@@ -93,8 +110,10 @@ export function TeamClient({
   // enforced here (UI) and again server-side (lib/actions/team.ts +
   // guard_profile_status_transitions() RLS trigger).
   isAdmin: boolean;
+  filters: TeamFiltersState;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const flash = useToast();
   const { isPremium, openUpgradeModal } = useEntitlementsContext();
@@ -102,9 +121,9 @@ export function TeamClient({
   // Live sync: another session (a Manager approving someone from mobile,
   // an Admin changing a role from a different tab) updates this table
   // without the local actor doing anything — router.refresh() re-runs the
-  // page's server-side getTeamMembers() so the row data here stays honest,
-  // same "postgres_changes filtered to this org" pattern as the
-  // notifications feed.
+  // page's server-side getTeamMembersPage()/getTeamSummary() so the row
+  // data here stays honest, same "postgres_changes filtered to this org"
+  // pattern as the notifications feed.
   useEffect(() => {
     const supabase = createClient();
     const channel = supabase
@@ -123,12 +142,32 @@ export function TeamClient({
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [approveTarget, setApproveTarget] = useState<TeamMemberRow | null>(null);
   const [rejectTarget, setRejectTarget] = useState<TeamMemberRow | null>(null);
-  const STATUS_KEYS = ["all", "invited", "awaiting_approval", "active", "suspended", "rejected"] as const;
-  const initialStatus = STATUS_KEYS.find((k) => k === searchParams.get("status")) ?? "all";
-  const [statusFilter, setStatusFilter] = useState<(typeof STATUS_KEYS)[number]>(initialStatus);
+  const [search, setSearch] = useState(filters.q);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { formatDateTime } = useWorkspace();
   const { online } = usePresence();
   const presenceById = useMemo(() => new Map(online.map((u) => [u.userId, u])), [online]);
+
+  const statusFilter: StatusKey = (STATUS_KEYS.find((k) => k === filters.status) ?? "all") as StatusKey;
+
+  function pushParams(next: Partial<TeamFiltersState & { page: number }>) {
+    const merged = { ...filters, page: 1, ...next };
+    const params = new URLSearchParams();
+    if (merged.q) params.set("q", merged.q);
+    if (merged.status && merged.status !== "all") params.set("status", merged.status);
+    if (merged.page && merged.page > 1) params.set("page", String(merged.page));
+    router.push(`${pathname}?${params.toString()}`);
+  }
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (search === filters.q) return;
+    debounceRef.current = setTimeout(() => pushParams({ q: search }), 300);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
 
   const run = useCallback(
     async (id: string, action: () => Promise<void>, successMessage: string) => {
@@ -192,14 +231,12 @@ export function TeamClient({
     [run],
   );
 
-  const gradientIndex = useMemo(() => new Map(members.map((m, i) => [m.id, i])), [members]);
+  const gradientIndex = useMemo(() => new Map(rows.map((m, i) => [m.id, i])), [rows]);
 
   const columns: TableColumn<TeamMemberRow>[] = useMemo(() => [
     {
       key: "member",
       header: "Member",
-      sortable: true,
-      sortValue: (m) => m.name,
       render: (m) => {
         const presence = presenceById.get(m.id);
         const isSelf = m.id === currentUserId;
@@ -234,8 +271,6 @@ export function TeamClient({
     {
       key: "role",
       header: "Role",
-      sortable: true,
-      sortValue: (m) => m.role,
       render: (m) => {
         const isSelf = m.id === currentUserId;
         const isBusy = busyId === m.id;
@@ -263,15 +298,11 @@ export function TeamClient({
     {
       key: "branch",
       header: "Branch",
-      sortable: true,
-      sortValue: (m) => m.branchName ?? "",
       render: (m) => <span className="text-[12.5px] text-text-2">{m.branchName ?? "—"}</span>,
     },
     {
       key: "status",
       header: "Status",
-      sortable: true,
-      sortValue: (m) => displayStatus(m),
       render: (m) => {
         const status = displayStatus(m);
         const style = STATUS_STYLE[status];
@@ -394,13 +425,15 @@ export function TeamClient({
     },
   ], [presenceById, currentUserId, busyId, menuOpenId, formatDateTime, gradientIndex, handleRoleChange, handleSuspend, handleReactivate, handleResendInvite, handleRemove, isAdmin]);
 
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+
   return (
     <div className="animate-fade-up">
       <div className="mb-[18px] flex flex-wrap items-end justify-between gap-3.5">
         <div>
           <div className="text-[22px] font-bold tracking-tight">Team Management</div>
           <div className="mt-[3px] text-text-2">
-            {members.length} members · {seatsUsed} of {seatsTotal} seats used.
+            {seatsUsed} members · {seatsUsed} of {seatsTotal} seats used.
           </div>
         </div>
         <button
@@ -415,20 +448,19 @@ export function TeamClient({
       <div className="mb-4 grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(140px,1fr))" }}>
         {(
           [
-            ["all", "Total"],
-            ["invited", "Invited"],
-            ["awaiting_approval", "Awaiting approval"],
-            ["active", "Approved"],
-            ["suspended", "Suspended"],
-            ["rejected", "Rejected"],
+            ["all", "Total", summary.total],
+            ["invited", "Invited", summary.invited],
+            ["awaiting_approval", "Awaiting approval", summary.awaitingApproval],
+            ["active", "Approved", summary.active],
+            ["suspended", "Suspended", summary.suspended],
+            ["rejected", "Rejected", summary.rejected],
           ] as const
-        ).map(([key, label]) => {
-          const count = key === "all" ? members.length : members.filter((m) => displayStatus(m) === key).length;
+        ).map(([key, label, count]) => {
           const active = statusFilter === key;
           return (
             <button
               key={key}
-              onClick={() => setStatusFilter(key)}
+              onClick={() => pushParams({ status: key })}
               className="rounded-xl border p-[12px_14px] text-left shadow-[var(--shadow-sm)]"
               style={active ? { borderColor: "var(--accent)", background: "var(--accent-weak)" } : { borderColor: "var(--border)", background: "var(--surface)" }}
             >
@@ -439,20 +471,46 @@ export function TeamClient({
         })}
       </div>
 
+      <div className="mb-3.5 flex h-[37px] max-w-[360px] items-center gap-2 rounded-[9px] border border-border bg-surface px-3 text-muted">
+        <span>⌕</span>
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by name or email…"
+          className="flex-1 border-none bg-transparent text-[13px] text-text outline-none"
+        />
+      </div>
+
       <Table
         columns={columns}
-        rows={statusFilter === "all" ? members : members.filter((m) => displayStatus(m) === statusFilter)}
+        rows={rows}
         rowKey={(m) => m.id}
-        pageSize={20}
-        search={{
-          placeholder: "Search by name, email, branch, or role…",
-          filter: (m, query) =>
-            m.name.toLowerCase().includes(query) ||
-            m.email.toLowerCase().includes(query) ||
-            m.role.toLowerCase().includes(query) ||
-            (m.branchName ?? "").toLowerCase().includes(query),
-        }}
+        pageSize={Math.max(pageSize, rows.length)}
       />
+
+      {pageCount > 1 && (
+        <div className="mt-3 flex items-center justify-between text-[12.5px] text-muted">
+          <span>
+            Page {page} of {pageCount} · {total} total
+          </span>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => pushParams({ page: page - 1 })}
+              disabled={page <= 1}
+              className="flex h-8 items-center justify-center rounded-[7px] border border-border bg-surface px-3 disabled:cursor-not-allowed disabled:opacity-40 hover:bg-hover"
+            >
+              ‹ Prev
+            </button>
+            <button
+              onClick={() => pushParams({ page: page + 1 })}
+              disabled={page >= pageCount}
+              className="flex h-8 items-center justify-center rounded-[7px] border border-border bg-surface px-3 disabled:cursor-not-allowed disabled:opacity-40 hover:bg-hover"
+            >
+              Next ›
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="mt-4 grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))" }}>
         {ROLE_LEGEND.map((r) => (

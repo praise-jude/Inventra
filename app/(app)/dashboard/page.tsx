@@ -12,7 +12,7 @@ import {
 import type { ActivityRow } from "@/lib/queries/dashboard";
 import { getExpenseCategoryBreakdown } from "@/lib/queries/expenses";
 import { requireProfile } from "@/lib/queries/session";
-import { getTeamMembers, getPendingApprovalsCount } from "@/lib/queries/team";
+import { getActiveTeamMembersForPresence, getPendingApprovalsCount } from "@/lib/queries/team";
 import { getWarehouseOptions, getProductsPage } from "@/lib/queries/products";
 import { getTodaysCashRegister } from "@/lib/queries/cash-register";
 import { getEntitlements } from "@/lib/entitlements";
@@ -75,7 +75,7 @@ export default async function DashboardPage() {
       showAnalytics ? getExpenseCategoryBreakdown(org.timezone) : Promise.resolve([]),
       getRecentActivity(5),
       showAnalytics ? getDailyProductProfit() : Promise.resolve([]),
-      showAnalytics ? getTeamMembers() : Promise.resolve([]),
+      showAnalytics ? getActiveTeamMembersForPresence() : Promise.resolve([]),
       defaultWarehouse ? getTodaysCashRegister(defaultWarehouse.id) : Promise.resolve(null),
       getProductsPage({ status: "out_of_stock", active: "active" }, 1, 6),
       isAdminTier ? getPendingApprovalsCount(profile.role, profile.branch_id) : Promise.resolve(0),

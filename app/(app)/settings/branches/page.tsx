@@ -1,12 +1,12 @@
 import { getWarehousesOverview } from "@/lib/queries/inventory";
-import { getTeamMembers } from "@/lib/queries/team";
+import { getActiveTeamMembersForPresence } from "@/lib/queries/team";
 import { requireAdminProfile } from "@/lib/queries/session";
 import { WarehousesClient } from "@/components/inventory/WarehousesClient";
 
 export default async function BranchesSettingsPage() {
   const [warehouses, teamMembers, { org }] = await Promise.all([
     getWarehousesOverview(),
-    getTeamMembers(),
+    getActiveTeamMembersForPresence(),
     requireAdminProfile(),
   ]);
   const managers = teamMembers.map((m) => ({ id: m.id, name: m.name }));

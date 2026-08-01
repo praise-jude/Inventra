@@ -1,12 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useToast } from "@/components/app/ToastProvider";
 import { useWorkspace } from "@/components/app/CurrencyProvider";
 import { recordSale } from "@/lib/actions/sales";
-import type { ProductListRow } from "@/lib/queries/products";
+import { searchProductsForPicker, lookupProductByCode, type ProductPickerRow } from "@/lib/actions/products";
 import { Field } from "@/components/ui/Field";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
@@ -34,11 +34,9 @@ interface CartLine {
 }
 
 export function NewSaleForm({
-  products,
   warehouses,
   taxRate,
 }: {
-  products: ProductListRow[];
   warehouses: { id: string; name: string }[];
   taxRate: number;
 }) {
@@ -49,6 +47,7 @@ export function NewSaleForm({
   const [warehouseId, setWarehouseId] = useState("");
 
   const [productQuery, setProductQuery] = useState("");
+  const [matchingProducts, setMatchingProducts] = useState<ProductPickerRow[]>([]);
   const [showScanner, setShowScanner] = useState(false);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [paymentMethod, setPaymentMethod] = useState("cash");
@@ -58,14 +57,33 @@ export function NewSaleForm({
   const [receiptSaleId, setReceiptSaleId] = useState<string | null>(null);
   const [pendingRequestId, setPendingRequestId] = useState<string | null>(null);
 
-  const matchingProducts = useMemo(() => {
-    const q = productQuery.trim().toLowerCase();
-    if (!q) return [];
-    return products.filter((p) => p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q)).slice(0, 8);
-  }, [products, productQuery]);
+  // Debounced search-as-you-type against the same search_products() RPC the
+  // Products admin page uses, instead of loading the whole active catalog
+  // into the browser upfront — matches mobile's item picker.
+  useEffect(() => {
+    const q = productQuery.trim();
+    if (!q) return;
+    let cancelled = false;
+    const id = setTimeout(() => {
+      searchProductsForPicker(q, 8)
+        .then((rows) => {
+          if (!cancelled) setMatchingProducts(rows);
+        })
+        .catch(() => {
+          if (!cancelled) setMatchingProducts([]);
+        });
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(id);
+    };
+  }, [productQuery]);
 
-  function addProduct(product: ProductListRow) {
+  const visibleMatches = productQuery.trim() ? matchingProducts : [];
+
+  function addProduct(product: { id: string; name: string; price: number; qty: number }) {
     setProductQuery("");
+    setMatchingProducts([]);
     setCart((c) => {
       const existing = c.find((l) => l.productId === product.id);
       if (existing) {
@@ -83,19 +101,19 @@ export function NewSaleForm({
     setCart((c) => c.filter((l) => l.productId !== productId));
   }
 
-  function handleProductSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+  async function handleProductSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key !== "Enter") return;
     const code = productQuery.trim();
     if (!code) return;
-    const match = products.find((p) => p.sku === code || p.barcode === code);
-    if (match) addProduct(match);
+    const match = await lookupProductByCode(code);
+    if (match) addProduct({ id: match.id, name: match.name, price: match.sell_price, qty: match.qty_on_hand });
   }
 
-  function handleScanDetected(code: string) {
+  async function handleScanDetected(code: string) {
     setShowScanner(false);
-    const match = products.find((p) => p.sku === code || p.barcode === code);
+    const match = await lookupProductByCode(code);
     if (match) {
-      addProduct(match);
+      addProduct({ id: match.id, name: match.name, price: match.sell_price, qty: match.qty_on_hand });
     } else {
       setError(`No product found for code "${code}"`);
     }
@@ -189,13 +207,13 @@ export function NewSaleForm({
           >
             📷 Scan
           </button>
-          {matchingProducts.length > 0 && (
+          {visibleMatches.length > 0 && (
             <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-[9px] border border-border bg-surface shadow-[var(--shadow-lg)]">
-              {matchingProducts.map((p) => (
+              {visibleMatches.map((p) => (
                 <button
                   type="button"
                   key={p.id}
-                  onClick={() => addProduct(p)}
+                  onClick={() => addProduct({ id: p.id, name: p.name, price: p.sellPrice, qty: p.qty })}
                   className="flex w-full items-center justify-between px-3.5 py-2.5 text-left text-[13px] hover:bg-hover"
                   disabled={p.qty <= 0}
                 >

@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/app/ToastProvider";
 import { useWorkspace } from "@/components/app/CurrencyProvider";
 import { createSupplyRecord } from "@/lib/actions/supply-records";
-import type { ProductListRow } from "@/lib/queries/products";
+import { searchProductsForPicker, type ProductPickerRow } from "@/lib/actions/products";
 import { Field } from "@/components/ui/Field";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
@@ -22,11 +22,9 @@ function todayIso(): string {
 }
 
 export function NewSupplyRecordForm({
-  products,
   warehouses,
   suppliers,
 }: {
-  products: ProductListRow[];
   warehouses: { id: string; name: string }[];
   suppliers: { id: string; name: string; phone: string | null; email: string | null }[];
 }) {
@@ -44,21 +42,38 @@ export function NewSupplyRecordForm({
   const [notes, setNotes] = useState("");
 
   const [productQuery, setProductQuery] = useState("");
+  const [matchingProducts, setMatchingProducts] = useState<ProductPickerRow[]>([]);
   const [lines, setLines] = useState<SupplyLine[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const matchingProducts = useMemo(() => {
-    const q = productQuery.trim().toLowerCase();
-    if (!q) return [];
-    return products.filter((p) => p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q)).slice(0, 8);
-  }, [products, productQuery]);
+  useEffect(() => {
+    const q = productQuery.trim();
+    if (!q) return;
+    let cancelled = false;
+    const id = setTimeout(() => {
+      searchProductsForPicker(q, 8)
+        .then((rows) => {
+          if (!cancelled) setMatchingProducts(rows);
+        })
+        .catch(() => {
+          if (!cancelled) setMatchingProducts([]);
+        });
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(id);
+    };
+  }, [productQuery]);
 
-  function addProduct(product: ProductListRow) {
+  const visibleMatches = productQuery.trim() ? matchingProducts : [];
+
+  function addProduct(product: ProductPickerRow) {
     setProductQuery("");
+    setMatchingProducts([]);
     setLines((ls) => {
       if (ls.some((l) => l.productId === product.id)) return ls;
-      return [...ls, { productId: product.id, name: product.name, quantity: 1, unitCost: product.price }];
+      return [...ls, { productId: product.id, name: product.name, quantity: 1, unitCost: product.sellPrice }];
     });
   }
 
@@ -163,9 +178,9 @@ export function NewSupplyRecordForm({
             placeholder="Search products to add by name or SKU…"
             className="h-[42px] w-full rounded-[9px] border border-border bg-surface px-[13px] text-[14px] text-text outline-none focus:border-accent"
           />
-          {matchingProducts.length > 0 && (
+          {visibleMatches.length > 0 && (
             <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-[9px] border border-border bg-surface shadow-[var(--shadow-lg)]">
-              {matchingProducts.map((p) => (
+              {visibleMatches.map((p) => (
                 <button
                   type="button"
                   key={p.id}

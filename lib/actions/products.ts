@@ -40,6 +40,57 @@ export async function fetchProductDetail(id: string): Promise<ProductDetail | nu
   return getProductDetail(id);
 }
 
+export interface ProductPickerRow {
+  id: string;
+  name: string;
+  sku: string;
+  barcode: string | null;
+  emoji: string | null;
+  qty: number;
+  sellPrice: number;
+}
+
+// Search-as-you-type for the Sales/Supply Record "add product" pickers —
+// same search_products() RPC getProductsPage() uses for the Products admin
+// page, but capped small and called on demand instead of loading the whole
+// active catalog into the browser upfront (what getProducts() does, fine
+// for a small catalog but not one with thousands of SKUs). Mirrors
+// royal-inventra/src/lib/actions/inventory.ts's searchProductsForPicker
+// exactly — same shape, same RPC, same limit.
+export async function searchProductsForPicker(query: string, limit = 20): Promise<ProductPickerRow[]> {
+  const q = query.trim();
+  if (!q) return [];
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("search_products", {
+    p_search: q,
+    p_active: true,
+    p_limit: limit,
+  });
+  if (error) {
+    console.error("[Inventra] searchProductsForPicker failed:", error);
+    throw new Error("Could not search products.");
+  }
+  return (
+    (data ?? []) as unknown as {
+      id: string;
+      name: string;
+      sku: string;
+      barcode: string | null;
+      emoji: string | null;
+      qty_on_hand: number;
+      sell_price: number;
+    }[]
+  ).map((p) => ({
+    id: p.id,
+    name: p.name,
+    sku: p.sku,
+    barcode: p.barcode,
+    emoji: p.emoji,
+    qty: p.qty_on_hand,
+    sellPrice: Number(p.sell_price),
+  }));
+}
+
 export async function lookupProductByCode(code: string): Promise<ProductDetail | null> {
   const id = await findProductIdByCode(code);
   if (!id) return null;

@@ -1,5 +1,5 @@
 import { getWarehousesOverview } from "@/lib/queries/inventory";
-import { getTeamMembers } from "@/lib/queries/team";
+import { getActiveTeamMembersForPresence } from "@/lib/queries/team";
 import { requireProfile } from "@/lib/queries/session";
 import { isAdminRole, isManagerRole } from "@/lib/roles";
 import { WarehousesClient } from "@/components/inventory/WarehousesClient";
@@ -7,7 +7,7 @@ import { WarehousesClient } from "@/components/inventory/WarehousesClient";
 export default async function WarehousesPage() {
   const [warehouses, teamMembers, { profile, org }] = await Promise.all([
     getWarehousesOverview(),
-    getTeamMembers(),
+    getActiveTeamMembersForPresence(),
     requireProfile(),
   ]);
   const canManage = isAdminRole(profile.role);
