@@ -11,6 +11,7 @@ export function Shell({
   plan,
   tier,
   inventoryBadge,
+  teamBadge,
   initials,
   firstName,
   initialTheme,
@@ -21,6 +22,7 @@ export function Shell({
   plan: string;
   tier: "free" | "premium";
   inventoryBadge: number;
+  teamBadge: number;
   initials: string;
   firstName: string;
   initialTheme: "light" | "dark";
@@ -65,6 +67,7 @@ export function Shell({
         plan={plan}
         tier={tier}
         inventoryBadge={inventoryBadge}
+        teamBadge={teamBadge}
         role={role}
         open={sidebarOpen}
         onNavigate={() => setSidebarOpen(false)}

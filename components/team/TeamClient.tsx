@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { createClient } from "@/lib/supabase/client";
 import { useWorkspace } from "@/components/app/CurrencyProvider";
@@ -95,6 +95,7 @@ export function TeamClient({
   isAdmin: boolean;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const flash = useToast();
   const { isPremium, openUpgradeModal } = useEntitlementsContext();
 
@@ -122,7 +123,9 @@ export function TeamClient({
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [approveTarget, setApproveTarget] = useState<TeamMemberRow | null>(null);
   const [rejectTarget, setRejectTarget] = useState<TeamMemberRow | null>(null);
-  const [statusFilter, setStatusFilter] = useState<"all" | "invited" | "awaiting_approval" | "active" | "suspended" | "rejected">("all");
+  const STATUS_KEYS = ["all", "invited", "awaiting_approval", "active", "suspended", "rejected"] as const;
+  const initialStatus = STATUS_KEYS.find((k) => k === searchParams.get("status")) ?? "all";
+  const [statusFilter, setStatusFilter] = useState<(typeof STATUS_KEYS)[number]>(initialStatus);
   const { formatDateTime } = useWorkspace();
   const { online } = usePresence();
   const presenceById = useMemo(() => new Map(online.map((u) => [u.userId, u])), [online]);
@@ -270,11 +273,17 @@ export function TeamClient({
       sortable: true,
       sortValue: (m) => displayStatus(m),
       render: (m) => {
-        const style = STATUS_STYLE[displayStatus(m)];
+        const status = displayStatus(m);
+        const style = STATUS_STYLE[status];
         return (
-          <span className="rounded-[20px] px-[9px] py-0.5 text-[11.5px] font-bold" style={style}>
-            {style.label}
-          </span>
+          <div>
+            <span className="rounded-[20px] px-[9px] py-0.5 text-[11.5px] font-bold" style={style}>
+              {style.label}
+            </span>
+            {status === "awaiting_approval" && m.acceptedAt && (
+              <div className="mt-1 text-[10.5px] text-muted">Waiting {timeAgo(m.acceptedAt)}</div>
+            )}
+          </div>
         );
       },
     },

@@ -4,6 +4,16 @@ import { createClient } from "@/lib/supabase/server";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { RefreshApprovalButton } from "@/components/auth/RefreshApprovalButton";
 
+function timeAgo(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const mins = Math.round(diffMs / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs} hr ago`;
+  return `${Math.round(hrs / 24)}d ago`;
+}
+
 // Deliberately does NOT use requireProfile() — that function redirects an
 // awaiting_approval profile here, so calling it from this page would loop.
 // This does its own minimal, non-redirecting-for-this-case profile check.
@@ -16,7 +26,7 @@ export default async function PendingApprovalPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("status, rejected_at, org_id, branch_id, invited_by")
+    .select("status, rejected_at, org_id, branch_id, invited_by, accepted_at")
     .eq("id", user.id)
     .single();
   if (!profile) redirect("/login");
@@ -66,6 +76,12 @@ export default async function PendingApprovalPage() {
             <span className="text-[12.5px] text-text-2">Status</span>
             <span className="rounded-full bg-sky-weak px-2.5 py-1 text-[11px] font-bold text-sky">Awaiting approval</span>
           </div>
+          {profile.accepted_at && (
+            <div className="flex items-center justify-between">
+              <span className="text-[12.5px] text-text-2">Waiting since</span>
+              <span className="text-[13px] font-semibold">{timeAgo(profile.accepted_at)}</span>
+            </div>
+          )}
         </div>
 
         <div className="mt-6 flex justify-center gap-2.5">

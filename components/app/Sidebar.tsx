@@ -31,6 +31,7 @@ export function Sidebar({
   plan,
   tier,
   inventoryBadge,
+  teamBadge,
   role,
   open,
   onNavigate,
@@ -43,6 +44,7 @@ export function Sidebar({
   // hard-block gate these used to warn about.
   tier: "free" | "premium";
   inventoryBadge: number;
+  teamBadge: number;
   role: string;
   open: boolean;
   onNavigate: () => void;
@@ -106,7 +108,12 @@ export function Sidebar({
       <nav className="scroll flex-1 overflow-y-auto px-2.5 py-1">
         {nav.map((item) => {
           const active = item.href === activeHref;
-          const badge = item.href === "/inventory" && inventoryBadge > 0 ? inventoryBadge : null;
+          const badge =
+            item.href === "/inventory" && inventoryBadge > 0
+              ? inventoryBadge
+              : item.href === "/team" && teamBadge > 0
+                ? teamBadge
+                : null;
           return (
             <Link
               key={item.href}

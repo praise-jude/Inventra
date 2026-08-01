@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { requireProfile } from "@/lib/queries/session";
 import { getKpis } from "@/lib/queries/dashboard";
+import { getPendingApprovalsCount } from "@/lib/queries/team";
 import { getEntitlements } from "@/lib/entitlements";
 import { ToastProvider } from "@/components/app/ToastProvider";
 import { WorkspaceProvider } from "@/components/app/CurrencyProvider";
@@ -10,7 +11,11 @@ import { Shell } from "@/components/app/Shell";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { profile, org } = await requireProfile();
-  const [kpis, entitlements] = await Promise.all([getKpis(), getEntitlements()]);
+  const [kpis, entitlements, teamBadge] = await Promise.all([
+    getKpis(),
+    getEntitlements(),
+    getPendingApprovalsCount(profile.role, profile.branch_id),
+  ]);
   const cookieStore = await cookies();
   const initialTheme = cookieStore.get("theme")?.value === "dark" ? "dark" : "light";
 
@@ -32,6 +37,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               plan={org.plan}
               tier={entitlements.tier}
               inventoryBadge={inventoryBadge}
+              teamBadge={teamBadge}
               initials={initials}
               firstName={profile.first_name}
               initialTheme={initialTheme}
