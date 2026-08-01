@@ -41,6 +41,7 @@ const COLUMNS = [
       { label: "Pricing", href: "#pricing" },
       { label: "Dashboard", href: "#dashboard" },
       { label: "FAQ", href: "#faq" },
+      { label: "Download App", href: "/download" },
     ],
   },
   {

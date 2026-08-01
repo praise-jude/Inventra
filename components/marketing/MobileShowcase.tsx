@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { ScanLine, Gauge, Moon, ShoppingCart, Boxes, TrendingUp } from "lucide-react";
+import Link from "next/link";
+import { ScanLine, Gauge, Moon, ShoppingCart, Boxes, TrendingUp, Download } from "lucide-react";
 import { MotionSection } from "./MotionSection";
 import { SalesBars } from "./charts";
 
@@ -62,6 +63,13 @@ export function MobileShowcase() {
               </div>
             ))}
           </div>
+          <Link
+            href="/download"
+            className="mt-6 inline-flex h-[46px] items-center gap-2 rounded-[10px] bg-accent px-5 text-[14px] font-semibold text-white shadow-[var(--shadow-sm)] transition-transform hover:-translate-y-0.5"
+          >
+            <Download size={16} />
+            Download for Android
+          </Link>
         </MotionSection>
 
         <div className="relative flex justify-center gap-6 pb-6 pt-4 lg:justify-end">
