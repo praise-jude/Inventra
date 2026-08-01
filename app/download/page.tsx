@@ -14,6 +14,15 @@ import {
   Terminal,
   PlayCircle,
   Mail,
+  Boxes,
+  ShoppingCart,
+  ScanLine,
+  Users,
+  Receipt,
+  BarChart3,
+  UserCog,
+  RefreshCw,
+  Package,
 } from "lucide-react";
 import { Navbar } from "@/components/marketing/Navbar";
 import { Footer } from "@/components/marketing/Footer";
@@ -34,6 +43,22 @@ const COMING_SOON_PLATFORMS = [
   { key: "linux", name: "Linux", icon: Terminal, note: "Desktop app for major distributions" },
   { key: "google-play", name: "Google Play", icon: PlayCircle, note: "Official Play Store listing" },
   { key: "app-store", name: "Apple App Store", icon: Apple, note: "Official App Store listing" },
+];
+
+// Only features actually shipped in the app — deliberately excludes
+// "Offline Support" (no offline mutation queue exists anywhere in this
+// app) and overstated "backup/restore" claims, matching the same
+// no-lying-to-visitors bar the platform cards above are held to.
+const FEATURES = [
+  { icon: Boxes, label: "Inventory Management" },
+  { icon: ShoppingCart, label: "Point of Sale" },
+  { icon: ScanLine, label: "Barcode Scanning" },
+  { icon: Package, label: "Supply Records" },
+  { icon: Users, label: "Customer Management" },
+  { icon: Receipt, label: "Expense Tracking" },
+  { icon: BarChart3, label: "Sales & Profit Reports" },
+  { icon: UserCog, label: "Team & Role-Based Access" },
+  { icon: RefreshCw, label: "Real-Time Cloud Sync" },
 ];
 
 export default async function DownloadPage() {
@@ -75,6 +100,7 @@ export default async function DownloadPage() {
             </div>
             <a
               href={latest.apkUrl}
+              download={`royal-inventra-v${latest.version}.apk`}
               className="inline-flex h-[52px] items-center justify-center gap-2 rounded-[10px] bg-accent px-7 text-[15px] font-bold text-white shadow-[var(--shadow-lg)] transition-transform hover:-translate-y-0.5"
             >
               <Download size={18} />
@@ -110,6 +136,21 @@ export default async function DownloadPage() {
           Android may warn that this is an app from outside the Play Store — that&apos;s expected while
           we&apos;re not yet listed there. Tap <strong className="text-text">&quot;Install anyway&quot;</strong> to
           continue.
+        </div>
+
+        {/* FEATURES — only what's actually shipped */}
+        <div className="mt-14">
+          <h2 className="text-[18px] font-bold text-text">What you get</h2>
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {FEATURES.map((f) => (
+              <div key={f.label} className="flex items-center gap-2.5 rounded-xl border border-border bg-surface px-3.5 py-3">
+                <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-accent-weak text-accent-text">
+                  <f.icon size={15} />
+                </span>
+                <span className="text-[12.5px] font-semibold text-text-2">{f.label}</span>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* OTHER PLATFORMS — honest placeholders, no fake download links */}
@@ -159,7 +200,7 @@ export default async function DownloadPage() {
                     <span className="text-[13.5px] font-semibold text-text">v{r.version}</span>
                     <span className="ml-2 text-[12px] text-muted">{r.releasedAt}</span>
                   </div>
-                  <a href={r.apkUrl} className="text-[12.5px] font-semibold text-accent-text">
+                  <a href={r.apkUrl} download={`royal-inventra-v${r.version}.apk`} className="text-[12.5px] font-semibold text-accent-text">
                     Download
                   </a>
                 </div>
