@@ -50,9 +50,25 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // This middleware runs on every request to a protected route. An
+  // uncaught exception here (a transient Supabase API hiccup, a network
+  // blip) isn't caught by app/error.tsx or global-error.tsx the way a
+  // page-render failure is — it fails the request outright, at the edge,
+  // before the React tree even starts. Every protected page already does
+  // its own auth check (requireProfile()/requireXProfile() in
+  // lib/queries/session.ts) which IS covered by those error boundaries,
+  // so on a transient failure here it's safer to fail open (let the
+  // request through) than to crash every protected route uniformly.
+  let user = null;
+  try {
+    const {
+      data: { user: fetchedUser },
+    } = await supabase.auth.getUser();
+    user = fetchedUser;
+  } catch (err) {
+    console.error("[Inventra middleware] auth.getUser() failed:", err);
+    return supabaseResponse;
+  }
 
   const path = request.nextUrl.pathname;
   // Exact match (not startsWith) — "/" is the public marketing landing page
@@ -73,8 +89,13 @@ export async function updateSession(request: NextRequest) {
   // without this check, a user with MFA enabled could skip the login
   // page's challenge screen entirely by navigating straight to a
   // protected route in a new tab right after entering their password.
-  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-  const needsMfaStepUp = aal?.nextLevel === "aal2" && aal.nextLevel !== aal.currentLevel;
+  let needsMfaStepUp = false;
+  try {
+    const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    needsMfaStepUp = aal?.nextLevel === "aal2" && aal.nextLevel !== aal.currentLevel;
+  } catch (err) {
+    console.error("[Inventra middleware] mfa.getAuthenticatorAssuranceLevel() failed:", err);
+  }
   if (needsMfaStepUp && path !== "/login") {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
@@ -93,8 +114,17 @@ export async function updateSession(request: NextRequest) {
   if (!isAuthRoute) {
     // get_access_gate_state() left-joins profiles/organizations/
     // subscriptions in one round trip. See
-    // supabase/migrations/20260711090000_access_gate_rpc.sql.
-    const { data: gate } = await supabase.rpc("get_access_gate_state");
+    // supabase/migrations/20260711090000_access_gate_rpc.sql. A transient
+    // failure here falls through without redirecting — requireProfile()
+    // and the (onboarding) layout's own checks re-verify this server-side
+    // on the actual page, this is just a fast-path redirect optimization.
+    let gate: { profile_exists?: boolean; terms_accepted?: boolean; country?: string | null } | null = null;
+    try {
+      const { data } = await supabase.rpc("get_access_gate_state");
+      gate = data;
+    } catch (err) {
+      console.error("[Inventra middleware] get_access_gate_state failed:", err);
+    }
 
     // Make sure signup/OAuth onboarding gaps (business country/currency,
     // terms acceptance) are filled in before letting the user any further
@@ -104,7 +134,7 @@ export async function updateSession(request: NextRequest) {
     // onboarding is complete, and Premium (lib/entitlements.ts) is a pure
     // opt-in upgrade with no forced redirect of its own. A lapsed Premium
     // subscription falls back to Free limits, it doesn't lock anyone out.
-    let needsOnboarding = !gate?.profile_exists || !gate.terms_accepted;
+    let needsOnboarding = gate !== null && (!gate.profile_exists || !gate.terms_accepted);
     if (gate?.profile_exists && gate.terms_accepted) {
       needsOnboarding = !gate.country;
     }
