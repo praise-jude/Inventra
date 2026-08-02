@@ -18,18 +18,44 @@ interface SupplierProductCountRow {
   count: number;
 }
 
-export async function getSuppliersDetailed(): Promise<SupplierRow[]> {
+export interface SuppliersFilters {
+  search?: string;
+}
+
+// Server-side paginated + filtered, same shape as this session's Team/
+// Debtors/Invoices/Supply Records pagination work — the old getSuppliersDetailed
+// (unbounded, loaded every supplier) doesn't scale for orgs with a large
+// supplier directory. get_supplier_product_counts() stays a single
+// unpaginated call: it's already a GROUP BY aggregate bounded by distinct
+// suppliers-with-products, not a per-row scan, so it's cheap regardless of
+// how many suppliers exist — only the raw `suppliers` row fetch needed
+// pagination.
+export async function getSuppliersPage(
+  filters: SuppliersFilters,
+  page = 1,
+  pageSize = 20,
+): Promise<{ rows: SupplierRow[]; total: number }> {
   const supabase = await createClient();
-  const [{ data: suppliers, error: supError }, { data: counts, error: prodError }] = await Promise.all([
-    supabase.from("suppliers").select("id, name, company, contact_person, email, phone, address").order("name"),
+  let query = supabase
+    .from("suppliers")
+    .select("id, name, company, contact_person, email, phone, address", { count: "exact" })
+    .order("name");
+  if (filters.search?.trim()) {
+    const q = filters.search.trim().replace(/[%,]/g, "");
+    query = query.or(`name.ilike.%${q}%,company.ilike.%${q}%`);
+  }
+
+  const from = (page - 1) * pageSize;
+  const [{ data: suppliers, error: supError, count }, { data: counts, error: prodError }] = await Promise.all([
+    query.range(from, from + pageSize - 1),
     supabase.rpc("get_supplier_product_counts"),
   ]);
   if (supError) {
-    console.error("[Inventra] getSuppliersDetailed (suppliers) failed:", supError);
+    console.error("[Inventra] getSuppliersPage (suppliers) failed:", supError);
     throw new Error("Could not load suppliers.");
   }
   if (prodError) {
-    console.error("[Inventra] getSuppliersDetailed (product counts) failed:", prodError);
+    console.error("[Inventra] getSuppliersPage (product counts) failed:", prodError);
     throw new Error("Could not load suppliers.");
   }
 
@@ -37,7 +63,7 @@ export async function getSuppliersDetailed(): Promise<SupplierRow[]> {
     ((counts ?? []) as SupplierProductCountRow[]).map((c) => [c.supplier_id, c.count]),
   );
 
-  return (suppliers ?? []).map((s) => ({
+  const rows = (suppliers ?? []).map((s) => ({
     id: s.id,
     name: s.name,
     company: s.company,
@@ -47,6 +73,29 @@ export async function getSuppliersDetailed(): Promise<SupplierRow[]> {
     address: s.address,
     productCount: countsBySupplier.get(s.id) ?? 0,
   }));
+  return { rows, total: count ?? 0 };
+}
+
+export interface SupplierOption {
+  id: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+}
+
+// Bounded picker list for the Supply Records "new" form's supplier
+// dropdown — doesn't need pagination or product counts, just enough rows
+// to populate a <select>. Mirrors getWarehouseOptions()/
+// getActiveTeamMembersForPresence()'s "lightweight bounded query for a
+// narrow consumer" pattern.
+export async function getSupplierOptions(): Promise<SupplierOption[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("suppliers").select("id, name, phone, email").order("name").limit(500);
+  if (error) {
+    console.error("[Inventra] getSupplierOptions failed:", error);
+    return [];
+  }
+  return data ?? [];
 }
 
 export interface SupplierPurchase {

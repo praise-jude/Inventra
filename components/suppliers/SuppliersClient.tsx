@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useToast } from "@/components/app/ToastProvider";
 import { deleteSupplier, fetchSupplierDetail } from "@/lib/actions/suppliers";
@@ -14,22 +14,52 @@ const SupplierDetailSlideOver = dynamic(() =>
 );
 import type { SupplierRow, SupplierDetail } from "@/lib/queries/suppliers";
 
-export function SuppliersClient({ suppliers, canManage }: { suppliers: SupplierRow[]; canManage: boolean }) {
+interface SuppliersFiltersState {
+  q: string;
+}
+
+export function SuppliersClient({
+  rows,
+  total,
+  page,
+  pageSize,
+  canManage,
+  filters,
+}: {
+  rows: SupplierRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+  canManage: boolean;
+  filters: SuppliersFiltersState;
+}) {
   const router = useRouter();
+  const pathname = usePathname();
   const flash = useToast();
-  const [query, setQuery] = useState("");
+  const [search, setSearch] = useState(filters.q);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [modalSupplier, setModalSupplier] = useState<SupplierRow | null | undefined>(undefined);
   const [detail, setDetail] = useState<SupplierDetail | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return suppliers;
-    return suppliers.filter(
-      (s) => s.name.toLowerCase().includes(q) || (s.company ?? "").toLowerCase().includes(q),
-    );
-  }, [suppliers, query]);
+  function pushParams(next: Partial<SuppliersFiltersState & { page: number }>) {
+    const merged = { ...filters, page: 1, ...next };
+    const params = new URLSearchParams();
+    if (merged.q) params.set("q", merged.q);
+    if (merged.page && merged.page > 1) params.set("page", String(merged.page));
+    router.push(`${pathname}?${params.toString()}`);
+  }
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (search === filters.q) return;
+    debounceRef.current = setTimeout(() => pushParams({ q: search }), 300);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
 
   async function openDetail(id: string) {
     const d = await fetchSupplierDetail(id);
@@ -54,11 +84,11 @@ export function SuppliersClient({ suppliers, canManage }: { suppliers: SupplierR
     [flash, router],
   );
 
-  async function handleBulkDelete(rows: SupplierRow[], clear: () => void) {
-    if (!window.confirm(`Delete ${rows.length} supplier(s)? This can't be undone.`)) return;
+  async function handleBulkDelete(selected: SupplierRow[], clear: () => void) {
+    if (!window.confirm(`Delete ${selected.length} supplier(s)? This can't be undone.`)) return;
     setBulkBusy(true);
     let failed = 0;
-    for (const s of rows) {
+    for (const s of selected) {
       try {
         await deleteSupplier(s.id);
       } catch {
@@ -67,7 +97,7 @@ export function SuppliersClient({ suppliers, canManage }: { suppliers: SupplierR
     }
     setBulkBusy(false);
     clear();
-    flash(failed ? `Deleted ${rows.length - failed}, ${failed} failed (still in use)` : `${rows.length} supplier(s) deleted`);
+    flash(failed ? `Deleted ${selected.length - failed}, ${failed} failed (still in use)` : `${selected.length} supplier(s) deleted`);
     router.refresh();
   }
 
@@ -75,8 +105,6 @@ export function SuppliersClient({ suppliers, canManage }: { suppliers: SupplierR
     {
       key: "supplier",
       header: "Supplier",
-      sortable: true,
-      sortValue: (s) => s.name,
       render: (s) => (
         <div>
           <div className="text-[13.5px] font-semibold">{s.name}</div>
@@ -98,8 +126,6 @@ export function SuppliersClient({ suppliers, canManage }: { suppliers: SupplierR
       key: "products",
       header: "Products",
       align: "right",
-      sortable: true,
-      sortValue: (s) => s.productCount,
       render: (s) => <span className="font-mono text-[13px] font-bold">{s.productCount}</span>,
     },
     ...(canManage
@@ -134,14 +160,16 @@ export function SuppliersClient({ suppliers, canManage }: { suppliers: SupplierR
       : []),
   ], [canManage, busyId, handleDelete]);
 
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+
   return (
     <div>
       <div className="mb-3.5 flex flex-wrap items-center gap-2.5">
         <div className="flex h-[37px] min-w-[200px] flex-1 items-center gap-2 rounded-[9px] border border-border bg-surface px-3 text-muted">
           <span>⌕</span>
           <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
             placeholder="Search suppliers…"
             className="flex-1 border-none bg-transparent text-[13px] text-text outline-none"
           />
@@ -158,10 +186,10 @@ export function SuppliersClient({ suppliers, canManage }: { suppliers: SupplierR
 
       <Table
         columns={columns}
-        rows={filtered}
+        rows={rows}
         rowKey={(s) => s.id}
         onRowClick={(s) => openDetail(s.id)}
-        pageSize={20}
+        pageSize={Math.max(pageSize, rows.length)}
         selectable={canManage}
         bulkActions={
           canManage
@@ -178,6 +206,30 @@ export function SuppliersClient({ suppliers, canManage }: { suppliers: SupplierR
         }
         emptyState={<EmptyState compact icon="🚚" title="No suppliers match your search" description="Try a different search term." />}
       />
+
+      {pageCount > 1 && (
+        <div className="mt-3 flex items-center justify-between text-[12.5px] text-muted">
+          <span>
+            Page {page} of {pageCount} · {total} total
+          </span>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => pushParams({ page: page - 1 })}
+              disabled={page <= 1}
+              className="flex h-8 items-center justify-center rounded-[7px] border border-border bg-surface px-3 disabled:cursor-not-allowed disabled:opacity-40 hover:bg-hover"
+            >
+              ‹ Prev
+            </button>
+            <button
+              onClick={() => pushParams({ page: page + 1 })}
+              disabled={page >= pageCount}
+              className="flex h-8 items-center justify-center rounded-[7px] border border-border bg-surface px-3 disabled:cursor-not-allowed disabled:opacity-40 hover:bg-hover"
+            >
+              Next ›
+            </button>
+          </div>
+        </div>
+      )}
 
       {modalSupplier !== undefined && (
         <SupplierModal supplier={modalSupplier ?? undefined} onClose={() => setModalSupplier(undefined)} />

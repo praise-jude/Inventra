@@ -1,10 +1,10 @@
 import { getWarehouseOptions } from "@/lib/queries/products";
-import { getSuppliersDetailed } from "@/lib/queries/suppliers";
+import { getSupplierOptions } from "@/lib/queries/suppliers";
 import { requireManagerProfile } from "@/lib/queries/session";
 import { NewSupplyRecordForm } from "@/components/supply-records/NewSupplyRecordForm";
 
 export default async function NewSupplyRecordPage() {
-  const [warehouses, suppliers] = await Promise.all([getWarehouseOptions(), getSuppliersDetailed(), requireManagerProfile()]);
+  const [warehouses, suppliers] = await Promise.all([getWarehouseOptions(), getSupplierOptions(), requireManagerProfile()]);
 
   return (
     <div>
@@ -12,10 +12,7 @@ export default async function NewSupplyRecordPage() {
         <div className="text-[22px] font-bold tracking-tight">New supply record</div>
         <div className="mt-[3px] text-text-2">Record a delivery from a supplier. Stock updates once it&apos;s marked Received or Verified.</div>
       </div>
-      <NewSupplyRecordForm
-        warehouses={warehouses}
-        suppliers={suppliers.map((s) => ({ id: s.id, name: s.name, phone: s.phone, email: s.email }))}
-      />
+      <NewSupplyRecordForm warehouses={warehouses} suppliers={suppliers} />
     </div>
   );
 }

@@ -128,7 +128,11 @@ export async function getCashRegisterHistory(warehouseId: string, from: string, 
     .eq("warehouse_id", warehouseId)
     .gte("business_date", from)
     .lte("business_date", to)
-    .order("business_date", { ascending: false });
+    .order("business_date", { ascending: false })
+    // Bounded by the caller's date range already (typically ~180 days, at
+    // most one row per day) — this is a hard safety cap, not expected to
+    // ever actually truncate real data.
+    .limit(200);
   if (error) {
     console.error("[Inventra] getCashRegisterHistory failed:", error);
     throw new Error("Could not load cash register history.");
