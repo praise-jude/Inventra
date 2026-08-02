@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { Navbar } from "@/components/marketing/Navbar";
 import { Footer } from "@/components/marketing/Footer";
+import { DownloadApkButton } from "@/components/marketing/DownloadApkButton";
 import { APP_RELEASES, getLatestRelease } from "@/lib/releases";
 
 export const metadata: Metadata = {
@@ -98,14 +99,14 @@ export default async function DownloadPage() {
                 <div className="mt-0.5 text-[22px] font-bold text-text">v{latest.version}</div>
               </div>
             </div>
-            <a
-              href={latest.apkUrl}
-              download={`royal-inventra-v${latest.version}.apk`}
+            <DownloadApkButton
+              apkUrl={latest.apkUrl}
+              fileName={`royal-inventra-v${latest.version}.apk`}
               className="inline-flex h-[52px] items-center justify-center gap-2 rounded-[10px] bg-accent px-7 text-[15px] font-bold text-white shadow-[var(--shadow-lg)] transition-transform hover:-translate-y-0.5"
             >
               <Download size={18} />
               Download Android APK
-            </a>
+            </DownloadApkButton>
           </div>
 
           <div className="mt-7 grid grid-cols-2 gap-3 border-t border-border pt-6 sm:grid-cols-4">
@@ -200,9 +201,13 @@ export default async function DownloadPage() {
                     <span className="text-[13.5px] font-semibold text-text">v{r.version}</span>
                     <span className="ml-2 text-[12px] text-muted">{r.releasedAt}</span>
                   </div>
-                  <a href={r.apkUrl} download={`royal-inventra-v${r.version}.apk`} className="text-[12.5px] font-semibold text-accent-text">
+                  <DownloadApkButton
+                    apkUrl={r.apkUrl}
+                    fileName={`royal-inventra-v${r.version}.apk`}
+                    className="text-[12.5px] font-semibold text-accent-text"
+                  >
                     Download
-                  </a>
+                  </DownloadApkButton>
                 </div>
               ))}
             </div>

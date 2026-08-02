@@ -15,6 +15,11 @@ const AUTH_ROUTES = [
   // Google Play requires the account-deletion link to work for logged-out
   // visitors and blocked/unpaid accounts alike, not just fully onboarded ones.
   "/delete-account",
+  // The public APK download page — explicitly required to work without an
+  // account ("never require a website account before downloading the
+  // APK"). Was missing from this list since the page was first added, so
+  // logged-out visitors were being redirected to /login instead.
+  "/download",
 ];
 
 const ONBOARDING_ROUTE = "/onboarding/complete";

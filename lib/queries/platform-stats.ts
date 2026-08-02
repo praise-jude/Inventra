@@ -9,6 +9,7 @@ export interface PublicPlatformStats {
   invoicesGenerated: number;
   warehousesConnected: number;
   countriesReached: number;
+  androidDownloads: number;
 }
 
 const FALLBACK: PublicPlatformStats = {
@@ -18,6 +19,7 @@ const FALLBACK: PublicPlatformStats = {
   invoicesGenerated: 0,
   warehousesConnected: 0,
   countriesReached: 0,
+  androidDownloads: 0,
 };
 
 // Real, cross-org counts for the landing page's dynamic counters — the
@@ -45,6 +47,7 @@ export const getPublicPlatformStats = unstable_cache(
       invoices_generated: number;
       warehouses_connected: number;
       countries_reached: number;
+      android_downloads: number;
     };
     return {
       businesses: Number(row.businesses),
@@ -53,6 +56,7 @@ export const getPublicPlatformStats = unstable_cache(
       invoicesGenerated: Number(row.invoices_generated),
       warehousesConnected: Number(row.warehouses_connected),
       countriesReached: Number(row.countries_reached),
+      androidDownloads: Number(row.android_downloads),
     };
   },
   ["public-platform-stats"],
