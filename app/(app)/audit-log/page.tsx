@@ -1,7 +1,9 @@
 import { requireAdminProfile } from "@/lib/queries/session";
 import { getAuditLogs, getAuditModules, type AuditLogFilters } from "@/lib/queries/audit";
+import { getDailySalesSummary } from "@/lib/queries/sales-summary";
 import { getWarehouseOptions } from "@/lib/queries/products";
 import { AuditLogClient } from "@/components/audit/AuditLogClient";
+import { SalesSummaryPanel } from "@/components/audit/SalesSummaryPanel";
 import { canViewAuditLog } from "@/lib/entitlements";
 import { PremiumLockedState } from "@/components/billing/PremiumLockedState";
 
@@ -12,7 +14,7 @@ export default async function AuditLogPage({
 }: {
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
-  await requireAdminProfile();
+  const { org } = await requireAdminProfile();
 
   if (!(await canViewAuditLog())) {
     return (
@@ -37,10 +39,22 @@ export default async function AuditLogPage({
   };
   const page = Math.max(1, Number(params.page) || 1);
 
-  const [{ rows, total }, modules, branches] = await Promise.all([
+  // Resolved in the org's own timezone (not the server's) — same reasoning
+  // as the Dashboard's own "today"/"this month" boundaries elsewhere in
+  // this codebase, so a sale made late at night in the org's local time
+  // isn't miscounted into the wrong day just because the server is on UTC.
+  const now = new Date();
+  const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: org.timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  const [yearStr, monthStr, dayStr] = todayKey.split("-");
+  const daysElapsedInMonth = Number(dayStr);
+  const monthStartKey = `${yearStr}-${monthStr}-01`;
+  const monthLabel = new Intl.DateTimeFormat("en-US", { timeZone: org.timezone, month: "long", year: "numeric" }).format(now);
+
+  const [{ rows, total }, modules, branches, monthlySalesRows] = await Promise.all([
     getAuditLogs(filters, page, PAGE_SIZE),
     getAuditModules(),
     getWarehouseOptions(),
+    getDailySalesSummary(monthStartKey, todayKey),
   ]);
 
   return (
@@ -49,6 +63,7 @@ export default async function AuditLogPage({
         <div className="text-[22px] font-bold tracking-tight">Audit Log</div>
         <div className="mt-[3px] text-text-2">Every important action taken across your workspace, with a full before/after trail.</div>
       </div>
+      <SalesSummaryPanel monthLabel={monthLabel} daysElapsedInMonth={daysElapsedInMonth} initialMonthRows={monthlySalesRows} />
       <AuditLogClient
         rows={rows}
         total={total}
