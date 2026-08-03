@@ -14,7 +14,7 @@ async function requireOrgId() {
   if (!user) throw new Error("Not authenticated");
   const { data: profile } = await supabase
     .from("profiles")
-    .select("org_id, role, first_name, last_name")
+    .select("org_id, role, first_name, last_name, branch_id")
     .eq("id", user.id)
     .single();
   if (!profile) throw new Error("No profile");
@@ -24,6 +24,7 @@ async function requireOrgId() {
     userId: user.id,
     role: profile.role as string,
     actorName: `${profile.first_name} ${profile.last_name}`,
+    branchId: profile.branch_id as string | null,
   };
 }
 
@@ -41,7 +42,7 @@ export async function fetchDebtorDetail(id: string): Promise<DebtorDetail | null
 }
 
 export async function createDebtor(input: DebtorInput) {
-  const { supabase, orgId, userId, role, actorName } = await requireOrgId();
+  const { supabase, orgId, userId, role, actorName, branchId } = await requireOrgId();
   if (!(await canManageCustomers())) {
     throw new UpgradeRequiredError("Customer management is a Premium feature. Upgrade to Premium to track customer credit.");
   }
@@ -49,10 +50,17 @@ export async function createDebtor(input: DebtorInput) {
   if (!customerName) throw new Error("Customer name is required.");
   if (input.amountOwed < 0) throw new Error("Amount owed can't be negative.");
 
+  // Tags the record with whatever branch the creating user is at (if any) —
+  // not restricted to Cashier/Warehouse roles, since an Owner/Admin/Manager
+  // stationed at a specific branch should have their own customers tagged
+  // too. Cashier/Warehouse read access to debtors is branch-scoped by RLS
+  // (see 20260803183000_branch_scope_debtors.sql); this is what makes a
+  // customer they add show up for them afterward instead of disappearing.
   const { data: debtor, error } = await supabase
     .from("debtors")
     .insert({
       org_id: orgId,
+      warehouse_id: branchId,
       customer_name: customerName,
       phone: input.phone?.trim() || null,
       email: input.email?.trim() || null,

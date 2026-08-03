@@ -36,15 +36,20 @@ interface CartLine {
 export function NewSaleForm({
   warehouses,
   taxRate,
+  lockedWarehouseId,
 }: {
   warehouses: { id: string; name: string }[];
   taxRate: number;
+  // Set when the signed-in Cashier is assigned to a branch — their sales
+  // should tag that branch automatically rather than leaving it an
+  // easy-to-skip optional dropdown (see app/(app)/sales/new/page.tsx).
+  lockedWarehouseId?: string | null;
 }) {
   const router = useRouter();
   const flash = useToast();
   const { format: formatMoney } = useWorkspace();
 
-  const [warehouseId, setWarehouseId] = useState("");
+  const [warehouseId, setWarehouseId] = useState(lockedWarehouseId ?? "");
 
   const [productQuery, setProductQuery] = useState("");
   const [matchingProducts, setMatchingProducts] = useState<ProductPickerRow[]>([]);
@@ -291,8 +296,13 @@ export function NewSaleForm({
       <div className="rounded-2xl border border-border bg-surface p-5 shadow-[var(--shadow-sm)]">
         <div className="mb-3.5 grid grid-cols-2 gap-3">
           {warehouses.length > 0 && (
-            <Select label="Branch (optional)" value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
-              <option value="">Unassigned</option>
+            <Select
+              label={lockedWarehouseId ? "Branch" : "Branch (optional)"}
+              value={warehouseId}
+              onChange={(e) => setWarehouseId(e.target.value)}
+              disabled={!!lockedWarehouseId}
+            >
+              {!lockedWarehouseId && <option value="">Unassigned</option>}
               {warehouses.map((w) => (
                 <option key={w.id} value={w.id}>
                   {w.name}
