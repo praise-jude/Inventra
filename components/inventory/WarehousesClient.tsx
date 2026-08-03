@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useToast } from "@/components/app/ToastProvider";
 import { useEntitlementsContext } from "@/components/billing/EntitlementsProvider";
-import { archiveWarehouse, deleteWarehouse, reactivateWarehouse } from "@/lib/actions/warehouses";
+import { archiveWarehouse, deleteWarehouse, generateBranchCode, reactivateWarehouse, revokeBranchCode } from "@/lib/actions/warehouses";
 import type { WarehouseOverview } from "@/lib/queries/inventory";
 import { formatMoney, formatNumber } from "@/lib/format";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -83,6 +83,41 @@ export function WarehousesClient({
     }
   }
 
+  async function handleGenerateCode(warehouse: WarehouseOverview) {
+    const verb = warehouse.branchCode ? "Regenerate" : "Generate";
+    if (warehouse.branchCode && !window.confirm(`${verb} the signup code for "${warehouse.name}"? The old code will stop working immediately.`)) return;
+    setBusyId(warehouse.id);
+    try {
+      const { code } = await generateBranchCode(warehouse.id);
+      await navigator.clipboard?.writeText(code).catch(() => {});
+      flash(`New code ${code} copied to clipboard`);
+      router.refresh();
+    } catch (err) {
+      flash(err instanceof Error ? err.message : "Could not generate a signup code.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleRevokeCode(warehouse: WarehouseOverview) {
+    if (!window.confirm(`Revoke the signup code for "${warehouse.name}"? Nobody will be able to use it to join anymore.`)) return;
+    setBusyId(warehouse.id);
+    try {
+      await revokeBranchCode(warehouse.id);
+      flash("Signup code revoked");
+      router.refresh();
+    } catch (err) {
+      flash(err instanceof Error ? err.message : "Could not revoke the signup code.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleCopyCode(code: string) {
+    await navigator.clipboard?.writeText(code).catch(() => {});
+    flash("Code copied to clipboard");
+  }
+
   return (
     <div>
       {canManage && (
@@ -143,6 +178,49 @@ export function WarehousesClient({
                 <span className="text-text-2">Stock value</span>
                 <span className="font-mono font-bold">{formatMoney(w.stockValue, currency)}</span>
               </div>
+
+              {canManage && (
+                <div className="mt-3.5 border-t border-border pt-3">
+                  <div className="mb-1.5 text-[11px] font-semibold text-text-2">Signup code</div>
+                  {w.branchCode ? (
+                    <div className="flex items-center justify-between gap-2">
+                      <button
+                        onClick={() => handleCopyCode(w.branchCode!)}
+                        title="Copy code"
+                        className="rounded-[7px] border border-border bg-hover px-2.5 py-1 font-mono text-[13px] font-bold tracking-wide text-text hover:bg-border-2"
+                      >
+                        {w.branchCode}
+                      </button>
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={() => handleGenerateCode(w)}
+                          disabled={busyId === w.id}
+                          className="h-6 rounded-[6px] border border-border bg-surface px-2 text-[11px] font-semibold text-text hover:bg-hover disabled:opacity-50"
+                        >
+                          Regenerate
+                        </button>
+                        <button
+                          onClick={() => handleRevokeCode(w)}
+                          disabled={busyId === w.id}
+                          className="h-6 rounded-[6px] border border-border bg-surface px-2 text-[11px] font-semibold text-red hover:bg-hover disabled:opacity-50"
+                        >
+                          Revoke
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => handleGenerateCode(w)}
+                      disabled={busyId === w.id}
+                      className="h-7 w-full rounded-[7px] border border-border bg-surface text-[12px] font-semibold text-text hover:bg-hover disabled:opacity-50"
+                    >
+                      Generate signup code
+                    </button>
+                  )}
+                  <div className="mt-1 text-[10.5px] text-muted">Anyone with this code can join as a branch manager — share it only with who you intend to.</div>
+                </div>
+              )}
+
               {(canManage || canTransfer) && (
                 <div className="mt-3.5 flex flex-wrap gap-2 border-t border-border pt-3">
                   {canManage && (

@@ -20,7 +20,7 @@ const NAV = [
   { href: "/reports", label: "Reports", icon: "📈", managerOnly: true },
   { href: "/audit-log", label: "Audit Log", icon: "🛡️", adminOnly: true },
   { href: "/expenses", label: "Expenses", icon: "💸", managerOnly: true },
-  { href: "/team", label: "Team", icon: "👥", managerOnly: true },
+  { href: "/settings/branches", label: "Branches", icon: "👥", adminOnly: true },
   { href: "/approvals", label: "Approvals", icon: "✅", managerOnly: true },
   { href: "/notifications", label: "Notifications", icon: "🔔" },
   { href: "/billing", label: "Billing", icon: "💳", adminOnly: true },
@@ -32,7 +32,6 @@ export function Sidebar({
   plan,
   tier,
   inventoryBadge,
-  teamBadge,
   canViewSupplyRecords,
   role,
   open,
@@ -46,7 +45,6 @@ export function Sidebar({
   // hard-block gate these used to warn about.
   tier: "free" | "premium";
   inventoryBadge: number;
-  teamBadge: number;
   // has_permission('supply_records','view') — unlike the other *Only flags
   // (role-tier-derived), this is a real per-org override lookup (Manager
   // true by default, Staff only if an admin granted it), so it comes in as
@@ -119,12 +117,7 @@ export function Sidebar({
       <nav className="scroll flex-1 overflow-y-auto px-2.5 py-1">
         {nav.map((item) => {
           const active = item.href === activeHref;
-          const badge =
-            item.href === "/inventory" && inventoryBadge > 0
-              ? inventoryBadge
-              : item.href === "/team" && teamBadge > 0
-                ? teamBadge
-                : null;
+          const badge = item.href === "/inventory" && inventoryBadge > 0 ? inventoryBadge : null;
           return (
             <Link
               key={item.href}

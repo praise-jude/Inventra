@@ -1,7 +1,6 @@
 import { cookies } from "next/headers";
 import { requireProfile } from "@/lib/queries/session";
 import { getStockBadgeCounts } from "@/lib/queries/dashboard";
-import { getPendingApprovalsCount } from "@/lib/queries/team";
 import { getEntitlements } from "@/lib/entitlements";
 import { createClient } from "@/lib/supabase/server";
 import { ToastProvider } from "@/components/app/ToastProvider";
@@ -13,10 +12,9 @@ import { Shell } from "@/components/app/Shell";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { profile, org } = await requireProfile();
   const supabase = await createClient();
-  const [stockBadge, entitlements, teamBadge, canViewSupplyRecords] = await Promise.all([
+  const [stockBadge, entitlements, canViewSupplyRecords] = await Promise.all([
     getStockBadgeCounts(),
     getEntitlements(),
-    getPendingApprovalsCount(profile.role, profile.branch_id),
     supabase.rpc("has_permission", { p_module: "supply_records", p_action: "view" }).then((r) => r.data === true),
   ]);
   const cookieStore = await cookies();
@@ -40,7 +38,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               plan={org.plan}
               tier={entitlements.tier}
               inventoryBadge={inventoryBadge}
-              teamBadge={teamBadge}
               canViewSupplyRecords={canViewSupplyRecords}
               initials={initials}
               firstName={profile.first_name}

@@ -176,6 +176,78 @@ export async function registerAccount(input: RegisterAccountInput): Promise<Regi
   return { ok: true, hasSession: !!data.session };
 }
 
+export interface JoinBranchInput {
+  fullName: string;
+  email: string;
+  password: string;
+  branchCode: string;
+  termsAccepted: boolean;
+}
+
+export type JoinBranchResult = { ok: true; hasSession: boolean } | { ok: false; error: string };
+
+// The self-service replacement for the old Team invite flow — much lighter
+// than registerAccount() above (no business/country fields, since those
+// come from the branch's existing org) because this joins an EXISTING
+// org/branch rather than creating one. The actual org_id/branch_id
+// resolution happens server-side in the on_auth_user_created trigger (see
+// 20260803200000_branch_code_signup.sql), which looks the code up itself
+// rather than trusting anything the client claims — this action only
+// forwards what the user typed, never an org/branch id.
+export async function joinBranchAsManager(input: JoinBranchInput): Promise<JoinBranchResult> {
+  const fullName = input.fullName.trim();
+  const email = input.email.trim().toLowerCase();
+  const branchCode = input.branchCode.trim().toUpperCase();
+
+  const fieldError = validateFullName(fullName) || validateEmail(email) || validatePassword(input.password);
+  if (fieldError) return { ok: false, error: fieldError };
+  if (!branchCode) return { ok: false, error: "Branch code is required." };
+  if (!input.termsAccepted) {
+    return { ok: false, error: "You must accept the Terms & Conditions and Privacy Policy." };
+  }
+
+  const ip = await clientIp();
+  const allowed = await checkAndRecordSignupRateLimit(ip);
+  if (!allowed) {
+    return { ok: false, error: "Too many signup attempts from this network. Please try again in a few minutes." };
+  }
+
+  const [firstName, ...rest] = fullName.split(/\s+/);
+  const lastName = rest.join(" ") || undefined;
+
+  const supabase = await createClient();
+  const emailRedirectTo = `${await siteUrl()}/auth/callback?next=/dashboard`;
+  const { data, error } = await withAuthRetry(() =>
+    supabase.auth.signUp({
+      email,
+      password: input.password,
+      options: {
+        data: {
+          first_name: firstName,
+          last_name: lastName,
+          branch_code: branchCode,
+          terms_accepted: true,
+          terms_version: CURRENT_TERMS_VERSION,
+          terms_accepted_ip: ip,
+        },
+        emailRedirectTo,
+      },
+    }),
+  );
+
+  // "Invalid or expired branch code." raised by the trigger surfaces here
+  // as a generic auth error — the message itself still comes through, just
+  // not necessarily formatted the way friendlyAuthErrorMessage expects, so
+  // it's checked for directly rather than risking it being rewritten into
+  // something less useful.
+  if (error) {
+    const message = error.message?.includes("branch code") ? "Invalid or expired branch code." : friendlyAuthErrorMessage(error.message);
+    return { ok: false, error: message };
+  }
+
+  return { ok: true, hasSession: !!data.session };
+}
+
 export interface CompleteOnboardingInput {
   businessName?: string;
   businessEmail?: string;

@@ -117,6 +117,12 @@ export interface WarehouseOverview {
   skuCount: number;
   stockValue: number;
   utilizationPct: number;
+  // Branch signup code — a self-service alternative to the old Team invite
+  // flow (see generateBranchCode/revokeBranchCode in lib/actions/
+  // warehouses.ts): whoever enters this at signup joins this branch
+  // directly as 'manager', active, no approval step.
+  branchCode: string | null;
+  branchCodeExpiresAt: string | null;
 }
 
 export interface WarehouseProductOption {
@@ -153,7 +159,9 @@ export async function getWarehousesOverview(): Promise<WarehouseOverview[]> {
       // profiles!warehouses_manager_profile_id_fkey disambiguates against the
       // other profiles<->warehouses relationship (profiles.branch_id) — see
       // lib/queries/team.ts for the same PGRST201 fix.
-      .select("id, name, address, country, state, phone, status, capacity, manager_profile_id, profiles!warehouses_manager_profile_id_fkey(first_name, last_name)")
+      .select(
+        "id, name, address, country, state, phone, status, capacity, manager_profile_id, branch_code, branch_code_expires_at, profiles!warehouses_manager_profile_id_fkey(first_name, last_name)",
+      )
       .order("name"),
     supabase.rpc("get_warehouse_stock_summary"),
   ]);
@@ -184,6 +192,8 @@ export async function getWarehousesOverview(): Promise<WarehouseOverview[]> {
       skuCount,
       stockValue,
       utilizationPct,
+      branchCode: w.branch_code,
+      branchCodeExpiresAt: w.branch_code_expires_at,
     };
   });
 }

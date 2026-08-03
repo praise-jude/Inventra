@@ -296,3 +296,88 @@ export async function transferWarehouseStock(productId: string, toWarehouseId: s
     branchName: toWarehouse?.name ?? null,
   });
 }
+
+// Branch signup codes — the self-service replacement for the old Team
+// invite flow (see 20260803200000_branch_code_signup.sql). Whoever enters
+// this code at signup joins this exact org/branch directly as 'manager',
+// active, no approval step, so generating one is admin-only, same tier as
+// the rest of branch administration above.
+export interface BranchCodeResult {
+  code: string;
+}
+
+export async function generateBranchCode(warehouseId: string): Promise<BranchCodeResult> {
+  const { supabase, orgId, userId, role, actorName } = await requireAdminOrgId();
+
+  const { data: warehouse } = await supabase.from("warehouses").select("name").eq("id", warehouseId).eq("org_id", orgId).maybeSingle();
+  if (!warehouse) throw new Error("Branch not found.");
+
+  const { data: codeData, error: codeError } = await supabase.rpc("generate_branch_code");
+  if (codeError || !codeData) {
+    logError({ feature: "Branches", action: "generateBranchCode" }, "generate_branch_code RPC failed", codeError);
+    throw new Error("Could not generate a signup code.");
+  }
+
+  const { error } = await supabase.from("warehouses").update({ branch_code: codeData }).eq("id", warehouseId).eq("org_id", orgId);
+  if (error) {
+    logError({ feature: "Branches", action: "generateBranchCode" }, "branch_code update failed", error);
+    throw new Error("Could not save the signup code.");
+  }
+  revalidatePath("/settings/branches");
+  revalidatePath("/inventory/warehouses");
+
+  void logAudit({
+    orgId,
+    actorId: userId,
+    actorName,
+    actorRole: role,
+    action: "branch.updated",
+    module: "Branches",
+    entityType: "warehouse",
+    entityId: warehouseId,
+    entityLabel: warehouse.name,
+    newValue: { branchCodeGenerated: true },
+    branchId: warehouseId,
+    branchName: warehouse.name,
+  });
+
+  return { code: codeData as string };
+}
+
+// Revokes a signup code (clears it) — the Owner/Admin's way to invalidate a
+// leaked or no-longer-needed code, matching "expire only if the Owner
+// chooses" (there's no automatic expiry by default; branch_code_expires_at
+// stays null until explicitly set).
+export async function revokeBranchCode(warehouseId: string): Promise<void> {
+  const { supabase, orgId, userId, role, actorName } = await requireAdminOrgId();
+
+  const { data: warehouse } = await supabase.from("warehouses").select("name").eq("id", warehouseId).eq("org_id", orgId).maybeSingle();
+  if (!warehouse) throw new Error("Branch not found.");
+
+  const { error } = await supabase
+    .from("warehouses")
+    .update({ branch_code: null, branch_code_expires_at: null })
+    .eq("id", warehouseId)
+    .eq("org_id", orgId);
+  if (error) {
+    logError({ feature: "Branches", action: "revokeBranchCode" }, "branch_code clear failed", error);
+    throw new Error("Could not revoke the signup code.");
+  }
+  revalidatePath("/settings/branches");
+  revalidatePath("/inventory/warehouses");
+
+  void logAudit({
+    orgId,
+    actorId: userId,
+    actorName,
+    actorRole: role,
+    action: "branch.updated",
+    module: "Branches",
+    entityType: "warehouse",
+    entityId: warehouseId,
+    entityLabel: warehouse.name,
+    newValue: { branchCodeRevoked: true },
+    branchId: warehouseId,
+    branchName: warehouse.name,
+  });
+}

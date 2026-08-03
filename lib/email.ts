@@ -268,28 +268,6 @@ export async function sendRecoveryCodeUsedEmail(input: { to: string }): Promise<
   });
 }
 
-export async function sendMemberApprovedEmail(input: { to: string; orgName: string }): Promise<void> {
-  await sendEmail({
-    to: input.to,
-    subject: "Your Inventra account has been approved",
-    html: wrap(
-      "You're approved",
-      `<p>Your ${input.orgName} account has been approved. You can now log in and access your assigned branch.</p>`,
-    ),
-  });
-}
-
-export async function sendMemberRejectedEmail(input: { to: string; reason: string }): Promise<void> {
-  await sendEmail({
-    to: input.to,
-    subject: "Your Inventra account request was not approved",
-    html: wrap(
-      "Account request declined",
-      `<p>Your request to join this workspace was not approved.</p><p><strong>Reason:</strong> ${input.reason}</p><p>If you believe this is a mistake, contact whoever invited you.</p>`,
-    ),
-  });
-}
-
 // Notifies the privacy inbox of a deletion request submitted via the public
 // /delete-account page (app/delete-account/page.tsx) — there's no self-serve
 // deletion flow in-app yet, so a human on the team actions this manually,

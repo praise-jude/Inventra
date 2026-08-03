@@ -12,7 +12,7 @@ import {
 import type { ActivityRow } from "@/lib/queries/dashboard";
 import { getExpenseCategoryBreakdown } from "@/lib/queries/expenses";
 import { requireProfile } from "@/lib/queries/session";
-import { getActiveTeamMembersForPresence, getPendingApprovalsCount } from "@/lib/queries/team";
+import { getActiveTeamMembersForPresence } from "@/lib/queries/team";
 import { getWarehouseOptions, getProductsPage } from "@/lib/queries/products";
 import { getTodaysCashRegister } from "@/lib/queries/cash-register";
 import { getEntitlements } from "@/lib/entitlements";
@@ -64,7 +64,7 @@ export default async function DashboardPage() {
   // reconciliation is core daily operations, not an analytics upsell.
   const defaultWarehouse = isAdminTier ? (await getWarehouseOptions())[0] : undefined;
 
-  const [kpis, categoryMix, topSellers, stockHealth, revenueProfit, salesVolume, expenseBreakdown, activity, dailyProfit, teamMembers, cashRegister, outOfStock, pendingApprovals] =
+  const [kpis, categoryMix, topSellers, stockHealth, revenueProfit, salesVolume, expenseBreakdown, activity, dailyProfit, teamMembers, cashRegister, outOfStock] =
     await Promise.all([
       getKpis(),
       showAnalytics ? getCategoryMix() : Promise.resolve([]),
@@ -78,7 +78,6 @@ export default async function DashboardPage() {
       showAnalytics ? getActiveTeamMembersForPresence() : Promise.resolve([]),
       defaultWarehouse ? getTodaysCashRegister(defaultWarehouse.id) : Promise.resolve(null),
       getProductsPage({ status: "out_of_stock", active: "active" }, 1, 6),
-      isAdminTier ? getPendingApprovalsCount(profile.role, profile.branch_id) : Promise.resolve(0),
     ]);
   const todaysProfit = dailyProfit.reduce((sum, p) => sum + (Number(p.profit) || 0), 0);
 
@@ -277,25 +276,6 @@ export default async function DashboardPage() {
               </div>
             </div>
           )}
-        </Link>
-      )}
-
-      {/* PENDING APPROVALS */}
-      {isAdminTier && pendingApprovals > 0 && (
-        <Link
-          href="/team?status=awaiting_approval"
-          className="mb-4 flex items-center justify-between rounded-2xl border border-border bg-surface p-[15px_18px] shadow-[var(--shadow-sm)] hover:bg-hover"
-        >
-          <div className="flex items-center gap-3">
-            <span aria-hidden="true" className="flex h-9 w-9 items-center justify-center rounded-[9px] text-[16px]" style={{ background: "var(--sky-weak)" }}>
-              ✅
-            </span>
-            <div>
-              <div className="text-[13.5px] font-bold">Pending Approvals ({pendingApprovals})</div>
-              <div className="text-[11.5px] text-muted">Team members waiting for your approval</div>
-            </div>
-          </div>
-          <span className="text-[12.5px] font-semibold text-accent-text">Review →</span>
         </Link>
       )}
 

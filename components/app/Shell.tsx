@@ -11,7 +11,6 @@ export function Shell({
   plan,
   tier,
   inventoryBadge,
-  teamBadge,
   canViewSupplyRecords,
   initials,
   firstName,
@@ -23,7 +22,6 @@ export function Shell({
   plan: string;
   tier: "free" | "premium";
   inventoryBadge: number;
-  teamBadge: number;
   canViewSupplyRecords: boolean;
   initials: string;
   firstName: string;
@@ -69,7 +67,6 @@ export function Shell({
         plan={plan}
         tier={tier}
         inventoryBadge={inventoryBadge}
-        teamBadge={teamBadge}
         canViewSupplyRecords={canViewSupplyRecords}
         role={role}
         open={sidebarOpen}

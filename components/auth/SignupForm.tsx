@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { registerAccount } from "@/lib/actions/auth";
+import { registerAccount, joinBranchAsManager } from "@/lib/actions/auth";
 import { COUNTRIES, statesForCountry } from "@/lib/geo/countries";
 import {
   validateFullName,
@@ -29,6 +29,12 @@ const ROLE_OPTIONS = [
 export function SignupForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  // "join_branch" is the self-service replacement for the old Team invite
+  // flow — much lighter (name/email/password/code only), since it joins an
+  // EXISTING org/branch instead of creating a new one. Defaults to
+  // "join_branch" when a branch code arrives via URL (?branch=ABCD1234),
+  // same lazy-lets-you-share-a-link pattern the existing ?ref= param uses.
+  const [mode, setMode] = useState<"new_business" | "join_branch">(() => (searchParams.get("branch") ? "join_branch" : "new_business"));
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -40,8 +46,10 @@ export function SignupForm() {
   const [role, setRole] = useState<(typeof ROLE_OPTIONS)[number]["value"]>("admin");
   // Supports a shareable referral link (e.g. /signup?ref=ABCD1234) as well
   // as manual entry — the lazy initializer reads the URL once at mount,
-  // no effect needed to sync it in afterward.
+  // no effect needed to sync it in afterward. Unrelated to branchCode below
+  // — this is the org-to-org growth referral, a different system entirely.
   const [referralCode, setReferralCode] = useState(() => searchParams.get("ref")?.toUpperCase() ?? "");
+  const [branchCode, setBranchCode] = useState(() => searchParams.get("branch")?.toUpperCase() ?? "");
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,13 +59,18 @@ export function SignupForm() {
   const states = useMemo(() => statesForCountry(country), [country]);
   const strength = passwordStrength(password);
 
+  // One consistent shape regardless of mode (fields not relevant to the
+  // current mode are simply always null) — keeps showError()'s key type
+  // stable instead of narrowing to whatever's common between two different
+  // branch shapes.
   const fieldErrors = {
     fullName: validateFullName(fullName),
     email: validateEmail(email),
-    businessName: validateBusinessName(businessName),
-    businessEmail: validateBusinessEmail(businessEmail),
     password: validatePassword(password),
-    country: country ? null : "Country is required.",
+    businessName: mode === "new_business" ? validateBusinessName(businessName) : null,
+    businessEmail: mode === "new_business" ? validateBusinessEmail(businessEmail) : null,
+    country: mode === "new_business" && !country ? "Country is required." : null,
+    branchCode: mode === "join_branch" && !branchCode.trim() ? "Branch code is required." : null,
     terms: termsAccepted ? null : "You must accept the Terms & Conditions and Privacy Policy.",
   };
   const showError = (key: keyof typeof fieldErrors) => (submitted ? fieldErrors[key] : null);
@@ -69,18 +82,21 @@ export function SignupForm() {
     if (Object.values(fieldErrors).some(Boolean)) return;
 
     setLoading(true);
-    const result = await registerAccount({
-      fullName,
-      email,
-      password,
-      businessName,
-      businessEmail: businessEmail || undefined,
-      country,
-      state: state || undefined,
-      role,
-      referralCode: referralCode.trim() || undefined,
-      termsAccepted,
-    });
+    const result =
+      mode === "join_branch"
+        ? await joinBranchAsManager({ fullName, email, password, branchCode, termsAccepted })
+        : await registerAccount({
+            fullName,
+            email,
+            password,
+            businessName,
+            businessEmail: businessEmail || undefined,
+            country,
+            state: state || undefined,
+            role,
+            referralCode: referralCode.trim() || undefined,
+            termsAccepted,
+          });
     setLoading(false);
 
     if (!result.ok) {
@@ -130,8 +146,32 @@ export function SignupForm() {
 
   return (
     <div>
-      <h1 className="mb-1.5 text-2xl font-bold tracking-tight">Create your workspace</h1>
-      <p className="mb-[26px] text-text-2">Start your 6-day free trial — a card is required to activate it.</p>
+      <h1 className="mb-1.5 text-2xl font-bold tracking-tight">
+        {mode === "join_branch" ? "Join your branch" : "Create your workspace"}
+      </h1>
+      <p className="mb-4 text-text-2">
+        {mode === "join_branch"
+          ? "Enter the signup code your business owner shared with you."
+          : "Start your 6-day free trial — a card is required to activate it."}
+      </p>
+
+      <div className="mb-[22px] flex gap-2 rounded-[10px] border border-border bg-surface-2 p-1">
+        <button
+          type="button"
+          onClick={() => setMode("new_business")}
+          className={`h-8 flex-1 rounded-[7px] text-[12.5px] font-semibold ${mode === "new_business" ? "bg-surface text-text shadow-[var(--shadow-sm)]" : "text-text-2"}`}
+        >
+          Start a new business
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode("join_branch")}
+          className={`h-8 flex-1 rounded-[7px] text-[12.5px] font-semibold ${mode === "join_branch" ? "bg-surface text-text shadow-[var(--shadow-sm)]" : "text-text-2"}`}
+        >
+          I have a branch code
+        </button>
+      </div>
+
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-3.5">
         <div>
           <Field label="Full name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
@@ -184,78 +224,97 @@ export function SignupForm() {
 
         <div className="my-1 h-px bg-border" />
 
-        <div>
-          <Field label="Business name" value={businessName} onChange={(e) => setBusinessName(e.target.value)} />
-          {showError("businessName") && (
-            <p className="mt-1 text-[12px] font-medium text-red">{showError("businessName")}</p>
-          )}
-        </div>
-        <div>
-          <Field
-            label="Business email (optional)"
-            type="email"
-            value={businessEmail}
-            onChange={(e) => setBusinessEmail(e.target.value)}
-          />
-          {showError("businessEmail") && (
-            <p className="mt-1 text-[12px] font-medium text-red">{showError("businessEmail")}</p>
-          )}
-        </div>
-        <div className="flex gap-3">
-          <div className="flex-1">
-            <Select
-              label="Country"
-              value={country}
-              onChange={(e) => {
-                setCountry(e.target.value);
-                setState("");
-              }}
-            >
-              <option value="">Select country…</option>
-              {COUNTRIES.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.name}
-                </option>
-              ))}
-            </Select>
-            {showError("country") && <p className="mt-1 text-[12px] font-medium text-red">{showError("country")}</p>}
+        {mode === "join_branch" ? (
+          <div>
+            <Field
+              label="Branch code"
+              value={branchCode}
+              onChange={(e) => setBranchCode(e.target.value.toUpperCase())}
+              placeholder="e.g. BR3F7K2Q"
+            />
+            {showError("branchCode") && <p className="mt-1 text-[12px] font-medium text-red">{showError("branchCode")}</p>}
+            <p className="mt-1.5 text-[11.5px] text-muted">
+              You&apos;ll join as a manager of that branch, with immediate access — no approval needed.
+            </p>
           </div>
-          {states.length > 0 && (
-            <div className="flex-1">
-              <Select label="State/Province" value={state} onChange={(e) => setState(e.target.value)}>
-                <option value="">Select state…</option>
-                {states.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
+        ) : (
+          <>
+            <div>
+              <Field label="Business name" value={businessName} onChange={(e) => setBusinessName(e.target.value)} />
+              {showError("businessName") && (
+                <p className="mt-1 text-[12px] font-medium text-red">{showError("businessName")}</p>
+              )}
+            </div>
+            <div>
+              <Field
+                label="Business email (optional)"
+                type="email"
+                value={businessEmail}
+                onChange={(e) => setBusinessEmail(e.target.value)}
+              />
+              {showError("businessEmail") && (
+                <p className="mt-1 text-[12px] font-medium text-red">{showError("businessEmail")}</p>
+              )}
+            </div>
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <Select
+                  label="Country"
+                  value={country}
+                  onChange={(e) => {
+                    setCountry(e.target.value);
+                    setState("");
+                  }}
+                >
+                  <option value="">Select country…</option>
+                  {COUNTRIES.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.name}
+                    </option>
+                  ))}
+                </Select>
+                {showError("country") && <p className="mt-1 text-[12px] font-medium text-red">{showError("country")}</p>}
+              </div>
+              {states.length > 0 && (
+                <div className="flex-1">
+                  <Select label="State/Province" value={state} onChange={(e) => setState(e.target.value)}>
+                    <option value="">Select state…</option>
+                    {states.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <Select label="Your role" value={role} onChange={(e) => setRole(e.target.value as typeof role)}>
+                {ROLE_OPTIONS.map((r) => (
+                  <option key={r.value} value={r.value}>
+                    {r.label}
                   </option>
                 ))}
               </Select>
+              <p className="mt-1.5 text-[11.5px] text-muted">
+                As the creator of a new business, you&apos;ll have full owner access — this just helps us
+                tailor your setup.
+              </p>
             </div>
-          )}
-        </div>
+          </>
+        )}
 
-        <div>
-          <Select label="Your role" value={role} onChange={(e) => setRole(e.target.value as typeof role)}>
-            {ROLE_OPTIONS.map((r) => (
-              <option key={r.value} value={r.value}>
-                {r.label}
-              </option>
-            ))}
-          </Select>
-          <p className="mt-1.5 text-[11.5px] text-muted">
-            As the creator of a new business, you&apos;ll have full owner access — this just helps us
-            tailor your setup.
-          </p>
-        </div>
-
-        <div>
-          <Field
-            label="Referral code (optional)"
-            value={referralCode}
-            onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
-            placeholder="e.g. ABCD1234"
-          />
-        </div>
+        {mode === "new_business" && (
+          <div>
+            <Field
+              label="Referral code (optional)"
+              value={referralCode}
+              onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+              placeholder="e.g. ABCD1234"
+            />
+          </div>
+        )}
 
         <label className="flex items-start gap-2 text-[12.5px] text-text-2">
           <input
@@ -280,16 +339,22 @@ export function SignupForm() {
 
         {error && <p className="text-[13px] font-medium text-red">{error}</p>}
         <Button type="submit" disabled={loading} className="w-full">
-          {loading ? "Creating…" : "Create account"}
+          {loading ? "Creating…" : mode === "join_branch" ? "Join branch" : "Create account"}
         </Button>
-        <div className="my-1 flex items-center gap-3 text-xs text-faint">
-          <div className="h-px flex-1 bg-border" />
-          OR
-          <div className="h-px flex-1 bg-border" />
-        </div>
-        <Button type="button" variant="secondary" onClick={handleGoogle} className="w-full">
-          <span className="font-extrabold text-[#4285F4]">G</span> Continue with Google
-        </Button>
+        {mode === "new_business" && (
+          <>
+            <div className="my-1 flex items-center gap-3 text-xs text-faint">
+              <div className="h-px flex-1 bg-border" />
+              OR
+              <div className="h-px flex-1 bg-border" />
+            </div>
+            {/* Google OAuth has no way to carry a branch code through its
+                redirect — only available for the new-business path. */}
+            <Button type="button" variant="secondary" onClick={handleGoogle} className="w-full">
+              <span className="font-extrabold text-[#4285F4]">G</span> Continue with Google
+            </Button>
+          </>
+        )}
       </form>
       <p className="mt-6 text-center text-[13.5px] text-text-2">
         Already have an account?{" "}
