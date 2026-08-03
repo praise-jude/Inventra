@@ -1,5 +1,4 @@
 import dynamic from "next/dynamic";
-import { cookies } from "next/headers";
 import { Navbar } from "./Navbar";
 import { Hero } from "./Hero";
 import { TrustedBy } from "./TrustedBy";
@@ -19,12 +18,11 @@ const Stats = dynamic(() => import("./Stats").then((m) => m.Stats));
 const FAQ = dynamic(() => import("./FAQ").then((m) => m.FAQ));
 
 export async function LandingPage() {
-  const [cookieStore, stats] = await Promise.all([cookies(), getPublicPlatformStats()]);
-  const initialTheme = cookieStore.get("theme")?.value === "dark" ? "dark" : "light";
+  const stats = await getPublicPlatformStats();
 
   return (
     <div className="min-h-screen bg-bg">
-      <Navbar initialTheme={initialTheme} />
+      <Navbar />
       <main>
         <Hero />
         <TrustedBy />

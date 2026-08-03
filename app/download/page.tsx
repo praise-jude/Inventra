@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { cookies } from "next/headers";
 import {
   Download,
   ShieldCheck,
@@ -62,15 +61,13 @@ const FEATURES = [
   { icon: RefreshCw, label: "Real-Time Cloud Sync" },
 ];
 
-export default async function DownloadPage() {
-  const cookieStore = await cookies();
-  const initialTheme = cookieStore.get("theme")?.value === "dark" ? "dark" : "light";
+export default function DownloadPage() {
   const latest = getLatestRelease();
   const history = APP_RELEASES.slice(1);
 
   return (
     <div className="min-h-screen bg-bg">
-      <Navbar initialTheme={initialTheme} />
+      <Navbar />
       <main className="mx-auto max-w-4xl px-5 py-20 sm:px-8">
         <div className="text-center">
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-accent-weak">

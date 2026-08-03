@@ -14,7 +14,7 @@ const LINKS = [
   { href: "/download", label: "Downloads" },
 ];
 
-export function Navbar({ initialTheme }: { initialTheme: "light" | "dark" }) {
+export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
 
@@ -62,7 +62,7 @@ export function Navbar({ initialTheme }: { initialTheme: "light" | "dark" }) {
         </div>
 
         <div className="hidden items-center gap-3 md:flex">
-          <ThemeToggle initialTheme={initialTheme} />
+          <ThemeToggle />
           <Link
             href="/login"
             className="rounded-[9px] px-3.5 py-2 text-[14px] font-semibold text-text-2 transition-colors hover:text-text"
@@ -78,7 +78,7 @@ export function Navbar({ initialTheme }: { initialTheme: "light" | "dark" }) {
         </div>
 
         <div className="flex items-center gap-2 md:hidden">
-          <ThemeToggle initialTheme={initialTheme} />
+          <ThemeToggle />
           <button
             type="button"
             aria-label={open ? "Close menu" : "Open menu"}
