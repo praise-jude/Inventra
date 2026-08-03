@@ -20,6 +20,22 @@ export const getKpis = cache(async (): Promise<DashboardKpis> => {
   return data as DashboardKpis;
 });
 
+// get_kpis() computes ten separate aggregates (revenue, profit, inventory
+// value, etc.) over stock_movements/products — far more than the app-shell
+// layout needs just to badge the Inventory nav link. This is scoped to
+// exactly those two counts so every non-dashboard navigation isn't paying
+// for the full dashboard aggregate.
+export const getStockBadgeCounts = cache(async (): Promise<{ lowStockCount: number; outOfStockCount: number }> => {
+  const supabase = await createClient();
+  const [lowStock, outOfStock] = await Promise.all([
+    supabase.from("products").select("*", { count: "exact", head: true }).is("archived_at", null).eq("status", "low_stock"),
+    supabase.from("products").select("*", { count: "exact", head: true }).is("archived_at", null).eq("status", "out_of_stock"),
+  ]);
+  if (lowStock.error) throw lowStock.error;
+  if (outOfStock.error) throw outOfStock.error;
+  return { lowStockCount: lowStock.count ?? 0, outOfStockCount: outOfStock.count ?? 0 };
+});
+
 export async function getCategoryMix(): Promise<CategoryMixRow[]> {
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("get_category_mix");

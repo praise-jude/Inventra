@@ -121,26 +121,29 @@ export interface SupplyRecordDetail {
 
 export async function getSupplyRecordDetail(id: string): Promise<SupplyRecordDetail | null> {
   const supabase = await createClient();
-  const { data: record, error } = await supabase
-    .from("supply_records")
-    .select(
-      `id, reference_number, supplier_id, supplier_name, supplier_phone, supplier_email, invoice_number,
-       warehouse_id, date_supplied, status, total_quantity, total_amount, notes, created_at,
-       verified_at, cancelled_at,
-       warehouses(name),
-       created_by_profile:profiles!supply_records_created_by_fkey(first_name, last_name),
-       verified_by_profile:profiles!supply_records_verified_by_fkey(first_name, last_name),
-       cancelled_by_profile:profiles!supply_records_cancelled_by_fkey(first_name, last_name)`,
-    )
-    .eq("id", id)
-    .is("deleted_at", null)
-    .maybeSingle();
+  // The items query only depends on `id` (the function's own parameter),
+  // not on the record row, so it doesn't need to wait for that fetch first.
+  const [{ data: record, error }, { data: items }] = await Promise.all([
+    supabase
+      .from("supply_records")
+      .select(
+        `id, reference_number, supplier_id, supplier_name, supplier_phone, supplier_email, invoice_number,
+         warehouse_id, date_supplied, status, total_quantity, total_amount, notes, created_at,
+         verified_at, cancelled_at,
+         warehouses(name),
+         created_by_profile:profiles!supply_records_created_by_fkey(first_name, last_name),
+         verified_by_profile:profiles!supply_records_verified_by_fkey(first_name, last_name),
+         cancelled_by_profile:profiles!supply_records_cancelled_by_fkey(first_name, last_name)`,
+      )
+      .eq("id", id)
+      .is("deleted_at", null)
+      .maybeSingle(),
+    supabase
+      .from("supply_record_items")
+      .select("id, product_id, quantity, unit_cost, line_total, products(name)")
+      .eq("supply_record_id", id),
+  ]);
   if (error || !record) return null;
-
-  const { data: items } = await supabase
-    .from("supply_record_items")
-    .select("id, product_id, quantity, unit_cost, line_total, products(name)")
-    .eq("supply_record_id", id);
 
   type ProfileRef = { first_name: string; last_name: string } | null;
   const createdBy = record.created_by_profile as unknown as ProfileRef;

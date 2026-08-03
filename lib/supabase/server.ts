@@ -1,7 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { cache } from "react";
 
-export async function createClient() {
+// Memoized per request — cookies() can't change mid-request, so every one
+// of the ~140 call sites across query/action files sharing one client
+// instance instead of each re-parsing cookies and re-constructing GoTrue/
+// PostgREST wiring from scratch.
+export const createClient = cache(async () => {
   const cookieStore = await cookies();
 
   return createServerClient(
@@ -25,4 +30,4 @@ export async function createClient() {
       },
     },
   );
-}
+});

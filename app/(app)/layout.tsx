@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { requireProfile } from "@/lib/queries/session";
-import { getKpis } from "@/lib/queries/dashboard";
+import { getStockBadgeCounts } from "@/lib/queries/dashboard";
 import { getPendingApprovalsCount } from "@/lib/queries/team";
 import { getEntitlements } from "@/lib/entitlements";
 import { createClient } from "@/lib/supabase/server";
@@ -13,8 +13,8 @@ import { Shell } from "@/components/app/Shell";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { profile, org } = await requireProfile();
   const supabase = await createClient();
-  const [kpis, entitlements, teamBadge, canViewSupplyRecords] = await Promise.all([
-    getKpis(),
+  const [stockBadge, entitlements, teamBadge, canViewSupplyRecords] = await Promise.all([
+    getStockBadgeCounts(),
     getEntitlements(),
     getPendingApprovalsCount(profile.role, profile.branch_id),
     supabase.rpc("has_permission", { p_module: "supply_records", p_action: "view" }).then((r) => r.data === true),
@@ -23,7 +23,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const initialTheme = cookieStore.get("theme")?.value === "dark" ? "dark" : "light";
 
   const initials = `${profile.first_name[0] ?? ""}${profile.last_name[0] ?? ""}`.toUpperCase();
-  const inventoryBadge = kpis.low_stock_count + kpis.out_of_stock_count;
+  const inventoryBadge = stockBadge.lowStockCount + stockBadge.outOfStockCount;
 
   return (
     <WorkspaceProvider currency={org.currency} timezone={org.timezone}>

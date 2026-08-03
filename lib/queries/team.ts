@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { isAdminRole } from "@/lib/roles";
 
@@ -144,7 +145,10 @@ export async function getActiveTeamMembersForPresence(): Promise<TeamMemberRow[]
 // branch-scoped RLS/trigger in 20260801140000_branch_scoped_manager_approval.sql)
 // so this count never promises more than approveMember()/rejectMember() can
 // actually do. Cashier/Warehouse always get 0 (they can't approve at all).
-export async function getPendingApprovalsCount(role: string, branchId: string | null): Promise<number> {
+// cache()'d — both the app-shell layout (team nav badge) and the dashboard
+// page need this on every dashboard request; without it that's two DB round
+// trips instead of one, same reasoning as getKpis() in queries/dashboard.ts.
+export const getPendingApprovalsCount = cache(async (role: string, branchId: string | null): Promise<number> => {
   if (!isAdminRole(role) && !(role === "manager" && branchId)) return 0;
 
   const supabase = await createClient();
@@ -156,4 +160,4 @@ export async function getPendingApprovalsCount(role: string, branchId: string | 
     return 0;
   }
   return count ?? 0;
-}
+});

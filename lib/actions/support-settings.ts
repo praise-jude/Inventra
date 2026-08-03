@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { requirePlatformAdmin } from "@/lib/queries/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -62,6 +62,12 @@ export async function updateSupportSettings(input: UpdateSupportSettingsInput): 
     throw new Error("Could not save support settings.");
   }
 
-  // Every page reads these settings via the root layout.
+  // Every page reads these settings via the root layout, cached up to 60s
+  // (see lib/queries/support-settings.ts) — bust that cache right away so an
+  // admin's change is visible immediately instead of waiting it out. Next 16
+  // requires a cacheLife profile as revalidateTag's 2nd argument; "seconds"
+  // (the shortest built-in profile) keeps this effectively instant while
+  // still pairing with unstable_cache's tag option the documented way.
+  revalidateTag("support-settings", "seconds");
   revalidatePath("/", "layout");
 }
