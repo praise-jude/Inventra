@@ -285,7 +285,7 @@ export function AdjustmentsClient({ adjustments }: { adjustments: AdjustmentRow[
     { key: "notes", header: "Notes", value: (m: AdjustmentRow) => m.notes ?? "" },
     { key: "branch_name", header: "Branch", value: (m: AdjustmentRow) => m.branch_name ?? "" },
     { key: "who", header: "User", value: (m: AdjustmentRow) => m.who },
-    { key: "created_at", header: "Date", value: (m: AdjustmentRow) => new Date(m.created_at).toLocaleString() },
+    { key: "created_at", header: "Date", value: (m: AdjustmentRow) => new Date(m.created_at).toLocaleString("en-US") },
   ];
 
   return (

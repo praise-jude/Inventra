@@ -47,7 +47,7 @@ export function InventoryValuationClient({ rows }: { rows: InventoryValuationRow
         </div>
         <div className="rounded-[14px] border border-border bg-surface p-4 shadow-[var(--shadow-sm)]">
           <div className="text-[11.5px] font-semibold uppercase tracking-[0.04em] text-muted">Total Units on Hand</div>
-          <div className="mt-1 text-[22px] font-bold">{totalUnits.toLocaleString()}</div>
+          <div className="mt-1 text-[22px] font-bold">{totalUnits.toLocaleString("en-US")}</div>
         </div>
       </div>
 

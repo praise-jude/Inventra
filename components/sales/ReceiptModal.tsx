@@ -53,7 +53,7 @@ export function ReceiptModal({ saleId, onClose }: { saleId: string; onClose: () 
         branchName: sale.branchName,
         branchAddress: sale.branchAddress,
         receiptNumber: sale.receiptNumber,
-        dateTime: new Date(sale.createdAt).toLocaleString(),
+        dateTime: new Date(sale.createdAt).toLocaleString("en-US"),
         cashierName: sale.cashierName,
         customerName: sale.customerName,
         items: sale.items,
@@ -101,7 +101,7 @@ export function ReceiptModal({ saleId, onClose }: { saleId: string; onClose: () 
               </div>
               <div className="flex justify-between">
                 <span>Date</span>
-                <span>{new Date(sale.createdAt).toLocaleString()}</span>
+                <span>{new Date(sale.createdAt).toLocaleString("en-US")}</span>
               </div>
               {sale.cashierName && (
                 <div className="flex justify-between">

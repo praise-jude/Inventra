@@ -7,7 +7,7 @@ import { MotionStagger, fadeUpItem } from "./MotionSection";
 import { motion } from "framer-motion";
 
 function formatNaira(n: number) {
-  return `₦${n.toLocaleString()}`;
+  return `₦${n.toLocaleString("en-US")}`;
 }
 
 export function Pricing() {

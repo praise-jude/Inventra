@@ -79,7 +79,7 @@ export function ReferralCard({ code, referredOrgs }: { code: string; referredOrg
             {referredOrgs.map((r) => (
               <li key={r.id} className="flex items-center justify-between text-[13px]">
                 <span className="text-text">{r.name}</span>
-                <span className="text-[12px] text-muted">{new Date(r.created_at).toLocaleDateString()}</span>
+                <span className="text-[12px] text-muted">{new Date(r.created_at).toLocaleDateString("en-US")}</span>
               </li>
             ))}
           </ul>

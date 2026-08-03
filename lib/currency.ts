@@ -13,6 +13,12 @@ export function currencySymbol(currency: string): string {
 
 export function formatMoney(n: number, currency: string = "USD"): string {
   const symbol = currencySymbol(currency);
-  return `${symbol}${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  // Explicit locale, not `undefined` — toLocaleString(undefined, ...) resolves
+  // to the server's locale during SSR and the browser's locale during
+  // hydration, which can disagree on digit grouping/decimal separator and
+  // throw a hydration mismatch (React error #418) for any non-US-locale
+  // visitor. Money is rendered on nearly every page, so this is the most
+  // likely trigger of that error in this app.
+  return `${symbol}${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
