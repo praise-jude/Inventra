@@ -3,10 +3,10 @@
 // (expected during rollout) apart from "configured but the call failed"
 // (a real runtime problem worth logging/alerting on).
 export class GoogleCloudNotConfiguredError extends Error {
-  constructor() {
-    super(
-      "Google Cloud Storage is not configured. Set GOOGLE_CLOUD_PROJECT_ID, GOOGLE_CLOUD_STORAGE_BUCKET, and GOOGLE_APPLICATION_CREDENTIALS.",
-    );
+  constructor(
+    message = "Google Cloud Storage is not configured. Set GOOGLE_CLOUD_PROJECT_ID, GOOGLE_CLOUD_STORAGE_BUCKET, and either GOOGLE_APPLICATION_CREDENTIALS or GOOGLE_CLOUD_CREDENTIALS_JSON.",
+  ) {
+    super(message);
     this.name = "GoogleCloudNotConfiguredError";
   }
 }

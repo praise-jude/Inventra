@@ -16,7 +16,7 @@ let cachedClient: Storage | null = null;
 function getClient(): Storage {
   if (cachedClient) return cachedClient;
   const config = getGoogleCloudConfig();
-  cachedClient = new Storage({ projectId: config.projectId, keyFilename: config.credentialsPath });
+  cachedClient = new Storage({ projectId: config.projectId, ...config.auth });
   return cachedClient;
 }
 
