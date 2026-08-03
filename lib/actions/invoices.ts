@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/actions/audit";
+import { logError } from "@/lib/logger";
 import { canAddInvoice, UpgradeRequiredError } from "@/lib/entitlements";
 import { isGoogleCloudConfigured } from "@/lib/google-cloud/config";
 import { fileExists, getSignedReadUrl, uploadFile } from "@/lib/google-cloud/storage";
@@ -102,7 +103,7 @@ export async function createInvoice(input: InvoiceInput): Promise<string> {
     .select("id")
     .single();
   if (error) {
-    console.error("[Inventra] createInvoice failed:", error);
+    logError({ feature: "Invoices", action: "createInvoice" }, "invoice insert failed", error);
     throw new Error("Could not create the invoice.");
   }
 
@@ -117,7 +118,7 @@ export async function createInvoice(input: InvoiceInput): Promise<string> {
   }));
   const { error: itemsError } = await supabase.from("customer_invoice_items").insert(itemRows);
   if (itemsError) {
-    console.error("[Inventra] createInvoice (items) failed:", itemsError);
+    logError({ feature: "Invoices", action: "createInvoice" }, "invoice items insert failed", itemsError);
     throw new Error("The invoice was created, but its line items could not be saved.");
   }
 
@@ -144,7 +145,7 @@ export async function updateInvoiceStatus(id: string, status: CustomerInvoiceSta
   const { data: invoice } = await supabase.from("customer_invoices").select("invoice_number").eq("id", id).maybeSingle();
   const { error } = await supabase.from("customer_invoices").update({ status }).eq("id", id);
   if (error) {
-    console.error("[Inventra] updateInvoiceStatus failed:", error);
+    logError({ feature: "Invoices", action: "updateInvoiceStatus" }, "invoice status update failed", error);
     throw new Error("Could not update the invoice status.");
   }
 
@@ -170,7 +171,7 @@ export async function deleteInvoice(id: string): Promise<void> {
   const { data: invoice } = await supabase.from("customer_invoices").select("invoice_number").eq("id", id).maybeSingle();
   const { error } = await supabase.from("customer_invoices").delete().eq("id", id);
   if (error) {
-    console.error("[Inventra] deleteInvoice failed:", error);
+    logError({ feature: "Invoices", action: "deleteInvoice" }, "invoice delete failed", error);
     throw new Error("Could not delete the invoice.");
   }
 
@@ -214,7 +215,7 @@ export async function getInvoicePdfArchiveUrl(invoiceId: string): Promise<string
     if (!(await fileExists(path))) return null;
     return await getSignedReadUrl(path, 10);
   } catch (err) {
-    console.error("[Inventra] getInvoicePdfArchiveUrl failed:", err);
+    logError({ feature: "Invoices", action: "getInvoicePdfArchiveUrl" }, "PDF archive URL fetch failed", err);
     return null;
   }
 }

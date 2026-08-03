@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/actions/audit";
+import { logError } from "@/lib/logger";
 import { requirePermission } from "@/lib/permissions";
 import { canCreateSale, canEditSale, canVoidSale, UpgradeRequiredError } from "@/lib/entitlements";
 import { createApprovalRequest, getApprovalSettings } from "@/lib/approval-service";
@@ -145,7 +146,7 @@ export async function performRecordSale(
     .select("id")
     .single();
   if (saleError || !sale) {
-    console.error("[Inventra] recordSale (sales insert) failed:", saleError);
+    logError({ feature: "Sales", action: "recordSale" }, "sales insert failed", saleError);
     throw new Error("Could not record the sale.");
   }
 
@@ -153,7 +154,7 @@ export async function performRecordSale(
     .from("sale_payments")
     .insert({ org_id: orgId, sale_id: sale.id, method: input.paymentMethod, amount: total });
   if (payError) {
-    console.error("[Inventra] recordSale (payment insert) failed:", payError);
+    logError({ feature: "Sales", action: "recordSale" }, "payment insert failed", payError);
     throw new Error("Could not record the sale's payment.");
   }
 
@@ -170,7 +171,7 @@ export async function performRecordSale(
     })),
   );
   if (movementError) {
-    console.error("[Inventra] recordSale (stock_movements insert) failed:", movementError);
+    logError({ feature: "Sales", action: "recordSale" }, "stock_movements insert failed", movementError);
     throw new Error("Could not update stock for this sale.");
   }
 
@@ -261,7 +262,7 @@ export async function updateSale(id: string, input: UpdateSaleInput) {
     .select("id")
     .maybeSingle();
   if (saleError) {
-    console.error("[Inventra] updateSale (sales) failed:", saleError);
+    logError({ feature: "Sales", action: "updateSale" }, "sales update failed", saleError);
     throw new Error("Could not update the sale.");
   }
   if (!updated) throw new Error("Sale not found, or you don't have permission to edit it.");
@@ -272,7 +273,7 @@ export async function updateSale(id: string, input: UpdateSaleInput) {
       .select("id")
       .eq("sale_id", id);
     if (payFetchError) {
-      console.error("[Inventra] updateSale (payments fetch) failed:", payFetchError);
+      logError({ feature: "Sales", action: "updateSale" }, "payments fetch failed", payFetchError);
       throw new Error("Could not update the sale's payment method.");
     }
     if ((payments ?? []).length === 1) {
@@ -281,7 +282,7 @@ export async function updateSale(id: string, input: UpdateSaleInput) {
         .update({ method: input.paymentMethod })
         .eq("id", payments![0].id);
       if (payError) {
-        console.error("[Inventra] updateSale (payments update) failed:", payError);
+        logError({ feature: "Sales", action: "updateSale" }, "payments update failed", payError);
         throw new Error("Could not update the sale's payment method.");
       }
     }
@@ -332,7 +333,7 @@ export async function performDeleteSale(
       .eq("sale_id", sale.id)
       .select("id");
     if (movementsError) {
-      console.error("[Inventra] deleteSale (stock_movements) failed:", movementsError);
+      logError({ feature: "Sales", action: "deleteSale" }, "stock_movements delete failed", movementsError);
       throw new Error("Could not reverse this sale's stock impact.");
     }
     if (!deletedMovements || deletedMovements.length === 0) {
@@ -342,7 +343,7 @@ export async function performDeleteSale(
 
   const { error: deleteError } = await supabase.from("sales").delete().eq("id", sale.id);
   if (deleteError) {
-    console.error("[Inventra] deleteSale (sales) failed:", deleteError);
+    logError({ feature: "Sales", action: "deleteSale" }, "sales delete failed", deleteError);
     throw new Error("Could not delete the sale.");
   }
 
@@ -377,7 +378,7 @@ export async function deleteSale(id: string, reason?: string): Promise<DeleteSal
 
   const { data: sale, error: saleError } = await supabase.from("sales").select("id, total").eq("id", id).maybeSingle();
   if (saleError) {
-    console.error("[Inventra] deleteSale (sale fetch) failed:", saleError);
+    logError({ feature: "Sales", action: "deleteSale" }, "sale fetch failed", saleError);
     throw new Error("Could not load this sale.");
   }
   if (!sale) throw new Error("Sale not found.");

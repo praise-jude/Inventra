@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { ADMIN_ROLES, MANAGER_ROLES } from "@/lib/roles";
 import { canManageTeam, UpgradeRequiredError } from "@/lib/entitlements";
 import { logAudit } from "@/lib/actions/audit";
+import { logError } from "@/lib/logger";
 import { sendMemberApprovedEmail, sendMemberRejectedEmail } from "@/lib/email";
 import { REJECT_REASONS } from "@/lib/constants/team";
 import { inviteMemberForContext, resendInviteForContext, removeMemberForContext } from "@/lib/team-service";
@@ -118,7 +119,7 @@ export async function updateMemberRole(memberId: string, role: string) {
 
   const { error } = await supabase.from("profiles").update({ role }).eq("id", memberId).eq("org_id", orgId);
   if (error) {
-    console.error("[Inventra] updateMemberRole failed:", { memberId, orgId, error });
+    logError({ feature: "Team", action: "updateMemberRole", orgId }, "member role update failed", error, { memberId });
     throw new Error("Could not update this member's role.");
   }
   revalidatePath("/team");
@@ -151,7 +152,7 @@ export async function suspendMember(memberId: string) {
     .eq("id", memberId)
     .eq("org_id", orgId);
   if (error) {
-    console.error("[Inventra] suspendMember failed:", { memberId, orgId, error });
+    logError({ feature: "Team", action: "suspendMember", orgId }, "member suspend failed", error, { memberId });
     throw new Error("Could not suspend this member.");
   }
   revalidatePath("/team");
@@ -180,7 +181,7 @@ export async function reactivateMember(memberId: string) {
     .eq("id", memberId)
     .eq("org_id", orgId);
   if (error) {
-    console.error("[Inventra] reactivateMember failed:", { memberId, orgId, error });
+    logError({ feature: "Team", action: "reactivateMember", orgId }, "member reactivate failed", error, { memberId });
     throw new Error("Could not reactivate this member.");
   }
   revalidatePath("/team");
@@ -238,7 +239,7 @@ export async function approveMember(memberId: string) {
     .eq("id", memberId)
     .eq("org_id", orgId);
   if (error) {
-    console.error("[Inventra] approveMember failed:", { memberId, orgId, error });
+    logError({ feature: "Team", action: "approveMember", orgId }, "member approve failed", error, { memberId });
     throw new Error("Could not approve this member.");
   }
   revalidatePath("/team");
@@ -287,7 +288,7 @@ export async function rejectMember(memberId: string, reason: (typeof REJECT_REAS
     .eq("id", memberId)
     .eq("org_id", orgId);
   if (error) {
-    console.error("[Inventra] rejectMember failed:", { memberId, orgId, error });
+    logError({ feature: "Team", action: "rejectMember", orgId }, "member reject failed", error, { memberId });
     throw new Error("Could not reject this member.");
   }
   revalidatePath("/team");

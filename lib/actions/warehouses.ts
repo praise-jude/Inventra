@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isAdminRole, isManagerRole } from "@/lib/roles";
 import { canManageBranches, canTransferProduct, UpgradeRequiredError } from "@/lib/entitlements";
 import { logAudit } from "@/lib/actions/audit";
+import { logError } from "@/lib/logger";
 import { getProductsInWarehouse, type WarehouseProductOption } from "@/lib/queries/inventory";
 
 export async function fetchProductsInWarehouse(warehouseId: string): Promise<WarehouseProductOption[]> {
@@ -100,7 +101,7 @@ export async function createWarehouse(input: WarehouseInput) {
     .select("id, name")
     .single();
   if (error) {
-    console.error("[Inventra] createWarehouse failed:", error);
+    logError({ feature: "Branches", action: "createWarehouse" }, "branch insert failed", error);
     throw new Error("Could not create the branch.");
   }
   revalidatePath("/inventory/warehouses");
@@ -135,7 +136,7 @@ export async function updateWarehouse(id: string, input: WarehouseInput) {
 
   const { error } = await supabase.from("warehouses").update(values).eq("id", id);
   if (error) {
-    console.error("[Inventra] updateWarehouse failed:", error);
+    logError({ feature: "Branches", action: "updateWarehouse" }, "branch update failed", error);
     throw new Error("Could not update the branch.");
   }
   revalidatePath("/inventory/warehouses");
@@ -164,7 +165,7 @@ export async function archiveWarehouse(id: string) {
   const { data: warehouse } = await supabase.from("warehouses").select("name").eq("id", id).maybeSingle();
   const { error } = await supabase.from("warehouses").update({ status: "inactive" }).eq("id", id);
   if (error) {
-    console.error("[Inventra] archiveWarehouse failed:", error);
+    logError({ feature: "Branches", action: "archiveWarehouse" }, "branch archive failed", error);
     throw new Error("Could not archive the branch.");
   }
   revalidatePath("/inventory/warehouses");
@@ -193,7 +194,7 @@ export async function reactivateWarehouse(id: string) {
   const { data: warehouse } = await supabase.from("warehouses").select("name").eq("id", id).maybeSingle();
   const { error } = await supabase.from("warehouses").update({ status: "active" }).eq("id", id);
   if (error) {
-    console.error("[Inventra] reactivateWarehouse failed:", error);
+    logError({ feature: "Branches", action: "reactivateWarehouse" }, "branch reactivate failed", error);
     throw new Error("Could not reactivate the branch.");
   }
   revalidatePath("/inventory/warehouses");
@@ -227,7 +228,7 @@ export async function deleteWarehouse(id: string) {
 
   const { error } = await supabase.from("warehouses").delete().eq("id", id);
   if (error) {
-    console.error("[Inventra] deleteWarehouse failed:", error);
+    logError({ feature: "Branches", action: "deleteWarehouse" }, "branch delete failed", error);
     throw new Error("Could not delete the branch.");
   }
   revalidatePath("/inventory/warehouses");
@@ -257,7 +258,7 @@ export async function transferWarehouseStock(productId: string, toWarehouseId: s
     .eq("id", productId)
     .eq("org_id", orgId);
   if (updateError) {
-    console.error("[Inventra] transferWarehouseStock (update) failed:", updateError);
+    logError({ feature: "Inventory", action: "transferWarehouseStock" }, "product warehouse update failed", updateError);
     throw new Error("Could not transfer the product.");
   }
 
@@ -271,7 +272,7 @@ export async function transferWarehouseStock(productId: string, toWarehouseId: s
     created_by: userId,
   });
   if (movementError) {
-    console.error("[Inventra] transferWarehouseStock (movement) failed:", movementError);
+    logError({ feature: "Inventory", action: "transferWarehouseStock" }, "movement insert failed", movementError);
     throw new Error("Product was moved, but the audit log entry could not be recorded.");
   }
 

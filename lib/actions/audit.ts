@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import type { UserRole } from "@/lib/supabase/database.types";
 import { getAuditLogExportRows, type AuditLogFilters, type AuditLogRow } from "@/lib/queries/audit";
+import { logError } from "@/lib/logger";
 
 export interface AuditLogInput {
   orgId: string;
@@ -65,9 +66,9 @@ export async function logAudit(input: AuditLogInput, client?: SupabaseClient): P
       ip_address: ip,
       device,
     });
-    if (error) console.error("[Inventra] logAudit insert failed:", error);
+    if (error) logError({ feature: "Audit", action: "logAudit" }, "audit_logs insert failed", error, { orgId: input.orgId, auditAction: input.action });
   } catch (err) {
-    console.error("[Inventra] logAudit failed:", err);
+    logError({ feature: "Audit", action: "logAudit" }, "logAudit threw", err, { orgId: input.orgId, auditAction: input.action });
   }
 }
 
@@ -101,7 +102,41 @@ export async function recordLogin(): Promise<void> {
       entityLabel: `${profile.first_name} ${profile.last_name}`,
     });
   } catch (err) {
-    console.error("[Inventra] recordLogin failed:", err);
+    logError({ feature: "Auth", action: "recordLogin" }, "recordLogin failed", err);
+  }
+}
+
+// Called from LogoutButton before supabase.auth.signOut() tears down the
+// session — must run while the session is still valid to attribute the
+// entry to the right user, mirroring recordLogin's shape exactly.
+export async function recordLogout(): Promise<void> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("org_id, first_name, last_name, role")
+      .eq("id", user.id)
+      .single();
+    if (!profile) return;
+
+    await logAudit({
+      orgId: profile.org_id,
+      actorId: user.id,
+      actorName: `${profile.first_name} ${profile.last_name}`,
+      actorRole: profile.role,
+      action: "user.logout",
+      module: "Auth",
+      entityType: "profile",
+      entityId: user.id,
+      entityLabel: `${profile.first_name} ${profile.last_name}`,
+    });
+  } catch (err) {
+    logError({ feature: "Auth", action: "recordLogout" }, "recordLogout failed", err);
   }
 }
 

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/actions/audit";
+import { logError } from "@/lib/logger";
 import { requirePermission } from "@/lib/permissions";
 import { canAddProduct, canBulkImportExport, canDeleteProduct, canEditProduct, UpgradeRequiredError } from "@/lib/entitlements";
 import { createApprovalRequest, getApprovalSettings } from "@/lib/approval-service";
@@ -147,7 +148,7 @@ export async function createProduct(input: CreateProductInput) {
     .single();
   if (error) {
     if (error.code === "23505") throw new Error("A product with this SKU or barcode already exists.");
-    console.error("[Inventra] createProduct failed:", error);
+    logError({ feature: "Products", action: "createProduct" }, "product insert failed", error);
     throw new Error("Could not create the product.");
   }
 
@@ -262,7 +263,7 @@ export async function performUpdateProduct(
     .maybeSingle();
   if (error) {
     if (error.code === "23505") throw new Error("A product with this SKU or barcode already exists.");
-    console.error("[Inventra] updateProduct failed:", error);
+    logError({ feature: "Products", action: "updateProduct" }, "product update failed", error);
     throw new Error("Could not update the product.");
   }
   // A Postgres UPDATE that matches zero rows (wrong id, or blocked by RLS)
@@ -390,7 +391,7 @@ export async function setProductActive(id: string, isActive: boolean): Promise<P
     .select("id, name")
     .maybeSingle();
   if (error) {
-    console.error("[Inventra] setProductActive failed:", error);
+    logError({ feature: "Products", action: "setProductActive" }, "product active-flag update failed", error);
     throw new Error("Could not update the product's status.");
   }
   if (!updated) throw new Error("Could not update the product — it may have been deleted or you no longer have access to it.");
@@ -440,7 +441,7 @@ export async function deleteProduct(id: string) {
     .select("id")
     .maybeSingle();
   if (error) {
-    console.error("[Inventra] deleteProduct failed:", error);
+    logError({ feature: "Products", action: "deleteProduct" }, "product delete failed", error);
     throw new Error("Could not delete the product.");
   }
   if (!deleted) throw new Error("Could not delete the product — it may have already been removed.");
@@ -549,7 +550,7 @@ export async function uploadProductImage(formData: FormData) {
     upsert: false,
   });
   if (error) {
-    console.error("[Inventra] uploadProductImage failed:", error);
+    logError({ feature: "Products", action: "uploadProductImage" }, "product image upload failed", error);
     throw new Error("Could not upload the image.");
   }
 
