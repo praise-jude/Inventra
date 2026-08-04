@@ -63,6 +63,16 @@ export interface ProfitLoss {
 
 export type Granularity = "day" | "week" | "month" | "year";
 
+export interface BranchPerformanceRow {
+  warehouseId: string;
+  branchName: string;
+  revenue: number;
+  profit: number;
+  expenses: number;
+  stockValue: number;
+  skuCount: number;
+}
+
 export async function getSalesSummary(from: string, to: string, warehouseId?: string): Promise<SalesSummary> {
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("get_sales_summary", { p_from: from, p_to: to, p_warehouse_id: warehouseId ?? null });
@@ -92,6 +102,32 @@ export async function getSalesByPeriod(from: string, to: string, granularity: Gr
     salesCount: Number(r.sales_count),
     profit: Number(r.profit),
   }));
+}
+
+// Admin/Owner only (enforced by the caller, app/(app)/reports/page.tsx) —
+// unlike getSalesByBranch above (revenue only, every Reports viewer sees
+// it), this reuses get_branch_performance_report's non-security-definer
+// RPC (see 20260804100000_branch_performance_report.sql), which means a
+// branch-scoped Manager/Cashier/Warehouse caller would see zeros for every
+// branch but their own via RLS rather than a real cross-branch comparison.
+export async function getBranchPerformanceReport(from: string, to: string): Promise<BranchPerformanceRow[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_branch_performance_report", { p_from: from, p_to: to });
+  if (error) {
+    console.error("[Inventra] getBranchPerformanceReport failed:", error);
+    throw new Error("Could not load the branch performance report.");
+  }
+  return ((data ?? []) as { warehouse_id: string; branch_name: string; revenue: number; profit: number; expenses: number; stock_value: number; sku_count: number }[]).map(
+    (r) => ({
+      warehouseId: r.warehouse_id,
+      branchName: r.branch_name,
+      revenue: Number(r.revenue),
+      profit: Number(r.profit),
+      expenses: Number(r.expenses),
+      stockValue: Number(r.stock_value),
+      skuCount: Number(r.sku_count),
+    }),
+  );
 }
 
 export async function getSalesByBranch(from: string, to: string): Promise<SalesByBranchRow[]> {

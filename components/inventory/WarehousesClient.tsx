@@ -7,8 +7,10 @@ import { useToast } from "@/components/app/ToastProvider";
 import { useEntitlementsContext } from "@/components/billing/EntitlementsProvider";
 import { archiveWarehouse, deleteWarehouse, generateBranchCode, reactivateWarehouse, revokeBranchCode } from "@/lib/actions/warehouses";
 import type { WarehouseOverview } from "@/lib/queries/inventory";
+import type { BranchStaffRow } from "@/lib/queries/branch-staff";
 import { formatMoney, formatNumber } from "@/lib/format";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { BranchStaffPanel } from "@/components/branch-staff/BranchStaffPanel";
 
 const WarehouseModal = dynamic(() => import("@/components/inventory/WarehouseModal").then((m) => m.WarehouseModal));
 const TransferStockModal = dynamic(() =>
@@ -23,6 +25,7 @@ interface ManagerOption {
 export function WarehousesClient({
   warehouses,
   managers,
+  staff,
   currency,
   canManage,
   canDelete,
@@ -30,6 +33,7 @@ export function WarehousesClient({
 }: {
   warehouses: WarehouseOverview[];
   managers: ManagerOption[];
+  staff: BranchStaffRow[];
   currency: string;
   canManage: boolean;
   canDelete: boolean;
@@ -218,6 +222,12 @@ export function WarehousesClient({
                     </button>
                   )}
                   <div className="mt-1 text-[10.5px] text-muted">Anyone with this code can join as a branch manager — share it only with who you intend to.</div>
+                </div>
+              )}
+
+              {canManage && (
+                <div className="mt-3.5 border-t border-border pt-3">
+                  <BranchStaffPanel branchId={w.id} branchName={w.name} staff={staff.filter((s) => s.branchId === w.id)} isAdmin />
                 </div>
               )}
 

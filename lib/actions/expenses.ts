@@ -37,6 +37,7 @@ export interface ExpenseInput {
   description?: string;
   amount: number;
   incurredAt: string;
+  warehouseId?: string;
 }
 
 export async function createExpense(input: ExpenseInput) {
@@ -54,6 +55,7 @@ export async function createExpense(input: ExpenseInput) {
       description: input.description?.trim() || null,
       amount: input.amount,
       incurred_at: input.incurredAt,
+      warehouse_id: input.warehouseId || null,
     })
     .select("id")
     .single();
@@ -74,7 +76,7 @@ export async function createExpense(input: ExpenseInput) {
     entityType: "expense",
     entityId: expense.id as string,
     entityLabel: input.category,
-    newValue: { category: input.category, amount: input.amount, incurredAt: input.incurredAt },
+    newValue: { category: input.category, amount: input.amount, incurredAt: input.incurredAt, warehouseId: input.warehouseId ?? null },
   });
 }
 
@@ -82,7 +84,7 @@ export async function updateExpense(id: string, input: ExpenseInput) {
   const { supabase, orgId, userId, role, actorName } = await requireManagerOrgId();
   if (input.amount <= 0) throw new Error("Amount must be greater than zero.");
 
-  const { data: before } = await supabase.from("expenses").select("category, amount, incurred_at").eq("id", id).maybeSingle();
+  const { data: before } = await supabase.from("expenses").select("category, amount, incurred_at, warehouse_id").eq("id", id).maybeSingle();
 
   const { error } = await supabase
     .from("expenses")
@@ -91,6 +93,7 @@ export async function updateExpense(id: string, input: ExpenseInput) {
       description: input.description?.trim() || null,
       amount: input.amount,
       incurred_at: input.incurredAt,
+      warehouse_id: input.warehouseId || null,
     })
     .eq("id", id);
   if (error) {
@@ -111,7 +114,7 @@ export async function updateExpense(id: string, input: ExpenseInput) {
     entityId: id,
     entityLabel: input.category,
     previousValue: before,
-    newValue: { category: input.category, amount: input.amount, incurredAt: input.incurredAt },
+    newValue: { category: input.category, amount: input.amount, incurredAt: input.incurredAt, warehouseId: input.warehouseId ?? null },
   });
 }
 

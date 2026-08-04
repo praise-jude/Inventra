@@ -8,17 +8,19 @@ import {
   getSalesByStaff,
   getInventoryValuation,
   getProfitLoss,
+  getBranchPerformanceReport,
   type Granularity,
 } from "@/lib/queries/reports";
 import { ReportsClient } from "@/components/reports/ReportsClient";
 import { canViewReports } from "@/lib/entitlements";
+import { isAdminRole } from "@/lib/roles";
 import { PremiumLockedState } from "@/components/billing/PremiumLockedState";
 
 function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-const VALID_TABS = ["sales", "valuation", "pl"] as const;
+const VALID_TABS = ["sales", "valuation", "pl", "branches"] as const;
 const VALID_GRANULARITY: Granularity[] = ["day", "week", "month", "year"];
 
 export default async function ReportsPage({
@@ -26,7 +28,8 @@ export default async function ReportsPage({
 }: {
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
-  await requireReportsProfile();
+  const { profile } = await requireReportsProfile();
+  const isAdmin = isAdminRole(profile.role);
 
   if (!(await canViewReports())) {
     return (
@@ -41,7 +44,8 @@ export default async function ReportsPage({
 
   const params = await searchParams;
 
-  const tab = (VALID_TABS as readonly string[]).includes(params.tab ?? "") ? (params.tab as (typeof VALID_TABS)[number]) : "sales";
+  const requestedTab = (VALID_TABS as readonly string[]).includes(params.tab ?? "") ? (params.tab as (typeof VALID_TABS)[number]) : "sales";
+  const tab = requestedTab === "branches" && !isAdmin ? "sales" : requestedTab;
   const granularity = VALID_GRANULARITY.includes(params.granularity as Granularity) ? (params.granularity as Granularity) : "month";
   const today = new Date();
   const monthAgo = new Date();
@@ -56,6 +60,7 @@ export default async function ReportsPage({
   let salesData = null;
   let valuationData = null;
   let plData = null;
+  let branchPerformanceData = null;
 
   if (tab === "sales") {
     const [summary, byPeriod, byBranch, byProduct, byStaff] = await Promise.all([
@@ -66,6 +71,8 @@ export default async function ReportsPage({
       getSalesByStaff(from, to, branchId),
     ]);
     salesData = { summary, byPeriod, byBranch, byProduct, byStaff };
+  } else if (tab === "branches") {
+    branchPerformanceData = await getBranchPerformanceReport(from, to);
   } else if (tab === "valuation") {
     valuationData = await getInventoryValuation(branchId);
   } else {
@@ -90,6 +97,8 @@ export default async function ReportsPage({
         salesData={salesData}
         valuationData={valuationData}
         plData={plData}
+        branchPerformanceData={branchPerformanceData}
+        isAdmin={isAdmin}
       />
     </div>
   );

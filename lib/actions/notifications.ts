@@ -72,15 +72,24 @@ export async function notifyPendingApproval(): Promise<void> {
   } = await supabase.auth.getUser();
   if (!user) return;
 
-  const { data: profile } = await supabase.from("profiles").select("org_id, first_name, last_name, status").eq("id", user.id).single();
+  const { data: profile } = await supabase.from("profiles").select("org_id, branch_id, first_name, last_name, status").eq("id", user.id).single();
   if (!profile || profile.status !== "awaiting_approval") return;
 
-  const { data: approvers } = await supabase.from("profiles").select("id").eq("org_id", profile.org_id).in("role", MANAGER_ROLES);
-  if (!approvers) return;
+  // Admin/Owner can approve anyone in the org; a Manager can only approve
+  // within their own branch (profiles_update_manager_approval), so only
+  // notify Managers who could actually act on this — avoids paging every
+  // manager org-wide about a branch that isn't theirs.
+  const { data: approvers } = await supabase
+    .from("profiles")
+    .select("id, role, branch_id")
+    .eq("org_id", profile.org_id)
+    .in("role", MANAGER_ROLES);
+  const relevantApprovers = (approvers ?? []).filter((a) => a.role !== "manager" || (a.branch_id && a.branch_id === profile.branch_id));
+  if (relevantApprovers.length === 0) return;
 
   const name = `${profile.first_name} ${profile.last_name}`;
   await Promise.all(
-    approvers.map((a) =>
+    relevantApprovers.map((a) =>
       createNotification(supabase, {
         orgId: profile.org_id,
         userId: a.id,

@@ -230,6 +230,8 @@ export async function getWarehouseOptions() {
   return data ?? [];
 }
 
+export type WarehouseOption = Awaited<ReturnType<typeof getWarehouseOptions>>[number];
+
 export async function getProductOptions() {
   const supabase = await createClient();
   const { data } = await supabase.from("products").select("id, name, sku").is("archived_at", null).order("name");

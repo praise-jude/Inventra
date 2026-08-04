@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useToast } from "@/components/app/ToastProvider";
 import { createExpense, updateExpense } from "@/lib/actions/expenses";
 import type { ExpenseRow } from "@/lib/queries/expenses";
+import type { WarehouseOption } from "@/lib/queries/products";
 import { Field } from "@/components/ui/Field";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
@@ -23,7 +24,15 @@ function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-export function ExpenseModal({ expense, onClose }: { expense?: ExpenseRow; onClose: () => void }) {
+export function ExpenseModal({
+  expense,
+  warehouses,
+  onClose,
+}: {
+  expense?: ExpenseRow;
+  warehouses: WarehouseOption[];
+  onClose: () => void;
+}) {
   const router = useRouter();
   const flash = useToast();
   const [form, setForm] = useState({
@@ -31,6 +40,7 @@ export function ExpenseModal({ expense, onClose }: { expense?: ExpenseRow; onClo
     description: expense?.description ?? "",
     amount: expense ? String(expense.amount) : "",
     incurredAt: expense?.incurredAt ?? today(),
+    warehouseId: expense?.warehouseId ?? "",
   });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -49,6 +59,7 @@ export function ExpenseModal({ expense, onClose }: { expense?: ExpenseRow; onClo
         description: form.description,
         amount: parseFloat(form.amount) || 0,
         incurredAt: form.incurredAt,
+        warehouseId: form.warehouseId || undefined,
       };
       if (expense) {
         await updateExpense(expense.id, input);
@@ -95,6 +106,14 @@ export function ExpenseModal({ expense, onClose }: { expense?: ExpenseRow; onClo
             <Field label="Amount" type="number" step="0.01" value={form.amount} onChange={(e) => set("amount", e.target.value)} required />
             <Field label="Date" type="date" value={form.incurredAt} onChange={(e) => set("incurredAt", e.target.value)} required />
           </div>
+          <Select label="Branch (optional)" value={form.warehouseId} onChange={(e) => set("warehouseId", e.target.value)}>
+            <option value="">Company-wide</option>
+            {warehouses.map((w) => (
+              <option key={w.id} value={w.id}>
+                {w.name}
+              </option>
+            ))}
+          </Select>
           {error && <p className="text-[13px] font-medium text-red">{error}</p>}
         </div>
         <div className="flex justify-end gap-2.5 border-t border-border px-[22px] py-4">

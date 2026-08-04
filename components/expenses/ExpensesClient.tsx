@@ -13,6 +13,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 
 const ExpenseModal = dynamic(() => import("@/components/expenses/ExpenseModal").then((m) => m.ExpenseModal));
 import type { ExpensesOverview, ExpenseRow } from "@/lib/queries/expenses";
+import type { WarehouseOption } from "@/lib/queries/products";
 
 const CATEGORY_LABEL: Record<string, string> = {
   rent: "Rent",
@@ -24,7 +25,7 @@ const CATEGORY_LABEL: Record<string, string> = {
   miscellaneous: "Miscellaneous",
 };
 
-export function ExpensesClient({ overview }: { overview: ExpensesOverview }) {
+export function ExpensesClient({ overview, warehouses }: { overview: ExpensesOverview; warehouses: WarehouseOption[] }) {
   const router = useRouter();
   const flash = useToast();
   const { format: formatMoney, formatShortDate } = useWorkspace();
@@ -34,6 +35,8 @@ export function ExpensesClient({ overview }: { overview: ExpensesOverview }) {
   const [modalExpense, setModalExpense] = useState<ExpenseRow | null | undefined>(undefined);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
+
+  const warehouseNameById = useMemo(() => new Map(warehouses.map((w) => [w.id, w.name])), [warehouses]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -105,6 +108,11 @@ export function ExpensesClient({ overview }: { overview: ExpensesOverview }) {
       render: (e) => <span className="text-[12.5px] text-text-2">{formatShortDate(e.incurredAt)}</span>,
     },
     {
+      key: "branch",
+      header: "Branch",
+      render: (e) => <span className="text-[12.5px] text-text-2">{e.warehouseId ? (warehouseNameById.get(e.warehouseId) ?? "—") : "Company-wide"}</span>,
+    },
+    {
       key: "amount",
       header: "Amount",
       align: "right",
@@ -135,7 +143,7 @@ export function ExpensesClient({ overview }: { overview: ExpensesOverview }) {
         </div>
       ),
     },
-  ], [formatMoney, formatShortDate, busyId, handleDelete]);
+  ], [formatMoney, formatShortDate, busyId, handleDelete, warehouseNameById]);
 
   return (
     <div className="animate-fade-up">
@@ -231,7 +239,9 @@ export function ExpensesClient({ overview }: { overview: ExpensesOverview }) {
         emptyState={<EmptyState compact icon="💸" title="No expenses match your search" description="Try adjusting your search or filters." />}
       />
 
-      {modalExpense !== undefined && <ExpenseModal expense={modalExpense ?? undefined} onClose={() => setModalExpense(undefined)} />}
+      {modalExpense !== undefined && (
+        <ExpenseModal expense={modalExpense ?? undefined} warehouses={warehouses} onClose={() => setModalExpense(undefined)} />
+      )}
     </div>
   );
 }

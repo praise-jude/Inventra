@@ -7,6 +7,7 @@ const AUTH_ROUTES = [
   "/forgot-password",
   "/reset-password",
   "/auth/callback",
+  "/accept-invite",
   "/terms",
   "/privacy",
   "/api-docs",

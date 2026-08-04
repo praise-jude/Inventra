@@ -49,6 +49,7 @@ export function CommandPalette({
       { title: "Audit Log", sub: "Activity trail", kind: "Page", icon: "🛡️", bg: "var(--accent-weak)", go: () => router.push("/audit-log") },
       { title: "Expenses", sub: "Spending & trends", kind: "Page", icon: "💸", bg: "var(--accent-weak)", go: () => router.push("/expenses") },
       { title: "Branches", sub: "Manage branches & signup codes", kind: "Page", icon: "👥", bg: "var(--accent-weak)", go: () => router.push("/settings/branches") },
+      { title: "Branch Staff", sub: "Invite & approve branch staff", kind: "Page", icon: "🧑‍🤝‍🧑", bg: "var(--accent-weak)", go: () => router.push("/branch-staff") },
       { title: "Notifications", sub: "Alerts & activity", kind: "Page", icon: "🔔", bg: "var(--accent-weak)", go: () => router.push("/notifications") },
       { title: "Billing", sub: "Plan & invoices", kind: "Page", icon: "💳", bg: "var(--accent-weak)", go: () => router.push("/billing") },
       { title: "Settings", sub: "General, printing, integrations", kind: "Page", icon: "⚙️", bg: "var(--accent-weak)", go: () => router.push("/settings") },

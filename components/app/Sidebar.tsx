@@ -21,6 +21,7 @@ const NAV = [
   { href: "/audit-log", label: "Audit Log", icon: "🛡️", adminOnly: true },
   { href: "/expenses", label: "Expenses", icon: "💸", managerOnly: true },
   { href: "/settings/branches", label: "Branches", icon: "👥", adminOnly: true },
+  { href: "/branch-staff", label: "Branch Staff", icon: "🧑‍🤝‍🧑", managerOnly: true, hideForAdmin: true },
   { href: "/approvals", label: "Approvals", icon: "✅", managerOnly: true },
   { href: "/notifications", label: "Notifications", icon: "🔔" },
   { href: "/billing", label: "Billing", icon: "💳", adminOnly: true },
@@ -68,6 +69,7 @@ export function Sidebar({
       (!item.adminOnly || isAdmin) &&
       (!item.managerOnly || isManagerUp) &&
       (!item.hideForWarehouse || role !== "warehouse") &&
+      (!item.hideForAdmin || !isAdmin) &&
       (!item.requiresSupplyView || canViewSupplyRecords),
   );
   const activeHref = [...nav].sort((a, b) => b.href.length - a.href.length).find((item) => pathname.startsWith(item.href))?.href;

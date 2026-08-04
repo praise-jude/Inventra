@@ -8,6 +8,7 @@ export interface ExpenseRow {
   description: string | null;
   amount: number;
   incurredAt: string;
+  warehouseId: string | null;
 }
 
 export interface ExpensesOverview {
@@ -79,7 +80,7 @@ export async function getExpensesOverview(timezone: string): Promise<ExpensesOve
 
   const { data, error } = await supabase
     .from("expenses")
-    .select("id, category, description, amount, incurred_at")
+    .select("id, category, description, amount, incurred_at, warehouse_id")
     .gte("incurred_at", sinceDate)
     .order("incurred_at", { ascending: false });
   if (error) {
@@ -119,6 +120,7 @@ export async function getExpensesOverview(timezone: string): Promise<ExpensesOve
       description: e.description,
       amount: Number(e.amount),
       incurredAt: e.incurred_at,
+      warehouseId: e.warehouse_id,
     })),
   };
 }

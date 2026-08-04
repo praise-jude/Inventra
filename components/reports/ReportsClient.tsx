@@ -5,14 +5,16 @@ import { DateRangeFilter } from "@/components/ui/DateRangeFilter";
 import { SalesReportClient, type SalesReportData } from "@/components/reports/SalesReportClient";
 import { InventoryValuationClient } from "@/components/reports/InventoryValuationClient";
 import { ProfitLossClient } from "@/components/reports/ProfitLossClient";
-import type { Granularity, InventoryValuationRow, ProfitLoss } from "@/lib/queries/reports";
+import { BranchPerformanceClient } from "@/components/reports/BranchPerformanceClient";
+import type { BranchPerformanceRow, Granularity, InventoryValuationRow, ProfitLoss } from "@/lib/queries/reports";
 
-type Tab = "sales" | "valuation" | "pl";
+type Tab = "sales" | "valuation" | "pl" | "branches";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "sales", label: "Sales Report" },
   { key: "valuation", label: "Inventory Valuation" },
   { key: "pl", label: "Profit & Loss" },
+  { key: "branches", label: "Branch Performance" },
 ];
 
 interface Props {
@@ -27,6 +29,8 @@ interface Props {
   salesData: SalesReportData | null;
   valuationData: InventoryValuationRow[] | null;
   plData: ProfitLoss | null;
+  branchPerformanceData: BranchPerformanceRow[] | null;
+  isAdmin: boolean;
 }
 
 export function ReportsClient({
@@ -41,6 +45,8 @@ export function ReportsClient({
   salesData,
   valuationData,
   plData,
+  branchPerformanceData,
+  isAdmin,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -57,10 +63,12 @@ export function ReportsClient({
     router.push(`${pathname}?${params.toString()}`);
   }
 
+  const visibleTabs = TABS.filter((t) => t.key !== "branches" || isAdmin);
+
   return (
     <div>
       <div className="mb-4 flex gap-1.5 border-b border-border">
-        {TABS.map((t) => (
+        {visibleTabs.map((t) => (
           <button
             key={t.key}
             onClick={() => pushParams({ tab: t.key })}
@@ -75,19 +83,21 @@ export function ReportsClient({
 
       <div className="mb-4 flex flex-wrap items-center gap-2.5">
         {tab !== "valuation" && <DateRangeFilter from={from} to={to} onChange={(f, t2) => pushParams({ from: f, to: t2 })} />}
-        <select
-          value={branchId}
-          onChange={(e) => pushParams({ branch: e.target.value })}
-          aria-label="Filter by branch"
-          className="h-[37px] rounded-[9px] border border-border bg-surface px-2.5 text-[13px] text-text"
-        >
-          <option value="">All branches</option>
-          {branches.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
-            </option>
-          ))}
-        </select>
+        {tab !== "branches" && (
+          <select
+            value={branchId}
+            onChange={(e) => pushParams({ branch: e.target.value })}
+            aria-label="Filter by branch"
+            className="h-[37px] rounded-[9px] border border-border bg-surface px-2.5 text-[13px] text-text"
+          >
+            <option value="">All branches</option>
+            {branches.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        )}
         {tab === "sales" && (
           <select
             value={granularity}
@@ -121,6 +131,7 @@ export function ReportsClient({
       {tab === "sales" && salesData && <SalesReportClient data={salesData} granularity={granularity} />}
       {tab === "valuation" && valuationData && <InventoryValuationClient rows={valuationData} />}
       {tab === "pl" && plData && <ProfitLossClient data={plData} from={from} to={to} />}
+      {tab === "branches" && branchPerformanceData && <BranchPerformanceClient rows={branchPerformanceData} />}
     </div>
   );
 }
