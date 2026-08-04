@@ -3,9 +3,11 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { Eye, EyeOff } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { acceptInviteTerms, activateInviteAccount } from "@/lib/actions/auth";
 import { notifyPendingApproval } from "@/lib/actions/notifications";
+import { PASSWORD_RULES, passwordStrength } from "@/lib/validation/auth";
 import { Field } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 
@@ -34,9 +36,11 @@ function AcceptInviteForm() {
   // verification's tokens arrive in the URL hash instead).
   const linkExpired = searchParams.get("error") === "expired" || searchParams.has("error_code");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const strength = passwordStrength(password);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -100,14 +104,42 @@ function AcceptInviteForm() {
       <h1 className="mb-1.5 text-2xl font-bold tracking-tight">Join your branch</h1>
       <p className="mb-[26px] text-text-2">Set a password to activate your Inventra account.</p>
       <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
-        <Field
-          label="Password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          minLength={8}
-          required
-        />
+        <div>
+          <div className="relative">
+            <Field
+              label="Password"
+              type={showPassword ? "text" : "password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="pr-12"
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              className="absolute right-3 top-[30px] text-text-2 hover:text-text"
+            >
+              {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+            </button>
+          </div>
+          <div className="mt-2 flex gap-[5px]">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <div
+                key={i}
+                className="h-1 flex-1 rounded-[3px]"
+                style={{ background: i < strength ? (strength >= 4 ? "var(--green)" : "var(--amber)") : "var(--border)" }}
+              />
+            ))}
+          </div>
+          <ul className="mt-2 flex flex-col gap-0.5">
+            {PASSWORD_RULES.map((rule) => (
+              <li key={rule.key} className="text-[11.5px]" style={{ color: rule.test(password) ? "var(--green)" : "var(--muted)" }}>
+                {rule.test(password) ? "✓" : "○"} {rule.label}
+              </li>
+            ))}
+          </ul>
+        </div>
         <label className="flex items-start gap-2 text-[12.5px] text-text-2">
           <input
             type="checkbox"
