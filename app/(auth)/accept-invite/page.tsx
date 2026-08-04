@@ -26,7 +26,13 @@ export default function AcceptInvitePage() {
 function AcceptInviteForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const linkExpired = searchParams.get("error") === "expired";
+  // "expired" is our own legacy query param (no longer set — kept for
+  // safety); a real invite link now redirects here straight from
+  // Supabase, whose verify endpoint reports failures as
+  // ?error=access_denied&error_code=otp_expired&error_description=... in
+  // the query string (errors are query params even though a *successful*
+  // verification's tokens arrive in the URL hash instead).
+  const linkExpired = searchParams.get("error") === "expired" || searchParams.has("error_code");
   const [password, setPassword] = useState("");
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,8 +81,11 @@ function AcceptInviteForm() {
   if (linkExpired) {
     return (
       <div>
-        <h1 className="mb-1.5 text-2xl font-bold tracking-tight">This invite link has expired</h1>
-        <p className="text-text-2">Ask your branch manager or an admin to resend your invitation from Branch Staff, then use the new link from that email.</p>
+        <h1 className="mb-1.5 text-2xl font-bold tracking-tight">This invite link isn&apos;t valid</h1>
+        <p className="text-text-2">
+          It may have expired or already been used — invite links only work once. Ask your branch manager or an admin
+          to resend your invitation from Branch Staff, then use the new link from that email.
+        </p>
         <p className="mt-6 text-center text-[13.5px] text-text-2">
           <Link href="/login" className="font-semibold text-accent-text">
             ← Back to sign in

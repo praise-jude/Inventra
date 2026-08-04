@@ -113,7 +113,18 @@ export async function inviteBranchStaffForContext(
       invited_by: profile.id,
       invited_by_role: actorRole,
     },
-    redirectTo: `${await siteUrl()}/auth/callback?next=/accept-invite`,
+    // Straight to /accept-invite, NOT through /auth/callback.
+    // inviteUserByEmail can't use PKCE (the admin sending the invite and
+    // the recipient clicking it are different browsers, so there's no
+    // code_verifier to bind a `code` to) — Supabase always delivers these
+    // tokens as a URL hash fragment (#access_token=...) instead. Hash
+    // fragments never reach the server, so /auth/callback's
+    // exchangeCodeForSession(searchParams.get("code")) would always see
+    // code=null and redirect to "expired" regardless of whether the link
+    // was actually fresh. /accept-invite is a client component; the
+    // browser Supabase client's default detectSessionInUrl:true picks the
+    // tokens out of the hash and establishes the session automatically.
+    redirectTo: `${await siteUrl()}/accept-invite`,
   });
   if (error) {
     console.error("[Inventra] inviteBranchStaff failed:", { email: input.email, orgId: profile.org_id, error });
@@ -149,7 +160,9 @@ export async function resendBranchStaffInviteForContext(
   const admin = createAdminClient();
   const { error } = await admin.auth.admin.inviteUserByEmail(member.email, {
     data: { org_id: profile.org_id, role: member.role, first_name: member.first_name, last_name: member.last_name, branch_id: member.branch_id },
-    redirectTo: `${await siteUrl()}/auth/callback?next=/accept-invite`,
+    // See inviteBranchStaffForContext above — straight to /accept-invite,
+    // not through the PKCE-only /auth/callback.
+    redirectTo: `${await siteUrl()}/accept-invite`,
   });
   if (error) {
     console.error("[Inventra] resendBranchStaffInvite failed:", { memberId, orgId: profile.org_id, error });
