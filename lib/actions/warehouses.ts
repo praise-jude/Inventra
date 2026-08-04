@@ -229,6 +229,14 @@ export async function deleteWarehouse(id: string) {
   const { error } = await supabase.from("warehouses").delete().eq("id", id);
   if (error) {
     logError({ feature: "Branches", action: "deleteWarehouse" }, "branch delete failed", error);
+    // 23503 = foreign_key_violation. Sales/stock_movements/customer_invoices/
+    // debtors/expenses all reference warehouse_id now (branch-isolation
+    // migrations) — the products-only precheck above can't catch those, so
+    // this is the actual backstop rather than a fixed table list that would
+    // drift every time a new table gets warehouse_id.
+    if (error.code === "23503") {
+      throw new Error("This branch has sales, stock, or expense history tied to it and can't be deleted — archive it instead.");
+    }
     throw new Error("Could not delete the branch.");
   }
   revalidatePath("/inventory/warehouses");

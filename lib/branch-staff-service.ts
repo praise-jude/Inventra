@@ -117,6 +117,12 @@ export async function inviteBranchStaffForContext(
   });
   if (error) {
     console.error("[Inventra] inviteBranchStaff failed:", { email: input.email, orgId: profile.org_id, error });
+    // Supabase Auth emails are unique project-wide, not per-org — this
+    // email already has an account somewhere (this org or another one),
+    // so no amount of retrying will make inviteUserByEmail succeed.
+    if (error.code === "email_exists") {
+      throw new Error("This email is already registered to an account and can't be invited here.");
+    }
     throw new Error("Could not send the invite email. Please try again in a moment.");
   }
 }
@@ -147,6 +153,13 @@ export async function resendBranchStaffInviteForContext(
   });
   if (error) {
     console.error("[Inventra] resendBranchStaffInvite failed:", { memberId, orgId: profile.org_id, error });
+    // Supabase Auth's inviteUserByEmail isn't idempotent — resending to an
+    // email that already has a pending (unconfirmed) invite comes back as
+    // "already registered" rather than actually resending, so retrying
+    // this action specifically will never succeed.
+    if (error.code === "email_exists") {
+      throw new Error("Could not resend — this invite is still pending. Ask them to check their email (including spam), or remove and re-invite if the link expired.");
+    }
     throw new Error("Could not resend the invite email. Please try again in a moment.");
   }
 }
@@ -172,6 +185,13 @@ export async function removeBranchStaffForContext(
   const { error } = await admin.auth.admin.deleteUser(memberId);
   if (error) {
     console.error("[Inventra] removeBranchStaff failed:", { memberId, orgId: profile.org_id, error });
+    // AuthRetryableFetchError specifically means the request to Supabase's
+    // Auth server itself failed (network/transport), not that removal was
+    // rejected — worth telling the caller retrying might actually work,
+    // unlike the email_exists cases above.
+    if (error.name === "AuthRetryableFetchError") {
+      throw new Error("Could not reach the server to remove this member. Please try again in a moment.");
+    }
     throw new Error("Could not remove this member.");
   }
 }
