@@ -2,7 +2,7 @@ import "server-only";
 
 import { Storage } from "@google-cloud/storage";
 
-import { getGoogleCloudConfig } from "./config";
+import { getGoogleCloudConfig, isGoogleCloudConfigured } from "./config";
 import { GoogleCloudStorageError } from "./errors";
 import { withRetry } from "./retry";
 
@@ -98,6 +98,36 @@ export async function fileExists(path: string): Promise<boolean> {
     console.error("[Inventra] fileExists (Google Cloud Storage) failed:", err);
     throw new GoogleCloudStorageError("Could not check the file.");
   }
+}
+
+// Lightweight reachability check for a visible "is Cloud Storage actually
+// connected" indicator (Settings → Integrations, and the mobile-facing
+// route below) — checks the bucket itself exists/is reachable rather than
+// any specific file, and never throws (mirrors getInvoicePdfArchiveUrl's
+// "never surface an error, just report unavailable" contract).
+export async function checkGoogleCloudHealth(): Promise<boolean> {
+  try {
+    const config = getGoogleCloudConfig();
+    const [exists] = await getClient().bucket(config.bucketName).exists();
+    return exists;
+  } catch (err) {
+    console.error("[Inventra] checkGoogleCloudHealth (Google Cloud Storage) failed:", err);
+    return false;
+  }
+}
+
+export interface GoogleCloudStatus {
+  configured: boolean;
+  connected: boolean;
+}
+
+// Backs the Settings → Integrations "Cloud Storage" status card (web) and
+// app/api/mobile/google-cloud/status (mobile, since a mobile bundle can
+// never hold the service-role key to check this itself).
+export async function getGoogleCloudStatus(): Promise<GoogleCloudStatus> {
+  const configured = isGoogleCloudConfigured();
+  if (!configured) return { configured: false, connected: false };
+  return { configured: true, connected: await checkGoogleCloudHealth() };
 }
 
 export async function deleteFile(path: string): Promise<void> {
