@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/app/ToastProvider";
 import { useWorkspace } from "@/components/app/CurrencyProvider";
@@ -43,6 +43,29 @@ export function InvoiceDetailSlideOver({
   const [statusBusy, setStatusBusy] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [cloudBusy, setCloudBusy] = useState(false);
+
+  // Surfaces the cloud-archive state up front (a colored dot + label)
+  // instead of only finding out on clicking the ☁️ button —
+  // getInvoicePdfArchiveUrl already never throws (returns null for "no
+  // copy yet" same as "Google Cloud isn't configured"/unreachable), so
+  // this doubles as an online/offline indicator for the archive feature
+  // itself. No React Query on this app (Server Components handle most
+  // data), so this is a plain effect-driven fetch.
+  const [cloudStatus, setCloudStatus] = useState<{ loading: boolean; url: string | null }>({ loading: true, url: null });
+
+  useEffect(() => {
+    let cancelled = false;
+    getInvoicePdfArchiveUrl(invoice.id)
+      .then((url) => {
+        if (!cancelled) setCloudStatus({ loading: false, url });
+      })
+      .catch(() => {
+        if (!cancelled) setCloudStatus({ loading: false, url: null });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [invoice.id]);
 
   async function handleStatusChange(status: string) {
     setStatusBusy(true);
@@ -98,10 +121,14 @@ export function InvoiceDetailSlideOver({
     // Best-effort cloud archive — the download above already happened;
     // this just also keeps a durable copy so it can be re-fetched later
     // without regenerating in the browser. Never blocks or surfaces an
-    // error for the download itself if this fails.
+    // error for the download itself if this fails. Refetch the status
+    // badge on success so it flips to "online" immediately.
     const formData = new FormData();
     formData.append("file", blob, `${invoice.invoiceNumber}.pdf`);
-    archiveInvoicePdf(invoice.id, formData).catch(() => {});
+    archiveInvoicePdf(invoice.id, formData)
+      .then(() => getInvoicePdfArchiveUrl(invoice.id))
+      .then((url) => setCloudStatus({ loading: false, url }))
+      .catch(() => {});
   }
 
   async function handleViewCloudCopy() {
@@ -218,6 +245,16 @@ export function InvoiceDetailSlideOver({
           {invoice.notes && (
             <div className="mb-5 rounded-[10px] border border-border bg-surface-2 px-3 py-2.5 text-[12.5px] text-text-2">{invoice.notes}</div>
           )}
+
+          <div className="mb-2.5 flex items-center gap-1.5">
+            <span
+              className="h-2 w-2 rounded-full"
+              style={{ background: cloudStatus.loading ? "var(--border-2)" : cloudStatus.url ? "var(--green)" : "var(--muted)" }}
+            />
+            <span className="text-[11.5px] font-semibold text-text-2">
+              {cloudStatus.loading ? "Checking cloud storage…" : cloudStatus.url ? "Cloud storage: Online" : "Cloud storage: Offline"}
+            </span>
+          </div>
 
           <div className="flex gap-2.5">
             <button
