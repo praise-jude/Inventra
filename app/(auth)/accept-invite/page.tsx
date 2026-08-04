@@ -51,6 +51,29 @@ function AcceptInviteForm() {
     }
     setLoading(true);
 
+    const supabase = createClient();
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) {
+      setError("Your session has expired. Please open the invite link from your email again.");
+      setLoading(false);
+      return;
+    }
+
+    // Guards against whoever happens to already be signed in landing here
+    // (e.g. an owner who was still logged in from another tab, or a stale
+    // bookmark) and having THEIR account's password changed and status
+    // flipped to awaiting_approval — this previously had no check at all,
+    // so it silently mutated whatever account the browser's current
+    // session belonged to, invite or not.
+    const { data: profile } = await supabase.from("profiles").select("status").eq("id", userData.user.id).single();
+    if (profile?.status !== "invited") {
+      setError(
+        "This invite link doesn't match your currently signed-in account. If you're accepting a different invite, sign out first and open the link from that invite email.",
+      );
+      setLoading(false);
+      return;
+    }
+
     const result = await activateInviteAccount(password);
     if (!result.ok) {
       setError(result.error ?? "Could not set your password.");
@@ -58,20 +81,15 @@ function AcceptInviteForm() {
       return;
     }
 
-    const supabase = createClient();
-    const { data: userData } = await supabase.auth.getUser();
-
     try {
-      if (userData.user) {
-        // Lands in awaiting_approval, or straight to active if invited by
-        // an Owner/Admin — guard_profile_status_transitions() computes the
-        // real target status server-side, this write is just the trigger.
-        // notifyPendingApproval() checks what actually landed rather than
-        // assuming this write took effect verbatim.
-        await supabase.from("profiles").update({ status: "awaiting_approval" }).eq("id", userData.user.id);
-        await acceptInviteTerms();
-        void notifyPendingApproval();
-      }
+      // Lands in awaiting_approval, or straight to active if invited by
+      // an Owner/Admin — guard_profile_status_transitions() computes the
+      // real target status server-side, this write is just the trigger.
+      // notifyPendingApproval() checks what actually landed rather than
+      // assuming this write took effect verbatim.
+      await supabase.from("profiles").update({ status: "awaiting_approval" }).eq("id", userData.user.id);
+      await acceptInviteTerms();
+      void notifyPendingApproval();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not finish activating your account. Please try signing in — if that fails, ask your branch manager to resend your invite.");
       setLoading(false);
