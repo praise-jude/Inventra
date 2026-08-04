@@ -4,25 +4,34 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { isAdminRole, isManagerRole } from "@/lib/roles";
+import { isAdminRole } from "@/lib/roles";
 
+// Manager/Cashier/Warehouse ("branch" roles) get a deliberately narrow
+// sidebar — Products, Inventory, Sales, Invoices, Reports, Expenses,
+// Notifications, plus Dashboard — everything admin-adjacent (branch
+// management, staff, approvals, suppliers, cash reconciliation, customer
+// credit) is owner/admin-only now. Reports/Expenses used to be
+// managerOnly (Manager-tier+); widened to everyone since branch roles
+// need them too. Branch Staff's sidebar entry was removed outright —
+// Admin already reaches the same feature via the Staff panel on
+// /settings/branches, and Manager no longer gets a dedicated nav entry
+// for it (the page itself still works if linked directly).
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: "▦" },
   { href: "/products", label: "Products", icon: "📦" },
   { href: "/inventory", label: "Inventory", icon: "🗃️" },
   { href: "/sales", label: "Sales", icon: "🧾", hideForWarehouse: true },
   { href: "/invoices", label: "Invoices", icon: "📄", hideForWarehouse: true },
-  { href: "/debtors", label: "Customers", icon: "💵", managerOnly: true },
-  { href: "/cash-register", label: "Cash Register", icon: "🧮" },
-  { href: "/inventory/suppliers", label: "Suppliers", icon: "🚚" },
-  { href: "/inventory/supply-records", label: "Supply Records", icon: "🚛", requiresSupplyView: true },
-  { href: "/inventory/warehouses", label: "Warehouses", icon: "🏬" },
-  { href: "/reports", label: "Reports", icon: "📈", managerOnly: true },
+  { href: "/debtors", label: "Customers", icon: "💵", adminOnly: true },
+  { href: "/cash-register", label: "Cash Register", icon: "🧮", adminOnly: true },
+  { href: "/inventory/suppliers", label: "Suppliers", icon: "🚚", adminOnly: true },
+  { href: "/inventory/supply-records", label: "Supply Records", icon: "🚛", adminOnly: true, requiresSupplyView: true },
+  { href: "/inventory/warehouses", label: "Warehouses", icon: "🏬", adminOnly: true },
+  { href: "/reports", label: "Reports", icon: "📈" },
   { href: "/audit-log", label: "Audit Log", icon: "🛡️", adminOnly: true },
-  { href: "/expenses", label: "Expenses", icon: "💸", managerOnly: true },
+  { href: "/expenses", label: "Expenses", icon: "💸" },
   { href: "/settings/branches", label: "Branches", icon: "👥", adminOnly: true },
-  { href: "/branch-staff", label: "Branch Staff", icon: "🧑‍🤝‍🧑", managerOnly: true, hideForAdmin: true },
-  { href: "/approvals", label: "Approvals", icon: "✅", managerOnly: true },
+  { href: "/approvals", label: "Approvals", icon: "✅", adminOnly: true },
   { href: "/notifications", label: "Notifications", icon: "🔔" },
   { href: "/billing", label: "Billing", icon: "💳", adminOnly: true },
   { href: "/settings", label: "Settings", icon: "⚙️", adminOnly: true },
@@ -57,7 +66,6 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
   const isAdmin = isAdminRole(role);
-  const isManagerUp = isManagerRole(role);
   const [collapsed, setCollapsed] = useState(false);
 
   function toggleCollapsed() {
@@ -67,9 +75,7 @@ export function Sidebar({
   const nav = NAV.filter(
     (item) =>
       (!item.adminOnly || isAdmin) &&
-      (!item.managerOnly || isManagerUp) &&
       (!item.hideForWarehouse || role !== "warehouse") &&
-      (!item.hideForAdmin || !isAdmin) &&
       (!item.requiresSupplyView || canViewSupplyRecords),
   );
   const activeHref = [...nav].sort((a, b) => b.href.length - a.href.length).find((item) => pathname.startsWith(item.href))?.href;

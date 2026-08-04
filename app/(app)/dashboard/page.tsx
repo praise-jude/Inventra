@@ -26,7 +26,7 @@ import { formatMoney, formatNumber, formatPct, pctDelta } from "@/lib/format";
 import { formatTodayHeader, formatCurrentTime, greetingFor } from "@/lib/datetime";
 import { countryName } from "@/lib/geo/countries";
 import { MOVEMENT_META } from "@/lib/movement-meta";
-import { isManagerRole } from "@/lib/roles";
+import { isAdminRole } from "@/lib/roles";
 import { STOCK_STATUS_COLORS } from "@/lib/stock-status";
 
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -54,15 +54,19 @@ function timeAgo(iso: string): string {
 export default async function DashboardPage() {
   const [{ profile, org }, entitlements] = await Promise.all([requireProfile(), getEntitlements()]);
   const isPremium = entitlements.tier === "premium";
-  const isAdminTier = isManagerRole(profile.role);
+  // Owner/Admin only — Manager/Cashier/Warehouse ("branch" roles) get the
+  // simplified operational dashboard: no profit/inventory-valuation
+  // figures, no analytics/charts, no cash-register reconciliation. Was
+  // isManagerRole (Manager included), narrowed to owner/admin only.
+  const isOwnerAdmin = isAdminRole(profile.role);
   // Free plan keeps the basic KPI cards (Total Products, Today's Revenue,
   // Low Stock, etc. — role-gated only, unchanged) but loses the actual
   // charts/trends/breakdowns: category mix, revenue/profit trend, sales
   // volume, expense breakdown, daily profit table, team presence.
-  const showAnalytics = isAdminTier && isPremium;
+  const showAnalytics = isOwnerAdmin && isPremium;
   // Not premium-gated (unlike showAnalytics's other sections) — cash
   // reconciliation is core daily operations, not an analytics upsell.
-  const defaultWarehouse = isAdminTier ? (await getWarehouseOptions())[0] : undefined;
+  const defaultWarehouse = isOwnerAdmin ? (await getWarehouseOptions())[0] : undefined;
 
   const [kpis, categoryMix, topSellers, stockHealth, revenueProfit, salesVolume, expenseBreakdown, activity, dailyProfit, teamMembers, cashRegister, outOfStock] =
     await Promise.all([
@@ -122,7 +126,7 @@ export default async function DashboardPage() {
       sub: "vs yesterday",
       delta: formatPct(pctDelta(kpis.today_revenue, kpis.yesterday_revenue)),
       deltaColor: kpis.today_revenue >= kpis.yesterday_revenue ? "var(--green)" : "var(--red)",
-      adminOnly: true,
+      adminOnly: false,
       tier: "primary" as const,
     },
     {
@@ -173,8 +177,11 @@ export default async function DashboardPage() {
       tier: "secondary" as const,
     },
     { label: "Total stock quantity", value: formatNumber(kpis.total_stock_qty ?? 0), icon: "🔢", iconBg: "var(--accent-weak)", sub: "units on hand", delta: null, deltaColor: "", adminOnly: false, tier: "secondary" as const },
-    { label: "Active suppliers", value: formatNumber(kpis.active_suppliers), icon: "🚚", iconBg: "var(--accent-weak)", sub: "onboarded", delta: null, deltaColor: "", adminOnly: false, tier: "secondary" as const },
-  ].filter((card) => isAdminTier || !card.adminOnly);
+    // Suppliers is now an admin-only nav item (see Sidebar.tsx) — keeping
+    // this card visible for branch roles would point at a page they can't
+    // reach.
+    { label: "Active suppliers", value: formatNumber(kpis.active_suppliers), icon: "🚚", iconBg: "var(--accent-weak)", sub: "onboarded", delta: null, deltaColor: "", adminOnly: true, tier: "secondary" as const },
+  ].filter((card) => isOwnerAdmin || !card.adminOnly);
   const primaryKpis = kpiCards.filter((c) => c.tier === "primary");
   const secondaryKpis = kpiCards.filter((c) => c.tier === "secondary");
 
@@ -244,7 +251,7 @@ export default async function DashboardPage() {
       )}
 
       {/* CASH REGISTER */}
-      {isAdminTier && defaultWarehouse && (
+      {isOwnerAdmin && defaultWarehouse && (
         <Link
           href="/cash-register"
           className="mb-4 flex items-center justify-between rounded-2xl border border-border bg-surface p-[15px_18px] shadow-[var(--shadow-sm)] hover:bg-hover"
@@ -438,7 +445,7 @@ export default async function DashboardPage() {
                   <div className="text-[11.5px] text-muted">{formatNumber(p.units)} sold</div>
                 </div>
                 <div className="text-right">
-                  {isAdminTier && <div className="font-mono text-[13px] font-bold">{formatMoney(p.revenue, org.currency)}</div>}
+                  {isOwnerAdmin && <div className="font-mono text-[13px] font-bold">{formatMoney(p.revenue, org.currency)}</div>}
                   {p.trend_pct !== null && (
                     <div className="text-[11px] font-semibold" style={{ color: p.trend_pct >= 0 ? "var(--green)" : "var(--red)" }}>
                       {formatPct(p.trend_pct, 0)}
