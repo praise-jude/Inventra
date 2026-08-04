@@ -8,6 +8,7 @@ import { logError } from "@/lib/logger";
 import { requirePermission } from "@/lib/permissions";
 import { canCreateSale, canEditSale, canVoidSale, UpgradeRequiredError } from "@/lib/entitlements";
 import { createApprovalRequest, getApprovalSettings } from "@/lib/approval-service";
+import { checkAndSendStockAlerts } from "@/lib/slack-service";
 import { getSaleDetail, type SaleDetail } from "@/lib/queries/sales";
 
 interface SalesCtx {
@@ -174,6 +175,9 @@ export async function performRecordSale(
     logError({ feature: "Sales", action: "recordSale" }, "stock_movements insert failed", movementError);
     throw new Error("Could not update stock for this sale.");
   }
+
+  // Fire-and-forget — a Slack outage must never block recording the sale.
+  void checkAndSendStockAlerts(supabase, orgId, lines.map((l) => l.productId));
 
   revalidatePath("/sales");
   revalidatePath("/dashboard");

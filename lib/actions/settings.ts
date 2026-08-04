@@ -211,3 +211,77 @@ export async function toggleIntegration(provider: string, connect: boolean) {
     newValue: { provider, connected: connect },
   });
 }
+
+const SLACK_WEBHOOK_RE = /^https:\/\/hooks\.slack\.com\/services\/.+/;
+
+// Slack is a real integration (unlike the cosmetic toggles above) — needs
+// an actual webhook URL to post to, so it gets its own connect flow rather
+// than toggleIntegration's bare status flip. Sends a real test message as
+// part of connecting, so a typo'd/revoked URL is caught immediately
+// instead of silently failing the first time a stock alert tries to fire.
+export async function saveSlackWebhook(webhookUrl: string): Promise<{ ok: boolean; error?: string }> {
+  const url = webhookUrl.trim();
+  if (!SLACK_WEBHOOK_RE.test(url)) {
+    return { ok: false, error: "That doesn't look like a Slack Incoming Webhook URL (should start with https://hooks.slack.com/services/)." };
+  }
+
+  const { supabase, orgId, userId, role, actorName } = await requireAdminOrgId();
+
+  let testRes: Response;
+  try {
+    testRes = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: "✅ Inventra is now connected — stock alerts will post here." }),
+    });
+  } catch {
+    return { ok: false, error: "Could not reach that URL. Check it was copied correctly." };
+  }
+  if (!testRes.ok) {
+    return { ok: false, error: "Slack rejected the test message — this webhook may have been revoked. Create a new one." };
+  }
+
+  const { error } = await supabase
+    .from("integrations")
+    .update({ status: "connected", connected_at: new Date().toISOString(), config: { webhook_url: url } })
+    .eq("org_id", orgId)
+    .eq("provider", "slack");
+  if (error) return { ok: false, error: "Could not save the connection. Please try again." };
+
+  revalidatePath("/settings/integrations");
+  await logAudit({
+    orgId,
+    actorId: userId,
+    actorName,
+    actorRole: role,
+    action: "settings.updated",
+    module: "Settings",
+    entityType: "integration",
+    entityLabel: "Integration: slack",
+    newValue: { provider: "slack", connected: true },
+  });
+  return { ok: true };
+}
+
+export async function disconnectSlack(): Promise<void> {
+  const { supabase, orgId, userId, role, actorName } = await requireAdminOrgId();
+  const { error } = await supabase
+    .from("integrations")
+    .update({ status: "not_connected", connected_at: null, config: null })
+    .eq("org_id", orgId)
+    .eq("provider", "slack");
+  if (error) throw error;
+
+  revalidatePath("/settings/integrations");
+  await logAudit({
+    orgId,
+    actorId: userId,
+    actorName,
+    actorRole: role,
+    action: "settings.updated",
+    module: "Settings",
+    entityType: "integration",
+    entityLabel: "Integration: slack",
+    newValue: { provider: "slack", connected: false },
+  });
+}

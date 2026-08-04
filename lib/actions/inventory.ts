@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/actions/audit";
 import { requirePermission } from "@/lib/permissions";
 import { orIlike } from "@/lib/postgrest-filter";
+import { checkAndSendStockAlerts } from "@/lib/slack-service";
 import type { AdjustmentType } from "@/lib/supabase/database.types";
 
 export interface ProductPickerRow {
@@ -91,6 +92,9 @@ export async function createAdjustment(input: CreateAdjustmentInput) {
     created_by: user.id,
   });
   if (error) throw error;
+
+  // Fire-and-forget — a Slack outage must never block the adjustment.
+  void checkAndSendStockAlerts(supabase, profile.org_id, [input.productId]);
 
   revalidatePath("/inventory/adjustments");
   revalidatePath("/inventory/movements");
