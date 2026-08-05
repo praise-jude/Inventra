@@ -8,7 +8,8 @@ import { createClient } from "@/lib/supabase/client";
 import { getStockAlerts, type StockAlert } from "@/lib/actions/alerts";
 import { onDataChanged } from "@/lib/client-events";
 import { usePresence } from "@/components/app/PresenceProvider";
-import { getGoogleCloudStatusAction, type GoogleCloudStatus } from "@/lib/actions/google-cloud";
+import { getGoogleCloudStatusAction } from "@/lib/actions/google-cloud";
+import type { GoogleCloudStatus } from "@/lib/google-cloud/storage";
 import { isAdminRole } from "@/lib/roles";
 
 const TITLES: Record<string, string> = {
