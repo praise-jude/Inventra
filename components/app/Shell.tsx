@@ -77,6 +77,7 @@ export function Shell({
           initials={initials}
           firstName={firstName}
           theme={theme}
+          role={role}
           onToggleTheme={toggleTheme}
           onOpenPalette={() => setPaletteOpen(true)}
           onToggleSidebar={() => setSidebarOpen((v) => !v)}

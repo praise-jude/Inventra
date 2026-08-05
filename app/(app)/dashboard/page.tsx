@@ -16,7 +16,6 @@ import { getActiveTeamMembersForPresence } from "@/lib/queries/team";
 import { getWarehouseOptions, getProductsPage } from "@/lib/queries/products";
 import { getTodaysCashRegister } from "@/lib/queries/cash-register";
 import { getEntitlements } from "@/lib/entitlements";
-import { getGoogleCloudStatus } from "@/lib/google-cloud/storage";
 import { FreePlanBanner } from "@/components/billing/FreePlanBanner";
 import { AreaChart } from "@/components/charts/AreaChart";
 import { DonutChart } from "@/components/charts/DonutChart";
@@ -69,7 +68,7 @@ export default async function DashboardPage() {
   // reconciliation is core daily operations, not an analytics upsell.
   const defaultWarehouse = isOwnerAdmin ? (await getWarehouseOptions())[0] : undefined;
 
-  const [kpis, categoryMix, topSellers, stockHealth, revenueProfit, salesVolume, expenseBreakdown, activity, dailyProfit, teamMembers, cashRegister, outOfStock, cloudStatus] =
+  const [kpis, categoryMix, topSellers, stockHealth, revenueProfit, salesVolume, expenseBreakdown, activity, dailyProfit, teamMembers, cashRegister, outOfStock] =
     await Promise.all([
       getKpis(),
       showAnalytics ? getCategoryMix() : Promise.resolve([]),
@@ -83,9 +82,6 @@ export default async function DashboardPage() {
       showAnalytics ? getActiveTeamMembersForPresence() : Promise.resolve([]),
       defaultWarehouse ? getTodaysCashRegister(defaultWarehouse.id) : Promise.resolve(null),
       getProductsPage({ status: "out_of_stock", active: "active" }, 1, 6),
-      // Not gated by showAnalytics/premium — an infra status, not an
-      // analytics upsell, same reasoning as cash reconciliation above.
-      isOwnerAdmin ? getGoogleCloudStatus() : Promise.resolve(null),
     ]);
   const todaysProfit = dailyProfit.reduce((sum, p) => sum + (Number(p.profit) || 0), 0);
 
@@ -518,32 +514,6 @@ export default async function DashboardPage() {
           </div>
         </div>
       </div>
-
-      {cloudStatus && (
-        <div className="mt-4 flex items-center gap-3 rounded-2xl border border-border bg-surface p-4 shadow-[var(--shadow-sm)]">
-          <span
-            className="flex h-[38px] w-[38px] items-center justify-center rounded-[10px] text-[18px]"
-            style={{ background: cloudStatus.connected ? "var(--green-weak)" : "var(--red-weak)" }}
-          >
-            ☁️
-          </span>
-          <div className="flex-1">
-            <div className="text-[13.5px] font-bold">Google Cloud Storage</div>
-            <div className="mt-0.5 text-[12px] leading-snug text-text-2">Invoice PDF archival</div>
-          </div>
-          <Link
-            href="/settings/integrations"
-            className="rounded-[20px] px-[9px] py-0.5 text-[11px] font-bold"
-            style={
-              cloudStatus.connected
-                ? { color: "var(--green)", background: "var(--green-weak)" }
-                : { color: "var(--red)", background: "var(--red-weak)" }
-            }
-          >
-            {cloudStatus.connected ? "Connected" : cloudStatus.configured ? "Unreachable" : "Not configured"}
-          </Link>
-        </div>
-      )}
 
       {showAnalytics && (
         <div className="mt-4">

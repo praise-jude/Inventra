@@ -8,6 +8,8 @@ import { createClient } from "@/lib/supabase/client";
 import { getStockAlerts, type StockAlert } from "@/lib/actions/alerts";
 import { onDataChanged } from "@/lib/client-events";
 import { usePresence } from "@/components/app/PresenceProvider";
+import { getGoogleCloudStatusAction, type GoogleCloudStatus } from "@/lib/actions/google-cloud";
+import { isAdminRole } from "@/lib/roles";
 
 const TITLES: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -40,6 +42,7 @@ export function Topbar({
   initials,
   firstName,
   theme,
+  role,
   onToggleTheme,
   onOpenPalette,
   onToggleSidebar,
@@ -47,6 +50,7 @@ export function Topbar({
   initials: string;
   firstName: string;
   theme: "light" | "dark";
+  role: string;
   onToggleTheme: () => void;
   onOpenPalette: () => void;
   onToggleSidebar: () => void;
@@ -58,9 +62,11 @@ export function Topbar({
   const [alertsOpen, setAlertsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [alerts, setAlerts] = useState<StockAlert[]>([]);
+  const [cloudStatus, setCloudStatus] = useState<GoogleCloudStatus | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const alertsRef = useRef<HTMLDivElement>(null);
   const helpRef = useRef<HTMLDivElement>(null);
+  const isAdmin = isAdminRole(role);
 
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
@@ -76,6 +82,16 @@ export function Topbar({
   useEffect(() => {
     getStockAlerts().then(setAlerts).catch(() => setAlerts([]));
   }, [pathname]);
+
+  // Infra status, not per-page data — fetched once rather than on every
+  // navigation like alerts above. Admin-only, same tier as Settings ->
+  // Integrations where it links to.
+  useEffect(() => {
+    if (!isAdmin) return;
+    getGoogleCloudStatusAction()
+      .then(setCloudStatus)
+      .catch(() => setCloudStatus({ configured: false, connected: false }));
+  }, [isAdmin]);
 
   // Also refresh immediately when a product/stock mutation happens on the
   // current page — without this the bell would only catch up on the next
@@ -145,6 +161,20 @@ export function Topbar({
           </div>
         )}
       </div>
+      {isAdmin && cloudStatus && (
+        <button
+          onClick={() => router.push("/settings/integrations")}
+          title={`Google Cloud Storage: ${cloudStatus.connected ? "Connected" : cloudStatus.configured ? "Unreachable" : "Not configured"}`}
+          aria-label="Google Cloud Storage status"
+          className="relative h-9 w-9 rounded-[9px] border border-border bg-surface text-[15px] text-text hover:bg-hover"
+        >
+          <span aria-hidden="true">☁️</span>
+          <span
+            className="absolute right-[7px] top-[7px] h-[7px] w-[7px] rounded-full border-[1.5px] border-surface"
+            style={{ background: cloudStatus.connected ? "var(--green)" : "var(--red)" }}
+          />
+        </button>
+      )}
       <button
         onClick={onToggleTheme}
         title="Toggle theme"
